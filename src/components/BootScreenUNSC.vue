@@ -4,7 +4,7 @@
     <div class="monitor">
       <div class="hdr">
         <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-        <div class="title">UNSC SECURE ACCESS TERMINAL // {{ channel }}</div>
+        <div class="title">{{ bootTitlePrefix }} {{ channel }}</div>
       </div>
 
       <div class="body">
@@ -18,19 +18,19 @@
             <div class="bar" :class="{ booting }"></div>
           </div>
 
-          <div class="line" v-if="typedDone && !booting">CLICK TO INITIATE AUTH HANDSHAKE</div>
-          <div class="line" v-if="booting">HANDSHAKE ACCEPTED // SESSION OPEN</div>
+          <div class="line" v-if="typedDone && !booting">{{ bootUi.clickToInitiate }}</div>
+          <div class="line" v-if="booting">{{ bootUi.handshakeAccepted }}</div>
 
           <div class="small dim" v-if="typedDone">
             <span class="caret"></span>
-            AUDIO/INPUT LOCKOUT RELEASED ON USER CONFIRMATION
+            {{ bootUi.lockoutNote }}
           </div>
         </div>
       </div>
 
       <div class="ftr dim">
-        <span>SYS: OK</span>
-        <span>IFF: VALID</span>
+        <span>{{ bootFooter[0] }}</span>
+        <span>{{ bootFooter[1] }}</span>
         <span>NET: {{ booting ? "LINK" : "IDLE" }}</span>
         <span>SEC: {{ booting ? "AMBER" : "GREEN" }}</span>
       </div>
@@ -39,6 +39,8 @@
 </template>
 
 <script>
+import Config from "@/config/unit-config.json";
+
 export default {
   name: "BootScreenUNSC",
   emits: ["enter", "done"],
@@ -51,17 +53,7 @@ export default {
       exiting: false,
 
       // UNSC/Halo-coded flavor text
-      fullLines: [
-        "UNSC ACCESS NODE: ORBITAL BRIEFING SYSTEM",
-        "ROUTE: KHARON REACH RELAY // HEKATE AO",
-        "AUTHORITY: NAVSPECWARCOM // 150TH RRG",
-        "",
-        "» SIGNAL ACQUISITION: STABLE // LOW NOISE",
-        "» ENCRYPTION SUITE: SWORD/VAULT // ACTIVE",
-        "» IFF PACKET: RECEIVED // VERIFIED",
-        "» THREAT FILTER: ENABLED // CONTENT SANITIZED",
-        "» STAFF CREDENTIALS: REQUIRED FOR WRITE ACCESS",
-      ],
+      fullLines: (Config.ui?.boot?.bootLines || []),
       typedLines: [],
       typedCharIndex: 0,
       lineIndex: 0,
@@ -70,6 +62,17 @@ export default {
     };
   },
   computed: {
+    bootUi() {
+      return Config.ui?.boot || {};
+    },
+    bootFooter() {
+      const f = Config.ui?.boot?.footer;
+      return Array.isArray(f) && f.length ? f : ["SYS: OK","IFF: VALID"];
+    },
+    bootTitlePrefix() {
+      return Config.ui?.boot?.titlePrefix || "SECURE ACCESS TERMINAL //";
+    },
+
     typedHtml() {
       const escape = (s) =>
         String(s)
