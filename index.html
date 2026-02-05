@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta property="og:type" content="website" />
+  </head>
+
+  <body style="margin: 0px">
+    <div id="app"></div>
+
+    <!-- ✅ Deployment-only globals (namespaced; point to Netlify proxy to avoid CORS) -->
+    <script>
+      // Use your Netlify function (proxy) instead of script.google.com
+      window.DEPLOYMENT_EXEC_URL = "/.netlify/functions/gas";
+      // Optional legacy globals can be set here if you embed this app elsewhere.
+    </script>
+
+    <!-- Your app -->
+    <script type="module" src="/src/main.js"></script>
+
+    <!-- three.js + vanta (unchanged) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script type="module" src="/src/assets/scripts/vanta.globe.min.js"></script>
+
+    <script type="module">
+      VANTA.GLOBE({
+        el: "body",
+        mouseControls: false,
+        touchControls: false,
+        gyroControls: false,
+        minHeight: 200.0,
+        minWidth: 200.0,
+        scale: 1.0,
+        scaleMobile: 1.0,
+        color: 0x4c6944,
+        color2: 0x368fb6,
+        backgroundColor: 0x111111,
+        size: 2.0,
+        sphereRotation: -0.002,
+        meshRotation: 0.004,
+      });
+    </script>
+  </body>
+</html>
