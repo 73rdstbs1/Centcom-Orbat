@@ -6,7 +6,7 @@
       <div class="term-hdr">
         <span class="hdr-icon" aria-hidden="true"></span>
         <div class="term-title">
-          UNSC ORDER OF BATTLE // UNIT ROSTER
+          {{ branding.rosterTerminalTitle }}
         </div>
       </div>
 
@@ -19,7 +19,7 @@
         <div class="flicker" aria-hidden="true"></div>
 
         <div class="logo-ghost" aria-hidden="true">
-          <img src="/faction-logos/FUD_UNSC_Logo.png" alt="" />
+          <img :src="branding.ghostLogo" alt="" />
         </div>
 
         <div class="content-scroll">
@@ -142,7 +142,7 @@
       <div class="term-hdr">
         <span class="hdr-icon" aria-hidden="true"></span>
         <div class="term-title">
-          TRAINING & CONTACTS // REF DATA
+          {{ branding.refDataTerminalTitle }}
         </div>
       </div>
 
@@ -417,6 +417,10 @@ export default {
     this.triggerFlicker();
   },
   computed: {
+    branding() {
+      return Config.branding || {};
+    },
+
 attendanceMap() {
       const map = Object.create(null);
       (this.members || []).forEach(m => {
