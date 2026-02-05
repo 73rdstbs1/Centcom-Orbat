@@ -1,0 +1,17 @@
+{
+  "initialSlug": "003",
+  "planetPath": "/Kharon_Moon.webm",
+  "animate": true,
+  "defaultTitle": "150TH ORBAT |",
+  "icon": "/faction-logos/FUD_UNSC_Logo.png",
+  "header": {
+    "planet": "KHARON 1",
+    "year": "2553",
+    "system": "KHARON REACH",
+    "AO": "MOON - HECATE",
+    "status": "IN TRANSIT",
+    "subheaderTitle": "150TH BROADSWORD RRG",
+    "subheaderSubtitle": "CLASSIFIED"
+  },
+  "pilotSpecialInfo": {}
+}
