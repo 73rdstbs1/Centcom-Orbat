@@ -8,14 +8,14 @@
           <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
           <span v-if="displayName" class="auth-name">· {{ displayName }}</span>
         </div>
-        <button class="auth-logout" @click="onLogout">Logout</button>
+        <button class="auth-logout" @click="onLogout">{{ authLogoutLabel }}</button>
       </div>
 
       <div class="title clipped-x-large-forward">
-        <img class="logo" src="/faction-logos/Broadsword111.png" />
+        <img class="logo" :src="branding.headerLogo" />
         <div class="title-container">
           <div id="title-first-line" class="title-row">
-            <span id="title-header">UNSC TACNET</span>
+            <span id="title-header">{{ branding.networkTitle }}</span>
           </div>
           <div class="title-row">
             <span id="subtitle-header">{{ header.subheaderTitle }}</span>
@@ -34,29 +34,29 @@
         <div class="location-info">
           <div class="location-row grid">
             <div id="year">
-              <h4>Year</h4>
+              <h4>{{ labels.year }}</h4>
               <span class="subtitle">{{ header.year }}</span>
             </div>
 
             <div id="status" class="span-2">
-              <h4>Status</h4>
+              <h4>{{ labels.status }}</h4>
               <span class="subtitle">{{ header.status }}</span>
             </div>
           </div>
 
           <div class="location-row grid">
             <div id="AO">
-              <h4>AO</h4>
+              <h4>{{ labels.ao }}</h4>
               <span class="subtitle">{{ header.AO }}</span>
             </div>
 
             <div id="planet">
-              <h4>Planet</h4>
+              <h4>{{ labels.planet }}</h4>
               <span class="subtitle">{{ header.planet }}</span>
             </div>
 
             <div id="system">
-              <h4>System</h4>
+              <h4>{{ labels.system }}</h4>
               <span class="subtitle">{{ header.system }}</span>
             </div>
           </div>
@@ -93,6 +93,8 @@
  * - scroll speed is constant via tickerPxPerSecond
  * - sequence refreshes every sequenceRefreshMs to keep it ambient/random
  */
+import { getConfig } from "../../config/runtimeConfig";
+
 import {
   adminUser,
   isAdmin,
@@ -185,6 +187,16 @@ export default {
     };
   },
   computed: {
+    branding() {
+      return getConfig().branding || {};
+    },
+    authLogoutLabel() {
+      return (getConfig().ui?.auth?.logoutLabel || "Logout");
+    },
+    labels() {
+      return (getConfig().ui?.labels || {});
+    },
+
     isLoggedIn() {
       return this.role === "member" || this.isStaff;
     },
