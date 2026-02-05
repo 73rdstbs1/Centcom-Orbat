@@ -9,7 +9,7 @@ import Deployment from "@/views/DeploymentView.vue";
 import { isAdmin } from "@/utils/adminAuth";
 import Config from "@/config/unit-config.json";
 
-const DEFAULT_TITLE = Config.defaultTitle || "UNSC BRIEFING";
+const DEFAULT_TITLE = Config.defaultTitle || `${Config.branding?.documentTitleSuffix || "BRIEFING"}`;
 
 // Staff gate helper
 function isStaff() {
