@@ -1,0 +1,17 @@
+{
+  "initialSlug": "000",
+  "planetPath": "/Kharon_Moon.webm",
+  "animate": true,
+  "defaultTitle": "(UNIT NAME) ORBAT |",
+  "icon": "/faction-logos/FUD_UNSC_Logo.png",
+  "header": {
+    "planet": "PLANET NAME",
+    "year": "2026",
+    "system": "SYSTEM NAME",
+    "AO": "AO EXAMPLE",
+    "status": "STATUS",
+    "subheaderTitle": "UNIT NAME",
+    "subheaderSubtitle": "CLASSIFIED"
+  },
+  "pilotSpecialInfo": {}
+}
