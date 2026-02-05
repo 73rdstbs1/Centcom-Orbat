@@ -1,0 +1,50 @@
+{
+  "initialSlug": "003",
+  "planetPath": "/Kharon_Moon.webm",
+  "animate": true,
+  "defaultTitle": "150TH ORBAT |",
+  "icon": "/faction-logos/FUD_UNSC_Logo.png",
+  "header": {
+    "planet": "KHARON 1",
+    "year": "2553",
+    "system": "KHARON REACH",
+    "AO": "MOON - HECATE",
+    "status": "IN TRANSIT",
+    "subheaderTitle": "150TH BROADSWORD RRG",
+    "subheaderSubtitle": "CLASSIFIED"
+  },
+  "pilotSpecialInfo": {},
+  "unit": {
+    "name": "150TH BROADSWORD RRG",
+    "tagline": "CLASSIFIED"
+  },
+  "sheets": {
+    "membersCsvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRq9fpYoWY_heQNfXegQ52zvOIGk-FCMML3kw2cX3M3s8blNRSH6XSRUdtTo7UXaJDDkg4bGQcl3jRP/pub?gid=1185035639&single=true&output=csv",
+    "refDataCsvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRq9fpYoWY_heQNfXegQ52zvOIGk-FCMML3kw2cX3M3s8blNRSH6XSRUdtTo7UXaJDDkg4bGQcl3jRP/pub?gid=107253735&single=true&output=csv",
+    "opsCsvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRq9fpYoWY_heQNfXegQ52zvOIGk-FCMML3kw2cX3M3s8blNRSH6XSRUdtTo7UXaJDDkg4bGQcl3jRP/pub?gid=1115158828&single=true&output=csv"
+  },
+  "deployment": {
+    "execUrl": "/.netlify/functions/gas",
+    "rankIconBase": "/ranks",
+    "rankIconExt": "png"
+  },
+  "terminal": {
+    "feedPool": [
+      "UNITED NATIONS SPACE COMMAND // SECURE MILNET",
+      "NODE: ORBITAL BRIEFING SYSTEM (OBS)",
+      "ROUTE: KHARON REACH RELAY // HEKATE AO",
+      "AUTHORITY: NAVSPECWARCOM // 150TH RRG",
+      "\u00bb ENCRYPTION SUITE: SWORD/VAULT // ACTIVE",
+      "\u00bb THREAT FILTER: ENABLED // CONTENT SANITIZED",
+      "\u00bb IFF PACKET: RECEIVED // VERIFIED",
+      "\u00bb WRITE ACCESS: STAFF CREDENTIALS REQUIRED",
+      "\u00bb TELEMETRY: SYNCHRONIZED",
+      "\u00bb SATCOM: UPLINK STABLE",
+      "\u00bb EDGE CACHE: PRIMED",
+      "\u00bb INTRUSION MONITOR: ARMED",
+      "\u00bb PACKET INTEGRITY: PASS",
+      "\u00bb AUTH HANDSHAKE: LISTENING",
+      "\u00bb LOCAL SESSION: QUARANTINED"
+    ]
+  }
+}
