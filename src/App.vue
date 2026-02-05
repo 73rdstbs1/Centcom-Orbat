@@ -4,7 +4,7 @@
     <div class="term">
       <div class="term-hdr">
         <span class="hdr-icon" aria-hidden="true"></span>
-        <div class="term-title">UNSC SECURE ACCESS TERMINAL // BRIEFING GRID</div>
+        <div class="term-title">{{ branding.loginTerminalTitle }}</div>
         <div class="term-stamp">{{ stamp }}</div>
       </div>
 
@@ -13,7 +13,7 @@
         <div class="flicker" aria-hidden="true"></div>
 
         <div class="logo-ghost" aria-hidden="true">
-          <img src="/faction-logos/FUD_UNSC_Logo.png" alt="" />
+          <img :src="branding.ghostLogo" alt="" />
         </div>
 
         <!-- Ambient terminal feed (scrolls after 5 lines) -->
@@ -22,33 +22,33 @@
         </div>
 
         <div class="gate">
-          <div class="gate-title">ACCESS OPTIONS</div>
+          <div class="gate-title">{{ loginUi.gateTitle }}</div>
 
           <div class="login-options-wrap">
             <div class="login-options">
               <button class="login-option" :disabled="isFading" @click="memberLogin">
-                <div class="opt-title">Member Access</div>
-                <div class="opt-desc">Read-only // Mission Status & Roster</div>
+                <div class="opt-title">{{ loginUi.memberTitle }}</div>
+                <div class="opt-desc">{{ loginUi.memberDesc }}</div>
               </button>
 
               <button class="login-option" :disabled="isFading" @click="openAdminLogin">
-                <div class="opt-title">Officer / Staff</div>
-                <div class="opt-desc">Authenticate // Admin & Deployment</div>
+                <div class="opt-title">{{ loginUi.staffTitle }}</div>
+                <div class="opt-desc">{{ loginUi.staffDesc }}</div>
               </button>
             </div>
           </div>
 
           <div class="hint dim">
-            SELECT ACCESS PATH. UNAUTHORIZED ACCESS IS PUNISHABLE UNDER THE UNIFIED MILITARY CODE.
+            {{ loginUi.legalHint }}
           </div>
         </div>
       </div>
 
       <div class="term-ftr dim">
-        <span>SYS: OK</span>
-        <span>IFF: VALID</span>
-        <span>NET: LINK</span>
-        <span>SEC: GREEN</span>
+        <span>{{ loginFooter[0] }}</span>
+        <span>{{ loginFooter[1] }}</span>
+        <span>{{ loginFooter[2] }}</span>
+        <span>{{ loginFooter[3] }}</span>
       </div>
     </div>
 
@@ -132,6 +132,20 @@ export default {
   },
 
   computed: {
+    branding() {
+      return Config.branding || {};
+    },
+    loginUi() {
+      return Config.ui?.login || {};
+    },
+    loginFooter() {
+      const f = Config.ui?.login?.footer;
+      return Array.isArray(f) && f.length ? f : ["SYS: OK","IFF: VALID","NET: LINK","SEC: GREEN"];
+    },
+    documentTitleSuffix() {
+      return Config.branding?.documentTitleSuffix || "BRIEFING";
+    },
+
     // caret is inline on the active typing line (not floating on its own line)
     typedHtml() {
       const escape = (s) =>
@@ -163,7 +177,7 @@ export default {
 
   created() {
     // --- untouched: your working init logic ---
-    this.setTitleFavicon(`${Config.defaultTitle} UNSC BRIEFING`, Config.icon);
+    this.setTitleFavicon(`${Config.defaultTitle} ${this.documentTitleSuffix}`.trim(), Config.icon);
 
     // preload markdown
     this.importMissions(import.meta.glob("@/assets/missions/**/*.md", { query: "?raw", import: "default" }));
@@ -211,7 +225,7 @@ export default {
       this.currentCharIndex = 0;
 
       // Force the very first line to begin at character 1
-      this.currentTarget = "UNITED NATIONS SPACE COMMAND // SECURE MILNET";
+      this.currentTarget = this.feedPool[0] || "SECURE MILNET // READY";
 
       // reset recent picks
       this.lastPickIndices = [];
