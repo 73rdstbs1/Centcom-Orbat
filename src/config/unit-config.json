@@ -1,50 +1,119 @@
 {
-  "initialSlug": "003",
-  "planetPath": "/Kharon_Moon.webm",
-  "animate": true,
-  "defaultTitle": "150TH ORBAT |",
-  "icon": "/faction-logos/FUD_UNSC_Logo.png",
-  "header": {
-    "planet": "KHARON 1",
-    "year": "2553",
-    "system": "KHARON REACH",
-    "AO": "MOON - HECATE",
-    "status": "IN TRANSIT",
-    "subheaderTitle": "150TH BROADSWORD RRG",
-    "subheaderSubtitle": "CLASSIFIED"
-  },
-  "pilotSpecialInfo": {},
-  "unit": {
-    "name": "150TH BROADSWORD RRG",
-    "tagline": "CLASSIFIED"
-  },
-  "sheets": {
-    "membersCsvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRq9fpYoWY_heQNfXegQ52zvOIGk-FCMML3kw2cX3M3s8blNRSH6XSRUdtTo7UXaJDDkg4bGQcl3jRP/pub?gid=1185035639&single=true&output=csv",
-    "refDataCsvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRq9fpYoWY_heQNfXegQ52zvOIGk-FCMML3kw2cX3M3s8blNRSH6XSRUdtTo7UXaJDDkg4bGQcl3jRP/pub?gid=107253735&single=true&output=csv",
-    "opsCsvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRq9fpYoWY_heQNfXegQ52zvOIGk-FCMML3kw2cX3M3s8blNRSH6XSRUdtTo7UXaJDDkg4bGQcl3jRP/pub?gid=1115158828&single=true&output=csv"
-  },
-  "deployment": {
-    "execUrl": "/.netlify/functions/gas",
-    "rankIconBase": "/ranks",
-    "rankIconExt": "png"
-  },
-  "terminal": {
-    "feedPool": [
-      "UNITED NATIONS SPACE COMMAND // SECURE MILNET",
-      "NODE: ORBITAL BRIEFING SYSTEM (OBS)",
-      "ROUTE: KHARON REACH RELAY // HEKATE AO",
-      "AUTHORITY: NAVSPECWARCOM // 150TH RRG",
-      "\u00bb ENCRYPTION SUITE: SWORD/VAULT // ACTIVE",
-      "\u00bb THREAT FILTER: ENABLED // CONTENT SANITIZED",
-      "\u00bb IFF PACKET: RECEIVED // VERIFIED",
-      "\u00bb WRITE ACCESS: STAFF CREDENTIALS REQUIRED",
-      "\u00bb TELEMETRY: SYNCHRONIZED",
-      "\u00bb SATCOM: UPLINK STABLE",
-      "\u00bb EDGE CACHE: PRIMED",
-      "\u00bb INTRUSION MONITOR: ARMED",
-      "\u00bb PACKET INTEGRITY: PASS",
-      "\u00bb AUTH HANDSHAKE: LISTENING",
-      "\u00bb LOCAL SESSION: QUARANTINED"
+  "_help": {
+    "what_is_this": "Single-source unit configuration. Edit ONLY this file when cloning/branching for a new unit.",
+    "how_annotations_work": "This file is valid JSON. Anything under keys starting with '_' is ignored by the app (used as documentation).",
+    "quick_start_checklist": [
+      "1) unit.name + unit.tagline",
+      "2) defaultTitle + icon",
+      "3) header.* (top banner text)",
+      "4) sheets.*CsvUrl (3 published CSV links from Google Sheets)",
+      "5) (optional) ui.* (login/boot/labels text) + terminal.feedPool (terminal flavor text)"
     ]
+  },
+
+  "_example_values": {
+    "csv_url_format": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<TAB_GID>&single=true&output=csv",
+    "asset_paths": "Put images/videos in /public then reference them like '/logo.png' or '/video/background.webm'"
+  },
+
+  "unit": {
+    "_help": "Shown in header + page titles + various UI areas.",
+    "name": "UNIT NAME HERE",
+    "tagline": "Short tagline / motto / classification label"
+  },
+
+  "defaultTitle": "UNIT ORBAT |",
+  "_help_defaultTitle": "Document title prefix. Example result: 'UNIT ORBAT | Roster' (depends on route/view).",
+
+  "icon": "/brand/unit-logo.png",
+  "_help_icon": "Browser tab favicon + some UI/logo spots. Place file in /public/brand/ then reference with leading '/'.",
+
+  "animate": true,
+  "_help_animate": "Enable/disable UI animations.",
+
+  "initialSlug": "000",
+  "_help_initialSlug": "Default selection when opening roster (commonly the root element slug). Keep as a string.",
+
+  "planetPath": "/backgrounds/orbit.webm",
+  "_help_planetPath": "Background video (or image) used on the landing/login/boot screen (depending on your build). Put in /public/backgrounds/.",
+
+  "header": {
+    "_help": "Top header/banner fields. Change these to match your unit theme/lore.",
+    "planet": "LOCATION / THEATRE",
+    "year": "YEAR / ERA",
+    "system": "REGION / COMMAND",
+    "AO": "AREA OF OPERATIONS",
+    "status": "STATUS (e.g., ACTIVE / DEPLOYED / TRAINING)",
+    "subheaderTitle": "SUBHEADER TITLE (e.g., UNIT DESIGNATION)",
+    "subheaderSubtitle": "SUBHEADER SUBTITLE (e.g., CLASSIFICATION)"
+  },
+
+  "sheets": {
+    "_help": "Publish each sheet tab to CSV and paste URLs here. These must be publicly accessible CSV endpoints.",
+    "membersCsvUrl": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<GID_MEMBERS>&single=true&output=csv",
+    "refDataCsvUrl": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<GID_REF_DATA>&single=true&output=csv",
+    "opsCsvUrl": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<GID_OPS>&single=true&output=csv"
+  },
+
+  "deployment": {
+    "_help": "Netlify + asset path settings.",
+    "execUrl": "/.netlify/functions/gas",
+    "_help_execUrl": "Netlify Function endpoint used to proxy Google Apps Script (admin/write actions).",
+    "rankIconBase": "/ranks",
+    "rankIconExt": "png",
+    "_help_rankIcons": "Rank icons are resolved like `${rankIconBase}/${rankCode}.${rankIconExt}`. Put icons in /public/ranks/."
+  },
+
+  "ui": {
+    "_help": "Optional UI text overrides. If your build doesn’t use some of these, they’ll be safely ignored.",
+    "labels": {
+      "_help": "Header label text (left/right header panels).",
+      "planet": "LOCATION",
+      "year": "YEAR",
+      "system": "REGION",
+      "AO": "AO",
+      "status": "STATUS",
+      "logout": "LOG OUT"
+    },
+
+    "login": {
+      "_help": "Login overlay text (if enabled in your build).",
+      "title": "SECURE ACCESS TERMINAL",
+      "subtitle": "ENTER CREDENTIALS",
+      "hint": "Hint text shown below inputs (optional).",
+      "footer": "Unauthorized access prohibited."
+    },
+
+    "boot": {
+      "_help": "Boot/handshake screen copy (if enabled in your build).",
+      "title": "INITIALIZING ORBAT INTERFACE",
+      "lines": [
+        "Loading configuration…",
+        "Validating roster dataset…",
+        "Establishing session…"
+      ],
+      "footer": "Ready."
+    }
+  },
+
+  "terminal": {
+    "_help": "Terminal ‘flavor text’ pool used for scrolling/random feed lines. Keep it generic so any unit can reuse.",
+    "feedPool": [
+      "SECURE NETWORK // ACCESS GRANTED",
+      "NODE: ORBAT INTERFACE // ONLINE",
+      "DATA LINK: ACTIVE",
+      "CACHE: WARMED",
+      "SYNC: COMPLETE",
+      "NOTICE: OPERATIONAL DATA SUBJECT TO CHANGE",
+      "LOG: SESSION STARTED"
+    ]
+  },
+
+  "pilotSpecialInfo": {
+    "_help": "Optional mapping for custom per-person badges/notes keyed by member ID/slug (only if your build supports it).",
+    "example_member_id": {
+      "label": "SPECIAL QUALIFICATION",
+      "value": "EXAMPLE TEXT"
+    }
   }
 }
