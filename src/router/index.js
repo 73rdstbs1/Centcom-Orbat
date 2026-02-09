@@ -25,10 +25,6 @@ function isStaff() {
 const routes = [
   { path: "/", redirect: "/status" },
 
-  { path: "/status", name: "Mission Status", component: Status, props: true, meta: { title: `${DEFAULT_TITLE} BRIEFING SYSTEM` } },
-  { path: "/roster", name: "Unit Roster", component: Pilots, props: true, meta: { title: `${DEFAULT_TITLE} UNIT ROSTER` } },
-
-
   { path: "/campaigns", name: "Campaign Log", component: CampaignLog, props: true, meta: { title: `${DEFAULT_TITLE} CAMPAIGN LOG` } },
   { path: "/commanders", name: "Hall of Commanders", component: HallOfCommanders, props: true, meta: { title: `${DEFAULT_TITLE} HALL OF COMMANDERS` } },
   { path: "/backend-roster", name: "Backend Roster", component: BackendRoster, props: true, meta: { title: `${DEFAULT_TITLE} BACKEND ROSTER` } },
