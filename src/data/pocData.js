@@ -1,7 +1,28 @@
+// FILE: src/data/pocData.js
+/**
+ * Proof-of-Concept data (placeholders).
+ *
+ * Editing guide:
+ * - Most future edits happen here.
+ * - Add/modify campaigns, commanders, awards, members as plain objects.
+ * - Views rely on lookup maps: campaignById, awardById, memberById.
+ *
+ * CSV integration later:
+ * - Keep the exported array names stable (campaigns, commanders, awardsCatalog, membersCatalog).
+ * - Replace their contents with parsed CSV rows; keep ids stable.
+ */
+
 export const pocConfig = {
+  /** Hall of Fame threshold: any award with level >= this value shows up */
   minHallOfFameAwardLevel: 3,
 };
 
+/**
+ * Campaigns
+ * - overview fields used by cards
+ * - orgChart + operations used by campaign modal
+ * - perUnitRoster is intended for unit leads (placeholder)
+ */
 export const campaigns = [
   {
     id: "op-bravo",
@@ -11,7 +32,7 @@ export const campaigns = [
     endDate: "2026-02-05",
     quarter: "2026 Q1",
     overview:
-      "Another sample campaign that is currently active. Focused on interdiction, reconnaissance, and stability operations.",
+      "Sample active campaign focused on interdiction, reconnaissance, and stability operations.",
 
     orgChart: {
       taskForceName: "CENTCOM Task Force Atlas",
@@ -35,7 +56,7 @@ export const campaigns = [
         id: "bravo-001",
         date: "2026-01-10",
         title: "Recon in Force",
-        status: "completed",
+        status: "completed", // completed | failed | pending
         opordTitle: "OPORD 001",
         opordSummary:
           "Probe enemy lines, identify supply routes, and capture map intel from comms relay.",
@@ -75,7 +96,6 @@ export const campaigns = [
       },
     ],
   },
-
   {
     id: "op-alpha",
     name: "Operation ALPHA",
@@ -84,7 +104,8 @@ export const campaigns = [
     endDate: "2025-11-23",
     quarter: "2025 Q4",
     overview:
-      "A completed sample campaign with archived operations and finalized command structure.",
+      "Sample completed campaign with archived operations and finalized command structure.",
+
     orgChart: {
       taskForceName: "CENTCOM Task Force Orion",
       taskForceHQ: { name: "TF Orion HQ", commander: "Callsign Orion" },
@@ -96,6 +117,7 @@ export const campaigns = [
         },
       ],
     },
+
     operations: [
       {
         id: "alpha-001",
@@ -107,12 +129,21 @@ export const campaigns = [
         opordUrl: "#",
       },
     ],
+
     perUnitRoster: [
-      { unitName: "Infantry Company", members: [{ name: "S. Patel", role: "CO" }] },
+      {
+        unitName: "Infantry Company",
+        members: [{ name: "S. Patel", role: "CO" }],
+      },
     ],
   },
 ];
 
+/**
+ * Commanders
+ * - campaignId links a commander to a campaign
+ * - awards can be award IDs or award names (awardById supports both)
+ */
 export const commanders = [
   {
     id: "cmdr-atlas",
@@ -123,14 +154,33 @@ export const commanders = [
     campaignStatus: "active",
     awards: ["Distinguished Service Cross"],
   },
+  {
+    id: "cmdr-orion",
+    name: "Callsign Orion",
+    unit: "TF Orion HQ",
+    position: "Task Force Commander",
+    campaignId: "op-alpha",
+    campaignStatus: "completed",
+    awards: ["Silver Star"],
+  },
 ];
 
+/**
+ * Awards catalog
+ * - level drives Hall of Fame thresholding
+ */
 export const awardsCatalog = [
-  { id: "aw-1", name: "Bronze Star", level: 2 },
-  { id: "aw-2", name: "Silver Star", level: 3 },
-  { id: "aw-3", name: "Distinguished Service Cross", level: 5 },
+  { id: "aw-bronze", name: "Bronze Star", level: 2 },
+  { id: "aw-silver", name: "Silver Star", level: 3 },
+  { id: "aw-dsc", name: "Distinguished Service Cross", level: 5 },
 ];
 
+/**
+ * Members catalog
+ * - positions: CENTCOM roles held
+ * - awards: award IDs or award names
+ * - campaigns: campaign IDs attended
+ */
 export const membersCatalog = [
   {
     id: "m-1",
@@ -140,4 +190,35 @@ export const membersCatalog = [
     awards: ["Bronze Star"],
     campaigns: ["op-bravo"],
   },
+  {
+    id: "m-2",
+    name: "S. Patel",
+    unit: "Infantry Company",
+    positions: ["Company Commander"],
+    awards: ["Silver Star"],
+    campaigns: ["op-alpha"],
+  },
 ];
+
+/**
+ * Lookup helpers used by views
+ * - campaignById: campaignId -> campaign object
+ * - awardById: supports both award id and award name as keys
+ * - memberById: memberId -> member object
+ */
+export const campaignById = Object.fromEntries(
+  (campaigns || []).map((c) => [c.id, c])
+);
+
+export const awardById = Object.fromEntries(
+  (awardsCatalog || []).flatMap((a) =>
+    [
+      [a.id, a],
+      [a.name, a],
+    ].filter(([k]) => k != null)
+  )
+);
+
+export const memberById = Object.fromEntries(
+  (membersCatalog || []).map((m) => [m.id, m])
+);
