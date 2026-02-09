@@ -6,6 +6,11 @@ import Pilots from "@/views/RosterView.vue";
 import AdminHome from "@/views/admin/AdminHome.vue";
 import Deployment from "@/views/DeploymentView.vue";
 
+import CampaignLog from "@/views/CampaignLogView.vue";
+import HallOfCommanders from "@/views/HallOfCommandersView.vue";
+import BackendRoster from "@/views/BackendRosterView.vue";
+import HallOfFame from "@/views/HallOfFameView.vue";
+
 import { isAdmin } from "@/utils/adminAuth";
 import Config from "@/config/unit-config.json";
 
@@ -22,7 +27,13 @@ const routes = [
 
   { path: "/status", name: "Mission Status", component: Status, props: true, meta: { title: `${DEFAULT_TITLE} BRIEFING SYSTEM` } },
   { path: "/roster", name: "Unit Roster", component: Pilots, props: true, meta: { title: `${DEFAULT_TITLE} UNIT ROSTER` } },
-  
+
+
+  { path: "/campaigns", name: "Campaign Log", component: CampaignLog, props: true, meta: { title: `${DEFAULT_TITLE} CAMPAIGN LOG` } },
+  { path: "/commanders", name: "Hall of Commanders", component: HallOfCommanders, props: true, meta: { title: `${DEFAULT_TITLE} HALL OF COMMANDERS` } },
+  { path: "/backend-roster", name: "Backend Roster", component: BackendRoster, props: true, meta: { title: `${DEFAULT_TITLE} BACKEND ROSTER` } },
+  { path: "/hall-of-fame", name: "Hall of Fame", component: HallOfFame, props: true, meta: { title: `${DEFAULT_TITLE} HALL OF FAME` } },
+
   // NEW: Deployment (gate to staff/officer; change to public by removing requiresAdmin)
   { path: "/deployment", name: "Deployment", component: Deployment, props: true, meta: { title: `${DEFAULT_TITLE} DEPLOYMENT`, requiresAdmin: true } },
 
