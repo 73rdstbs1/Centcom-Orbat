@@ -302,7 +302,7 @@ export default {
 
 #campaignLog :deep(section.section-container) {
   width: 100%;
-  max-width: 1600px; /* keeps it centered on ultrawide while still "most of the screen" */
+  max-width: 2560px; /* keeps it centered on ultrawide while still "most of the screen" */
   margin: 0 auto;
 }
 
