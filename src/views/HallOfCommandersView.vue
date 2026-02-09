@@ -227,11 +227,25 @@ export default {
 
 <style scoped>
 /* View-level layout */
+
+/* View-level layout: full-width within content area, symmetric gutters */
 #hallOfCommanders{
-  flex:1; min-width:0; box-sizing:border-box;
+  flex:1;
+  min-width:0;
+  box-sizing:border-box;
+
+  /* Equal gap left/right between container and (sidebar / screen edge) */
   padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
+
   color: var(--text-pilot-value, #d6f1ff);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+}
+
+/* Force the framework's section container to not cap width */
+#hallOfCommanders :deep(section.section-container){
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 /* Terminal shell (same language as Campaign page) */
