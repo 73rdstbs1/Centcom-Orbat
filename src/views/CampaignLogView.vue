@@ -151,6 +151,39 @@ export default {
 </script>
 
 <style scoped>
+/* POC override: existing theme defaults some header text to near-black; force readable light text in this view. */
+#campaignLog{ flex: 1; min-width: 0; color: var(--text-pilot-value); }
+
+/* Expand the terminal window to use most of the available screen space */
+#campaignLog :deep(section.section-container){
+  width: calc(100vw - 140px);
+  max-width: 1400px;
+}
+
+/* Ensure inner panel text stays readable */
+#campaignLog :deep(.section-content-container){
+  color: var(--text-pilot-value);
+}
+
+#campaignLog .term-title,
+#campaignLog .campaign-title h3,
+#campaignLog .section-label{
+  color: var(--text-location);
+}
+
+#campaignLog .sub,
+#campaignLog .muted,
+#campaignLog .opord,
+#campaignLog .roster-role{
+  color: var(--text-pilot-header);
+}
+
+#campaignLog .opord-summary,
+#campaignLog .desc,
+#campaignLog .outcomes{
+  color: var(--text-pilot-value);
+}
+
 .toolbar{ display:flex; gap:10px; align-items:center; padding: 8px 8px 14px; }
 .term-input, .term-select{
   width: 100%;
