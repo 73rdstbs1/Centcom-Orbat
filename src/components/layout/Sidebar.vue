@@ -21,6 +21,26 @@
           <span>Roster</span>
         </router-link>
 
+        <router-link class="clipped-bottom-right" to="/campaigns" @click.native="playBrowse">
+          <img src="/icons/campaign.svg" />
+          <span>Campaigns</span>
+        </router-link>
+
+        <router-link class="clipped-bottom-right" to="/commanders" @click.native="playBrowse">
+          <img src="/icons/portrait.svg" />
+          <span>Commanders</span>
+        </router-link>
+
+        <router-link class="clipped-bottom-right" to="/backend-roster" @click.native="playBrowse">
+          <img src="/icons/protocol.svg" />
+          <span>Backend Roster</span>
+        </router-link>
+
+        <router-link class="clipped-bottom-right" to="/hall-of-fame" @click.native="playBrowse">
+          <img src="/icons/mission-success.svg" />
+          <span>Hall of Fame</span>
+        </router-link>
+
         <!-- NEW: Deployment (Officer/Staff only) -->
         <router-link
           v-if="isOfficerOrStaff"
