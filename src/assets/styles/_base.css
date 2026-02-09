@@ -338,8 +338,12 @@ height: 100%;
 
 div#router-view-container {
 	position: absolute;
-	top: 95px;
-	left: 90px;
+	top: var(--app-header-height, 95px);
+	left: 90px; /* sidebar width */
+	right: 0;
+	bottom: 0;
+	min-width: 0;
+	overflow: auto;
 }
 
 div .content-container {
@@ -350,9 +354,11 @@ div .content-container {
 section.section-container {
 	display: flex;
 	flex-direction: column;
-	margin: 50px 30px;
-	width: 393px;
+	width: 100%;
+	max-width: none;
 	height: 100%;
+	margin: 0;
+	min-width: 0;
 }
 
 section.section-container#assignment {
