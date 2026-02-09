@@ -82,3 +82,26 @@ Paths for all branding assets are referenced from `unit-config.json`.
 4. Deploy / iterate
 5. Transfer repo ownership when done
 
+
+
+## Proof-of-Concept Pages (Campaign Log / Commanders / Backend Roster / Hall of Fame)
+
+This repo now includes a POC data layer and 4 new pages:
+
+- `/campaigns` – Historical Campaign Log (campaigns → operations → OPORD + per-unit roster)
+- `/commanders` – Hall of Commanders (TF/TU commanders linked to campaigns + awards)
+- `/backend-roster` – Backend Roster (members with positions/awards/campaign attendance)
+- `/hall-of-fame` – Hall of Fame (members with awards above a configurable threshold)
+
+### Editing content
+
+All POC content is in one file:
+
+- `src/data/pocData.js`
+
+Edit campaigns, operations, rosters, awards, members, and the Hall of Fame threshold there.
+
+### Future: Google Sheet CSV
+
+The current structure intentionally uses stable IDs (`C-*`, `M-*`, `A*`) so we can later load tabs from a Google Sheet as CSV and join them safely.
+
