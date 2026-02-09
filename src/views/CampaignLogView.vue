@@ -1,3 +1,4 @@
+<!-- FILE: src/views/CampaignLogView.vue -->
 <template>
   <div id="campaignLog">
     <section class="section-container">
@@ -22,7 +23,11 @@
       </div>
 
       <div class="campaign-list">
-        <article v-for="c in filteredCampaigns" :key="c.id" class="campaign-card">
+        <article
+          v-for="c in filteredCampaigns"
+          :key="c.id"
+          class="campaign-card"
+        >
           <header class="campaign-header">
             <div class="campaign-title">
               <span class="status-pill" :data-status="c.status">
@@ -79,6 +84,7 @@
       </div>
     </section>
 
+    <!-- Modal -->
     <div
       v-if="activeCampaign"
       class="modal-overlay"
@@ -101,12 +107,7 @@
             <h2>{{ activeCampaign.name }}</h2>
           </div>
 
-          <button
-            class="icon-button"
-            type="button"
-            @click="closeCampaign"
-            aria-label="Close"
-          >
+          <button class="icon-button" type="button" @click="closeCampaign" aria-label="Close">
             ✕
           </button>
         </header>
@@ -123,6 +124,7 @@
             </div>
           </div>
 
+          <!-- 1) Org Chart -->
           <section class="modal-section">
             <div class="section-label">Task Force Org Chart</div>
 
@@ -164,6 +166,7 @@
             <div v-else class="muted">No org chart data yet.</div>
           </section>
 
+          <!-- 2) Operations -->
           <section class="modal-section">
             <div class="section-label">Operations</div>
 
@@ -175,7 +178,11 @@
                 <div>OPORD</div>
               </div>
 
-              <div v-for="op in activeCampaign.operations" :key="op.id" class="ops-row">
+              <div
+                v-for="op in activeCampaign.operations"
+                :key="op.id"
+                class="ops-row"
+              >
                 <div class="op-date">{{ op.date }}</div>
                 <div class="op-title">{{ op.title }}</div>
                 <div>
@@ -233,7 +240,6 @@ export default {
 
       return (this.campaigns || []).filter((c) => {
         if (status && c.status !== status) return false;
-
         if (!q) return true;
 
         const inCampaign =
@@ -282,21 +288,29 @@ export default {
 </script>
 
 <style scoped>
+/* Layout + readability (this view only)
+   - We keep equal padding on left/right inside the main content area,
+     so the right gap matches the gap next to the sidebar.
+*/
 #campaignLog {
   flex: 1;
   min-width: 0;
   color: var(--text-pilot-value);
+  padding: 0 24px; /* symmetric gutters */
+  box-sizing: border-box;
 }
 
 #campaignLog :deep(section.section-container) {
-  width: calc(100vw - 84px);
-  max-width: none;
+  width: 100%;
+  max-width: 1600px; /* keeps it centered on ultrawide while still "most of the screen" */
+  margin: 0 auto;
 }
 
 #campaignLog :deep(.section-content-container) {
   color: var(--text-pilot-value);
 }
 
+/* Controls */
 .filters {
   display: flex;
   gap: 12px;
@@ -310,6 +324,7 @@ export default {
   max-width: 420px;
 }
 
+/* Cards */
 .campaign-list {
   display: grid;
   grid-template-columns: 1fr;
@@ -404,6 +419,7 @@ export default {
   justify-content: flex-end;
 }
 
+/* Pills */
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -444,6 +460,7 @@ export default {
   opacity: 0.75;
 }
 
+/* Modal */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -521,6 +538,7 @@ export default {
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+/* Org chart */
 .orgchart {
   display: grid;
   gap: 12px;
@@ -559,6 +577,7 @@ export default {
   color: var(--text-pilot-value);
 }
 
+/* Operations table */
 .ops-table {
   display: grid;
   gap: 8px;
