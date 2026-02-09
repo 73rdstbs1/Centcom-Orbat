@@ -1,253 +1,593 @@
-<!-- /src/views/CampaignLogView.vue -->
 <template>
-  <div id="campaignLog" class="content-container">
+  <div id="campaignLog">
     <section class="section-container">
-      <div class="term-hdr view-hdr">
-        <span class="hdr-icon" aria-hidden="true" :style="{ backgroundImage: `url('/icons/campaign.svg')` }"></span>
-        <div class="term-title">HISTORICAL CAMPAIGN LOG</div>
+      <div class="term-title">HISTORICAL CAMPAIGN LOG</div>
+
+      <div class="filters">
+        <input
+          v-model="search"
+          class="term-input"
+          type="text"
+          placeholder="Search campaigns / operations"
+        />
+
+        <select v-model="statusFilter" class="term-select">
+          <option value="">All status</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="training">Training</option>
+          <option value="deployed">Deployed</option>
+          <option value="archived">Archived</option>
+        </select>
       </div>
 
-      <div class="section-content-container term-window">
-        <div class="term-body">
-          <div class="scanlines" aria-hidden="true"></div>
-          <div class="flicker" aria-hidden="true"></div>
+      <div class="campaign-list">
+        <article v-for="c in filteredCampaigns" :key="c.id" class="campaign-card">
+          <header class="campaign-header">
+            <div class="campaign-title">
+              <span class="status-pill" :data-status="c.status">
+                {{ c.status.toUpperCase() }}
+              </span>
+              <h3>{{ c.name }}</h3>
+            </div>
 
-          <div class="toolbar">
-            <input v-model="q" class="term-input" placeholder="Search campaigns / operations / OPORD…" />
-            <select v-model="status" class="term-select" aria-label="Filter by status">
-              <option value="">All status</option>
-              <option value="planned">Planned</option>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-              <option value="abandoned">Abandoned</option>
-            </select>
+            <div class="campaign-meta">
+              <div class="meta-line">
+                <span class="label">Dates:</span>
+                <span class="value">{{ fmtDates(c.startDate, c.endDate) }}</span>
+              </div>
+              <div class="meta-line">
+                <span class="label">Quarter:</span>
+                <span class="value">{{ c.quarter }}</span>
+              </div>
+            </div>
+          </header>
+
+          <p class="desc">{{ c.overview }}</p>
+
+          <div class="overview-snippets">
+            <div class="snippet">
+              <div class="section-label">Operations (overview)</div>
+              <ul class="mini-list">
+                <li v-for="op in (c.operations || []).slice(0, 2)" :key="op.id">
+                  <span class="op-date">{{ op.date }}</span>
+                  <span class="op-title">{{ op.title }}</span>
+                  <span class="op-status" :data-op-status="op.status">
+                    {{ op.status }}
+                  </span>
+                </li>
+              </ul>
+              <div v-if="(c.operations || []).length > 2" class="muted">
+                + {{ (c.operations || []).length - 2 }} more…
+              </div>
+            </div>
+
+            <div class="snippet">
+              <div class="section-label">Per-unit roster (teaser)</div>
+              <div class="muted">
+                Managed by unit leads per campaign. Open details to view org chart + full ops list.
+              </div>
+            </div>
           </div>
 
-          <div v-if="filteredCampaigns.length === 0" class="muted">No campaigns match your filters.</div>
+          <footer class="campaign-actions">
+            <button class="term-button" type="button" @click="openCampaign(c)">
+              View details
+            </button>
+          </footer>
+        </article>
+      </div>
+    </section>
 
-          <div v-else class="campaigns">
-            <article v-for="c in filteredCampaigns" :key="c.id" class="campaign-card">
-              <header class="campaign-hdr" @click="toggle(c.id)">
-                <div class="campaign-title">
-                  <span class="pill" :class="`pill--${c.status}`">{{ c.status }}</span>
-                  <h3>{{ c.title }}</h3>
-                  <span class="sub">{{ dateRange(c.startDate, c.endDate) }}<span v-if="c.era"> · {{ c.era }}</span></span>
+    <div
+      v-if="activeCampaign"
+      class="modal-overlay"
+      role="presentation"
+      @click.self="closeCampaign"
+    >
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="`Campaign details: ${activeCampaign.name}`"
+        tabindex="-1"
+        ref="modalRef"
+      >
+        <header class="modal-header">
+          <div class="modal-title">
+            <span class="status-pill" :data-status="activeCampaign.status">
+              {{ activeCampaign.status.toUpperCase() }}
+            </span>
+            <h2>{{ activeCampaign.name }}</h2>
+          </div>
+
+          <button
+            class="icon-button"
+            type="button"
+            @click="closeCampaign"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div class="modal-body">
+          <div class="modal-meta">
+            <div>
+              <span class="label">Dates:</span>
+              <span class="value">{{ fmtDates(activeCampaign.startDate, activeCampaign.endDate) }}</span>
+            </div>
+            <div>
+              <span class="label">Quarter:</span>
+              <span class="value">{{ activeCampaign.quarter }}</span>
+            </div>
+          </div>
+
+          <section class="modal-section">
+            <div class="section-label">Task Force Org Chart</div>
+
+            <div v-if="activeCampaign.orgChart" class="orgchart">
+              <div class="org-node root">
+                <div class="node-title">{{ activeCampaign.orgChart.taskForceName }}</div>
+                <div class="node-sub">
+                  <span class="muted">HQ:</span>
+                  <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.name }}</span>
+                  <span class="muted">—</span>
+                  <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.commander }}</span>
                 </div>
-                <div class="chev" aria-hidden="true">{{ open[c.id] ? "▾" : "▸" }}</div>
-              </header>
+              </div>
 
-              <div v-if="open[c.id]" class="campaign-body">
-                <p v-if="c.description" class="desc">{{ c.description }}</p>
+              <div class="org-children">
+                <div
+                  v-for="tu in activeCampaign.orgChart.taskUnits || []"
+                  :key="tu.name"
+                  class="org-node"
+                >
+                  <div class="node-title">{{ tu.name }}</div>
+                  <div class="node-sub">
+                    <span class="muted">HQ:</span>
+                    <span class="value">{{ tu.hq?.name }}</span>
+                    <span class="muted">—</span>
+                    <span class="value">{{ tu.hq?.commander }}</span>
+                  </div>
 
-                <h4 class="section-label">Operations</h4>
-                <div v-if="!c.operations?.length" class="muted">No operations yet.</div>
-                <ol v-else class="ops">
-                  <li v-for="op in c.operations" :key="op.id" class="op">
-                    <div class="op-top">
-                      <div class="op-title">
-                        <span class="op-date">{{ op.date }}</span>
-                        <strong>{{ op.title }}</strong>
-                      </div>
-                      <span class="opord">{{ op.opord?.title || "OPORD" }}</span>
-                    </div>
-                    <div class="opord-box">
-                      <div class="opord-title">OPORD</div>
-                      <div class="opord-summary">{{ op.opord?.summary || "—" }}</div>
-                      <a v-if="op.opord?.link" class="opord-link" :href="op.opord.link" target="_blank" rel="noreferrer">Open</a>
-                    </div>
-                    <ul v-if="op.outcomes?.length" class="outcomes">
-                      <li v-for="(o, idx) in op.outcomes" :key="idx">{{ o }}</li>
-                    </ul>
-                  </li>
-                </ol>
-
-                <h4 class="section-label">Per-unit roster (managed by unit leads)</h4>
-                <div v-if="!c.rostersByUnit || Object.keys(c.rostersByUnit).length === 0" class="muted">
-                  No rosters defined.
-                </div>
-                <div v-else class="rosters">
-                  <div v-for="(r, unitKey) in c.rostersByUnit" :key="unitKey" class="roster">
-                    <div class="roster-hdr">
-                      <img class="roster-icon" src="/icons/squad.svg" alt="" />
-                      <div class="roster-title">{{ r.unitName }}</div>
-                      <div class="roster-count">{{ r.members?.length || 0 }} members</div>
-                    </div>
-
-                    <ul class="roster-list">
-                      <li v-for="m in r.members" :key="m.memberId" class="roster-row">
-                        <span class="roster-name">{{ memberName(m.memberId) }}</span>
-                        <span class="roster-role muted">{{ m.role || "—" }}</span>
-                      </li>
+                  <div class="node-units">
+                    <div class="muted">Participating Units</div>
+                    <ul class="unit-list">
+                      <li v-for="u in (tu.units || [])" :key="u">{{ u }}</li>
                     </ul>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                <div class="note muted">
-                  POC note: this data currently lives in <code>src/data/pocData.js</code>. Later we can load it from a Google Sheet CSV.
+            <div v-else class="muted">No org chart data yet.</div>
+          </section>
+
+          <section class="modal-section">
+            <div class="section-label">Operations</div>
+
+            <div v-if="(activeCampaign.operations || []).length" class="ops-table">
+              <div class="ops-row ops-head">
+                <div>Date</div>
+                <div>Operation</div>
+                <div>Status</div>
+                <div>OPORD</div>
+              </div>
+
+              <div v-for="op in activeCampaign.operations" :key="op.id" class="ops-row">
+                <div class="op-date">{{ op.date }}</div>
+                <div class="op-title">{{ op.title }}</div>
+                <div>
+                  <span class="op-status-pill" :data-op-status="op.status">
+                    {{ op.status }}
+                  </span>
+                </div>
+                <div>
+                  <a
+                    v-if="op.opordUrl"
+                    class="opord-link"
+                    :href="op.opordUrl"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {{ op.opordTitle || "OPORD" }}
+                  </a>
+                  <span v-else class="muted">—</span>
+                  <div v-if="op.opordSummary" class="opord-summary">
+                    {{ op.opordSummary }}
+                  </div>
                 </div>
               </div>
-            </article>
-          </div>
+            </div>
+
+            <div v-else class="muted">No operations logged yet.</div>
+          </section>
         </div>
+
+        <footer class="modal-footer">
+          <button class="term-button" type="button" @click="closeCampaign">Close</button>
+        </footer>
       </div>
-    </section>
+    </div>
   </div>
 </template>
 
 <script>
-import { campaigns, memberById } from "@/data/pocData";
+import { campaigns as pocCampaigns } from "@/data/pocData";
 
 export default {
   name: "CampaignLogView",
   data() {
     return {
-      q: "",
-      status: "",
-      open: Object.create(null),
+      campaigns: pocCampaigns,
+      search: "",
+      statusFilter: "",
+      activeCampaign: null,
     };
   },
   computed: {
     filteredCampaigns() {
-      const q = this.q.trim().toLowerCase();
-      return (campaigns || [])
-        .filter(c => (this.status ? c.status === this.status : true))
-        .filter(c => {
-          if (!q) return true;
-          const hay = [
-            c.title,
-            c.id,
-            c.status,
-            c.era,
-            c.description,
-            ...(c.operations || []).flatMap(op => [op.title, op.date, op.opord?.title, op.opord?.summary]),
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
-          return hay.includes(q);
-        })
-        .slice()
-        .sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)));
+      const q = this.search.trim().toLowerCase();
+      const status = this.statusFilter;
+
+      return (this.campaigns || []).filter((c) => {
+        if (status && c.status !== status) return false;
+
+        if (!q) return true;
+
+        const inCampaign =
+          (c.name || "").toLowerCase().includes(q) ||
+          (c.overview || "").toLowerCase().includes(q);
+
+        const inOps = (c.operations || []).some((op) => {
+          return (
+            (op.title || "").toLowerCase().includes(q) ||
+            (op.opordTitle || "").toLowerCase().includes(q) ||
+            (op.opordSummary || "").toLowerCase().includes(q)
+          );
+        });
+
+        return inCampaign || inOps;
+      });
     },
   },
-  created() {
-    // Open the newest campaign by default (nice demo effect).
-    const newest = this.filteredCampaigns?.[0];
-    if (newest?.id) this.open[newest.id] = true;
+  mounted() {
+    window.addEventListener("keydown", this.onKeydown);
+  },
+  beforeUnmount() {
+    window.removeEventListener("keydown", this.onKeydown);
   },
   methods: {
-    toggle(id) {
-      this.open[id] = !this.open[id];
+    fmtDates(start, end) {
+      if (!start && !end) return "—";
+      if (start && !end) return start;
+      if (!start && end) return end;
+      return `${start} → ${end}`;
     },
-    memberName(memberId) {
-      return memberById(memberId)?.name || memberId;
+    openCampaign(c) {
+      this.activeCampaign = c;
+      this.$nextTick(() => {
+        if (this.$refs.modalRef) this.$refs.modalRef.focus();
+      });
     },
-    dateRange(start, end) {
-      if (!start) return "—";
-      return end ? `${start} → ${end}` : `${start} → ongoing`;
+    closeCampaign() {
+      this.activeCampaign = null;
+    },
+    onKeydown(e) {
+      if (e.key === "Escape" && this.activeCampaign) this.closeCampaign();
     },
   },
 };
 </script>
 
 <style scoped>
-/* POC override: existing theme defaults some header text to near-black; force readable light text in this view. */
-#campaignLog{ flex: 1; min-width: 0; color: var(--text-pilot-value); }
-
-/* Expand the terminal window to use most of the available screen space */
-#campaignLog :deep(section.section-container){
-  width: calc(100vw - 140px);
-  max-width: 1400px;
-}
-
-/* Ensure inner panel text stays readable */
-#campaignLog :deep(.section-content-container){
+#campaignLog {
+  flex: 1;
+  min-width: 0;
   color: var(--text-pilot-value);
 }
 
-#campaignLog .term-title,
-#campaignLog .campaign-title h3,
-#campaignLog .section-label{
+#campaignLog :deep(section.section-container) {
+  width: calc(100vw - 84px);
+  max-width: none;
+}
+
+#campaignLog :deep(.section-content-container) {
+  color: var(--text-pilot-value);
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 12px 0 16px;
+}
+
+.term-input,
+.term-select {
+  width: 100%;
+  max-width: 420px;
+}
+
+.campaign-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.campaign-card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.campaign-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.campaign-title {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.campaign-title h3 {
+  margin: 0;
+  color: var(--text-location);
+  letter-spacing: 0.5px;
+}
+
+.campaign-meta {
+  display: grid;
+  gap: 6px;
+}
+
+.meta-line .label {
+  color: var(--text-pilot-header);
+  margin-right: 6px;
+}
+
+.desc {
+  margin: 10px 0 12px;
+  color: var(--text-pilot-value);
+}
+
+.overview-snippets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.section-label {
+  color: var(--text-location);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.mini-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.mini-list li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.op-date {
+  color: var(--text-pilot-header);
+  font-variant-numeric: tabular-nums;
+}
+
+.op-title {
+  color: var(--text-pilot-value);
+}
+
+.muted {
+  color: var(--text-pilot-header);
+  opacity: 0.9;
+  margin-top: 6px;
+}
+
+.campaign-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--text-pilot-value);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+}
+
+.op-status {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-pilot-header);
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.op-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--text-pilot-value);
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.op-status-pill[data-op-status="completed"] {
+  opacity: 1;
+}
+.op-status-pill[data-op-status="pending"] {
+  opacity: 0.85;
+}
+.op-status-pill[data-op-status="failed"] {
+  opacity: 0.75;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.68);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  z-index: 9999;
+}
+
+.modal {
+  width: min(1100px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  outline: none;
+}
+
+.modal-header,
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.modal-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: none;
+}
+
+.modal-title {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.modal-title h2 {
+  margin: 0;
   color: var(--text-location);
 }
 
-#campaignLog .sub,
-#campaignLog .muted,
-#campaignLog .opord,
-#campaignLog .roster-role{
-  color: var(--text-pilot-header);
+.icon-button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-pilot-value);
+  border-radius: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
 }
 
-#campaignLog .opord-summary,
-#campaignLog .desc,
-#campaignLog .outcomes{
+.modal-body {
+  padding: 14px;
+}
+
+.modal-meta {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.modal-meta .label {
+  color: var(--text-pilot-header);
+  margin-right: 6px;
+}
+
+.modal-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.orgchart {
+  display: grid;
+  gap: 12px;
+}
+
+.org-node {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.org-node.root {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.node-title {
+  color: var(--text-location);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.node-sub {
   color: var(--text-pilot-value);
 }
 
-.toolbar{ display:flex; gap:10px; align-items:center; padding: 8px 8px 14px; }
-.term-input, .term-select{
-  width: 100%;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(0,0,0,.25);
-  color: inherit;
-  padding: 10px 12px;
+.org-children {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.unit-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--text-pilot-value);
+}
+
+.ops-table {
+  display: grid;
+  gap: 8px;
+}
+
+.ops-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 140px 1.2fr;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
-  outline: none;
+  background: rgba(0, 0, 0, 0.22);
 }
-.term-select{ max-width: 220px; }
 
-.campaigns{ display:flex; flex-direction:column; gap:12px; padding: 0 8px 14px; }
-.campaign-card{
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: 14px;
-  background: rgba(0,0,0,.18);
-  overflow: hidden;
+.ops-head {
+  background: rgba(0, 0, 0, 0.32);
+  font-weight: 700;
+  color: var(--text-location);
 }
-.campaign-hdr{
-  display:flex; justify-content:space-between; align-items:center;
-  padding: 12px 14px;
-  cursor: pointer;
+
+.opord-link {
+  color: var(--text-pilot-value);
+  text-decoration: underline;
 }
-.campaign-title h3{ margin: 0; font-size: 16px; letter-spacing: .4px; }
-.sub{ display:block; margin-top: 4px; font-size: 12px; opacity:.8; }
-.chev{ opacity:.8; font-size: 18px; padding-left: 10px; }
-.campaign-body{ padding: 0 14px 14px; }
-.desc{ margin: 8px 0 10px; opacity:.9; }
-.section-label{ margin: 14px 0 8px; font-size: 13px; letter-spacing: .35px; opacity:.95; }
 
-.pill{
-  display:inline-flex; align-items:center; justify-content:center;
-  padding: 3px 9px; border-radius: 999px;
-  font-size: 11px; text-transform: uppercase;
-  border: 1px solid rgba(255,255,255,.14);
-  margin-right: 8px;
+.opord-summary {
+  margin-top: 6px;
+  color: var(--text-pilot-header);
+  line-height: 1.25;
 }
-.pill--planned{ opacity:.85; }
-.pill--active{ opacity: 1; }
-.pill--completed{ opacity:.75; }
-.pill--abandoned{ opacity:.6; }
-
-.ops{ margin:0; padding-left: 18px; display:flex; flex-direction:column; gap:12px; }
-.op{ padding: 10px 10px; border: 1px dashed rgba(255,255,255,.12); border-radius: 12px; }
-.op-top{ display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
-.op-title{ display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
-.op-date{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; opacity:.85; font-size: 12px; }
-.opord{ font-size: 12px; opacity:.8; }
-.opord-box{ margin-top:8px; padding: 10px; border: 1px solid rgba(255,255,255,.10); border-radius: 12px; background: rgba(0,0,0,.18); position: relative; }
-.opord-title{ font-size: 12px; opacity:.8; margin-bottom: 6px; letter-spacing: .3px; }
-.opord-summary{ opacity:.95; }
-.opord-link{ position:absolute; right: 10px; top: 10px; font-size: 12px; opacity:.9; }
-
-.outcomes{ margin: 8px 0 0; padding-left: 16px; opacity:.9; }
-.rosters{ display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
-.roster{ border: 1px solid rgba(255,255,255,.10); border-radius: 14px; background: rgba(0,0,0,.12); overflow:hidden; }
-.roster-hdr{ display:flex; gap:10px; align-items:center; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
-.roster-icon{ width: 18px; height: 18px; opacity:.9; }
-.roster-title{ font-size: 13px; letter-spacing:.3px; }
-.roster-count{ margin-left:auto; font-size: 12px; opacity:.75; }
-.roster-list{ margin:0; padding: 10px 12px; list-style:none; display:flex; flex-direction:column; gap:8px; }
-.roster-row{ display:flex; justify-content:space-between; gap:12px; }
-.roster-name{ font-weight:600; }
-.note{ margin-top: 12px; }
-.muted{ opacity:.75; }
 </style>
