@@ -11,15 +11,6 @@
         :reduce="reduce"
         open
       >
-        <router-link class="clipped-bottom-right" to="/status" @click.native="playBrowse">
-          <img src="/icons/orbital.svg" />
-          <span>Status</span>
-        </router-link>
-
-        <router-link class="clipped-bottom-right" to="/roster" @click.native="playBrowse">
-          <img src="/icons/license.svg" />
-          <span>Roster</span>
-        </router-link>
 
         <router-link class="clipped-bottom-right" to="/campaigns" @click.native="playBrowse">
           <img src="/icons/campaign.svg" />
