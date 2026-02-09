@@ -124,7 +124,6 @@
             </div>
           </div>
 
-          <!-- 1) Org Chart -->
           <section class="modal-section">
             <div class="section-label">Task Force Org Chart</div>
 
@@ -166,7 +165,6 @@
             <div v-else class="muted">No org chart data yet.</div>
           </section>
 
-          <!-- 2) Operations -->
           <section class="modal-section">
             <div class="section-label">Operations</div>
 
@@ -288,22 +286,25 @@ export default {
 </script>
 
 <style scoped>
-/* Layout + readability (this view only)
-   - We keep equal padding on left/right inside the main content area,
-     so the right gap matches the gap next to the sidebar.
+/* View-level layout rules:
+   - No fixed max-width
+   - Consistent 24px padding around the usable area
+   - Top padding accounts for a fixed/sticky header (fallback 72px)
 */
 #campaignLog {
   flex: 1;
   min-width: 0;
   color: var(--text-pilot-value);
-  padding: 0 24px; /* symmetric gutters */
   box-sizing: border-box;
+
+  padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
 }
 
+/* Fill the available content area (sidebar is handled by the app layout) */
 #campaignLog :deep(section.section-container) {
   width: 100%;
-  max-width: 2560px; /* keeps it centered on ultrawide while still "most of the screen" */
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 #campaignLog :deep(.section-content-container) {
