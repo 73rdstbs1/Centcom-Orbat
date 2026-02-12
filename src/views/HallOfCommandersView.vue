@@ -879,8 +879,8 @@ export default {
 }
 
 .node-connector.up::before {
-  top: -34px;
-  height: 32px;
+  top: -22px;
+  height: 22px;
 }
 
 .hint {
