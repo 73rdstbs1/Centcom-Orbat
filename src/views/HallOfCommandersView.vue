@@ -843,13 +843,15 @@ export default {
   justify-items: center;
 
   position: relative;
+
+  padding-top: 26px;
 }
 .tree-bottom::before{
   content:"";
   position:absolute;
   left: 12%;
   right: 12%;
-  top: -14px; /* aligns with vertical connector ends */
+  top: 10px; /* aligns with vertical connector ends */
   height: 2px;
   background: rgba(90, 220, 255, 0.16);
 }
@@ -872,13 +874,13 @@ export default {
 }
 
 .node-connector.down::before {
-  top: calc(100% + 8px);
-  height: 20px;
+  top: calc(100% + 6px);
+  height: 18px;
 }
 
 .node-connector.up::before {
-  top: -22px;
-  height: 20px;
+  top: -34px;
+  height: 32px;
 }
 
 .hint {
