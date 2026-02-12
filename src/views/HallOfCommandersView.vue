@@ -99,7 +99,7 @@
           <div class="modal-title">
             <span class="rank-chip">CMD</span>
             <div>
-              <div class="kicker">PERSONNEL RECORD</div>
+              <div class="kicker">OPERATIONAL CHAIN</div>
               <h2>{{ activeCommander.name }}</h2>
             </div>
           </div>
@@ -108,22 +108,123 @@
         </header>
 
         <div class="modal-body">
-          <div class="modal-meta">
-            <div><span class="label">UNIT</span><span class="value">{{ activeCommander.unit }}</span></div>
-            <div><span class="label">POSITION</span><span class="value">{{ activeCommander.position }}</span></div>
-            <div><span class="label">TASK FORCE</span><span class="value">{{ taskForceFor(activeCommander) }}</span></div>
-            <div><span class="label">CAMPAIGN</span><span class="value">{{ campaignName(activeCommander) }}</span></div>
-            <div><span class="label">DATES</span><span class="value">{{ campaignDates(activeCommander) }}</span></div>
-            <div><span class="label">STATUS</span><span class="value">{{ campaignStatus(activeCommander).toUpperCase() }}</span></div>
-          </div>
+          <!-- Opening "chain" layout -->
+          <section class="modal-section first">
+            <div class="section-label">COMMAND ELEMENT</div>
 
-          <section class="modal-section">
-            <div class="section-label">AWARDS</div>
-            <div class="panel">
-              <div v-if="awardsFor(activeCommander).length" class="text">
-                {{ awardsFor(activeCommander).join(", ") }}
+            <div class="command-tree">
+              <div class="tree-top">
+                <div class="tree-node">
+                  <div class="node-connector down"></div>
+                  <button class="tile tile--modal" type="button" @click="noop">
+                    <div class="tile-topline"></div>
+                    <div class="tile-media">
+                      <img class="portrait" :src="portraitUrlFor(activeCommander)" :alt="`${activeCommander.name} portrait`" />
+                    </div>
+                    <div class="tile-name">{{ activeCommander.name }}</div>
+                    <div class="tile-footer">
+                      <div class="tile-foot-left">{{ taskForceFor(activeCommander) }}</div>
+                      <div class="tile-foot-right">{{ campaignDates(activeCommander) }}</div>
+                    </div>
+                  </button>
+                </div>
               </div>
-              <div v-else class="muted">No recorded awards.</div>
+
+              <div class="tree-bottom">
+                <div class="tree-node">
+                  <div class="node-connector up"></div>
+                  <button
+                    class="tile tile--modal"
+                    type="button"
+                    :disabled="!subCommanders[0]"
+                    @click="subCommanders[0] && setActiveCommander(subCommanders[0])"
+                  >
+                    <div class="tile-topline"></div>
+                    <div class="tile-media">
+                      <img
+                        class="portrait"
+                        :src="portraitUrlFor(subCommanders[0])"
+                        :alt="`${subCommanderName(0)} portrait`"
+                      />
+                    </div>
+                    <div class="tile-name">{{ subCommanderName(0) }}</div>
+                    <div class="tile-footer">
+                      <div class="tile-foot-left">{{ subCommanderUnit(0) }}</div>
+                      <div class="tile-foot-right">SUB</div>
+                    </div>
+                  </button>
+                </div>
+
+                <div class="tree-node">
+                  <div class="node-connector up"></div>
+                  <button
+                    class="tile tile--modal"
+                    type="button"
+                    :disabled="!subCommanders[1]"
+                    @click="subCommanders[1] && setActiveCommander(subCommanders[1])"
+                  >
+                    <div class="tile-topline"></div>
+                    <div class="tile-media">
+                      <img
+                        class="portrait"
+                        :src="portraitUrlFor(subCommanders[1])"
+                        :alt="`${subCommanderName(1)} portrait`"
+                      />
+                    </div>
+                    <div class="tile-name">{{ subCommanderName(1) }}</div>
+                    <div class="tile-footer">
+                      <div class="tile-foot-left">{{ subCommanderUnit(1) }}</div>
+                      <div class="tile-foot-right">SUB</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="hint muted">
+              Click a sub-commander tile to switch record (placeholder behavior for POC).
+            </div>
+          </section>
+
+          <!-- Operation / campaign details -->
+          <section class="modal-section">
+            <div class="section-label">OPERATION DETAILS</div>
+
+            <div class="details-grid">
+              <div class="panel">
+                <div class="kv2">
+                  <div class="k">CAMPAIGN</div>
+                  <div class="v">{{ campaignName(activeCommander) }}</div>
+                </div>
+                <div class="kv2">
+                  <div class="k">STATUS</div>
+                  <div class="v">{{ campaignStatus(activeCommander).toUpperCase() }}</div>
+                </div>
+                <div class="kv2">
+                  <div class="k">DATES</div>
+                  <div class="v">{{ campaignDates(activeCommander) }}</div>
+                </div>
+                <div class="kv2">
+                  <div class="k">LOCATION</div>
+                  <div class="v">{{ campaignLocation(activeCommander) }}</div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="section-label small">NOTABLE AWARDS</div>
+                <div v-if="notableAwards(activeCommander).length" class="text">
+                  {{ notableAwards(activeCommander).join(", ") }}
+                </div>
+                <div v-else class="muted">No notable awards recorded.</div>
+
+                <div class="divider"></div>
+
+                <div class="section-label small">COMMANDER AWARDS</div>
+                <div v-if="awardsFor(activeCommander).length" class="text">
+                  {{ awardsFor(activeCommander).join(", ") }}
+                </div>
+                <div v-else class="muted">No recorded awards.</div>
+              </div>
             </div>
           </section>
 
@@ -131,7 +232,7 @@
             <div class="section-label">NOTES</div>
             <div class="panel">
               <div class="muted">
-                Placeholder for citations, commendations, or campaign-specific command notes.
+                Placeholder for citations, commendations, OPORD links, and campaign archive references.
               </div>
             </div>
           </section>
@@ -200,9 +301,7 @@ export default {
           (camp?.overview || "").toLowerCase().includes(q) ||
           tf.includes(q);
 
-        const inAwards = (c.awards || []).some((a) =>
-          String(a || "").toLowerCase().includes(q)
-        );
+        const inAwards = (c.awards || []).some((a) => String(a || "").toLowerCase().includes(q));
 
         return inCommander || inCampaign || inAwards;
       });
@@ -223,6 +322,20 @@ export default {
         })
         .sort((a, b) => String(a.name).localeCompare(String(b.name)));
     },
+    subCommanders() {
+      if (!this.activeCommander) return [null, null];
+
+      const sameCampaign = (this.commanders || []).filter(
+        (c) =>
+          c.campaignId &&
+          c.campaignId === this.activeCommander.campaignId &&
+          c.id !== this.activeCommander.id
+      );
+
+      const out = sameCampaign.slice(0, 2);
+      while (out.length < 2) out.push(null);
+      return out;
+    },
   },
   mounted() {
     window.addEventListener("keydown", this.onKeydown);
@@ -231,7 +344,13 @@ export default {
     window.removeEventListener("keydown", this.onKeydown);
   },
   methods: {
-    portraitUrlFor(_commander) {
+    noop() {},
+    setActiveCommander(c) {
+      this.activeCommander = c;
+      this.$nextTick(() => this.$refs.modalRef?.focus?.());
+    },
+    portraitUrlFor(commander) {
+      if (!commander) return PLACEHOLDER_PORTRAIT;
       return PLACEHOLDER_PORTRAIT;
     },
     tileDate(campaign) {
@@ -248,18 +367,25 @@ export default {
       const camp = campaignById?.[c.campaignId];
       return this.tileDate(camp);
     },
+    campaignStatus(c) {
+      return c.campaignStatus || campaignById?.[c.campaignId]?.status || "archived";
+    },
+    campaignLocation(c) {
+      const camp = campaignById?.[c.campaignId];
+      return camp?.location || "CLASSIFIED / TBD";
+    },
     taskForceFor(c) {
       const camp = campaignById?.[c.campaignId];
       return camp?.orgChart?.taskForceName || c.unit || "—";
     },
-    campaignStatus(c) {
-      return c.campaignStatus || campaignById?.[c.campaignId]?.status || "archived";
-    },
     awardsFor(c) {
       const raw = c?.awards || [];
-      return raw
-        .map((x) => awardById?.[x]?.name || x)
-        .filter(Boolean);
+      return raw.map((x) => awardById?.[x]?.name || x).filter(Boolean);
+    },
+    notableAwards(c) {
+      const camp = campaignById?.[c.campaignId];
+      const raw = camp?.notableAwardsEarned || [];
+      return (raw || []).map((x) => awardById?.[x]?.name || x).filter(Boolean);
     },
     openDetails(c) {
       this.activeCommander = c;
@@ -267,6 +393,15 @@ export default {
     },
     closeDetails() {
       this.activeCommander = null;
+    },
+    subCommanderName(idx) {
+      const c = this.subCommanders[idx];
+      return c?.name || "SUB-COMMANDER SLOT";
+    },
+    subCommanderUnit(idx) {
+      const c = this.subCommanders[idx];
+      if (!c) return "—";
+      return this.taskForceFor(c) || "—";
     },
     onKeydown(e) {
       if (e.key === "Escape" && this.activeCommander) this.closeDetails();
@@ -475,6 +610,16 @@ export default {
   padding: 0;
 }
 
+.tile--modal {
+  cursor: default;
+  width: min(360px, 100%);
+}
+
+.tile--modal:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .tile:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.22);
@@ -507,7 +652,6 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-
   text-align: center;
 }
 
@@ -544,39 +688,6 @@ export default {
   margin-top: 12px;
 }
 
-/* Modal / shared bits */
-.rank-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 34px;
-  border-radius: 12px;
-  border: 1px solid rgba(90, 220, 255, 0.18);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text-location, #e6fbff);
-  letter-spacing: 0.16em;
-  font-size: 12px;
-}
-
-.terminal-button {
-  border-radius: 12px;
-  border: 1px solid rgba(90, 220, 255, 0.22);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text-location, #e6fbff);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  padding: 10px 14px;
-}
-
-.terminal-button:hover {
-  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.12);
-}
-
-.muted {
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.7));
-}
-
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -589,7 +700,7 @@ export default {
 }
 
 .modal {
-  width: min(1200px, 100%);
+  width: min(1300px, 100%);
   max-height: 90vh;
   overflow: auto;
   border-radius: 14px;
@@ -653,41 +764,29 @@ export default {
   padding: 16px;
 }
 
-.modal-meta {
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(90, 220, 255, 0.14);
-  background: rgba(0, 0, 0, 0.22);
-}
-
-.modal-meta .label {
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.7));
-  margin-right: 8px;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.modal-meta .value {
-  color: var(--text-pilot-value, #d6f1ff);
-}
-
 .modal-section {
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+.modal-section.first {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 .section-label {
   color: var(--text-pilot-header, rgba(214, 241, 255, 0.75));
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-size: 10px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
+}
+
+.section-label.small {
+  margin-bottom: 8px;
+  font-size: 10px;
 }
 
 .panel {
@@ -702,17 +801,134 @@ export default {
   line-height: 1.35;
 }
 
+.muted {
+  color: var(--text-pilot-header, rgba(214, 241, 255, 0.7));
+}
+
+.rank-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(90, 220, 255, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text-location, #e6fbff);
+  letter-spacing: 0.16em;
+  font-size: 12px;
+}
+
+/* Command tree */
+.command-tree {
+  display: grid;
+  gap: 14px;
+}
+
+.tree-top {
+  display: grid;
+  justify-items: center;
+}
+
+.tree-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+  justify-items: center;
+}
+
+.tree-node {
+  position: relative;
+  width: 100%;
+  display: grid;
+  justify-items: center;
+}
+
+.node-connector.up::before,
+.node-connector.down::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 2px;
+  background: rgba(90, 220, 255, 0.16);
+  transform: translateX(-50%);
+}
+
+.node-connector.down::before {
+  top: calc(100% + 10px);
+  height: 18px;
+}
+
+.node-connector.up::before {
+  top: -22px;
+  height: 18px;
+}
+
+.hint {
+  margin-top: 10px;
+}
+
+/* Details */
+.details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.kv2 {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.kv2 .k {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-pilot-header, rgba(214, 241, 255, 0.75));
+}
+
+.kv2 .v {
+  color: var(--text-pilot-value, #d6f1ff);
+  overflow-wrap: anywhere;
+}
+
+.divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 12px 0;
+}
+
+.terminal-button {
+  border-radius: 12px;
+  border: 1px solid rgba(90, 220, 255, 0.22);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text-location, #e6fbff);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+}
+
+.terminal-button:hover {
+  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.12);
+}
+
 /* Responsive */
 @media (max-width: 1400px) {
   .tile-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
+
 @media (max-width: 1200px) {
   .tile-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
 @media (max-width: 980px) {
   .filters {
     grid-template-columns: 1fr;
@@ -720,7 +936,14 @@ export default {
   .tile-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .tree-bottom {
+    grid-template-columns: 1fr;
+  }
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
 }
+
 @media (max-width: 540px) {
   .tile-grid {
     grid-template-columns: 1fr;
