@@ -116,7 +116,7 @@
               <div class="tree-top">
                 <div class="tree-node">
                   <div class="node-connector down"></div>
-                  <button class="tile tile--modal" type="button" @click="noop">
+                  <button class="tile tile--modal tile--primary" type="button" @click="noop">
                     <div class="tile-topline"></div>
                     <div class="tile-media">
                       <img class="portrait" :src="portraitUrlFor(activeCommander)" :alt="`${activeCommander.name} portrait`" />
@@ -134,7 +134,7 @@
                 <div class="tree-node">
                   <div class="node-connector up"></div>
                   <button
-                    class="tile tile--modal"
+                    class="tile tile--modal tile--sub"
                     type="button"
                     :disabled="!subCommanders[0]"
                     @click="subCommanders[0] && setActiveCommander(subCommanders[0])"
@@ -158,7 +158,7 @@
                 <div class="tree-node">
                   <div class="node-connector up"></div>
                   <button
-                    class="tile tile--modal"
+                    class="tile tile--modal tile--sub"
                     type="button"
                     :disabled="!subCommanders[1]"
                     @click="subCommanders[1] && setActiveCommander(subCommanders[1])"
@@ -615,6 +615,9 @@ export default {
   width: min(360px, 100%);
 }
 
+.tile--primary{ animation: riseIn 180ms ease-out; }
+.tile--sub{ animation: riseIn 180ms ease-out; animation-delay: 80ms; animation-fill-mode: both; }
+
 .tile--modal:disabled {
   cursor: not-allowed;
   opacity: 0.7;
@@ -690,6 +693,7 @@ export default {
 
 /* Modal */
 .modal-overlay {
+  animation: fadeIn 160ms ease-out;
   position: fixed;
   inset: 0;
   z-index: 9999;
@@ -700,6 +704,7 @@ export default {
 }
 
 .modal {
+  animation: popIn 180ms ease-out;
   width: min(1300px, 100%);
   max-height: 90vh;
   overflow: auto;
@@ -836,6 +841,17 @@ export default {
   gap: 16px;
   align-items: start;
   justify-items: center;
+
+  position: relative;
+}
+.tree-bottom::before{
+  content:"";
+  position:absolute;
+  left: 12%;
+  right: 12%;
+  top: -14px; /* aligns with vertical connector ends */
+  height: 2px;
+  background: rgba(90, 220, 255, 0.16);
 }
 
 .tree-node {
@@ -856,13 +872,13 @@ export default {
 }
 
 .node-connector.down::before {
-  top: calc(100% + 10px);
-  height: 18px;
+  top: calc(100% + 8px);
+  height: 20px;
 }
 
 .node-connector.up::before {
   top: -22px;
-  height: 18px;
+  height: 20px;
 }
 
 .hint {
@@ -914,6 +930,21 @@ export default {
 
 .terminal-button:hover {
   box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.12);
+}
+
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Responsive */
