@@ -84,11 +84,11 @@
  * - Find FIRST where 2nd NON-EMPTY line contains "start" (case-insensitive)
  */
 
-const campaignJson = import.meta.glob("./src/campaigns/**/campaign.json", {
+const campaignJson = import.meta.glob("/src/campaigns/**/campaign.json", {
   as: "raw",
   eager: true,
 });
-const operationMd = import.meta.glob("./src/campaigns/**/operations/*.md", {
+const operationMd = import.meta.glob("/src/campaigns/**/operations/*.md", {
   as: "raw",
   eager: true,
 });
@@ -123,7 +123,7 @@ function campaignFolderFromOpPath(opPath) {
 
 function resolveCampaignJsonPath(folder) {
   if (!folder) return null;
-  const exact = `./src/campaigns/${folder}/campaign.json`;
+  const exact = `/src/campaigns/${folder}/campaign.json`;
   if (campaignJson[exact]) return exact;
 
   // fallback search by folder segment
