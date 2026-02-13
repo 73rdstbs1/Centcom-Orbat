@@ -52,18 +52,18 @@
           </div>
         </div>
 
+        <div v-if="loadError" class="load-error">
+          {{ loadError }}
+        </div>
+
         <div class="campaign-list">
-          <article
-            v-for="c in filteredCampaigns"
-            :key="c.id"
-            class="campaign-card"
-          >
+          <article v-for="c in filteredCampaigns" :key="c.id" class="campaign-card">
             <div class="card-topline"></div>
 
             <header class="campaign-header">
               <div class="campaign-title">
                 <span class="status-pill" :data-status="c.status">
-                  {{ c.status.toUpperCase() }}
+                  {{ String(c.status || "active").toUpperCase() }}
                 </span>
                 <h3>{{ c.name }}</h3>
               </div>
@@ -75,19 +75,19 @@
                 </div>
                 <div class="meta-line">
                   <span class="label">QTR</span>
-                  <span class="value">{{ c.quarter }}</span>
+                  <span class="value">{{ c.quarter || "—" }}</span>
                 </div>
               </div>
             </header>
 
-            <p class="desc">{{ c.overview }}</p>
+            <p class="desc">{{ c.overview || "—" }}</p>
 
             <div class="overview-snippets">
               <div class="snippet">
                 <div class="section-label">OPS OVERVIEW</div>
                 <ul class="mini-list">
                   <li v-for="op in (c.operations || []).slice(0, 2)" :key="op.id">
-                    <span class="op-date">{{ op.date }}</span>
+                    <span class="op-date">{{ op.date || "—" }}</span>
                     <span class="op-title">{{ op.title }}</span>
                     <span class="op-status" :data-op-status="op.status">
                       {{ op.status }}
@@ -118,12 +118,7 @@
     </section>
 
     <!-- Modal -->
-    <div
-      v-if="activeCampaign"
-      class="modal-overlay"
-      role="presentation"
-      @click.self="closeCampaign"
-    >
+    <div v-if="activeCampaign" class="modal-overlay" role="presentation" @click.self="closeCampaign">
       <div
         class="modal"
         role="dialog"
@@ -135,7 +130,7 @@
         <header class="modal-header">
           <div class="modal-title">
             <span class="status-pill" :data-status="activeCampaign.status">
-              {{ activeCampaign.status.toUpperCase() }}
+              {{ String(activeCampaign.status || "active").toUpperCase() }}
             </span>
             <div>
               <div class="kicker">CAMPAIGN RECORD</div>
@@ -156,7 +151,7 @@
             </div>
             <div>
               <span class="label">QTR</span>
-              <span class="value">{{ activeCampaign.quarter }}</span>
+              <span class="value">{{ activeCampaign.quarter || "—" }}</span>
             </div>
           </div>
 
@@ -175,11 +170,7 @@
               </div>
 
               <div class="org-children">
-                <div
-                  v-for="tu in activeCampaign.orgChart.taskUnits || []"
-                  :key="tu.name"
-                  class="org-node"
-                >
+                <div v-for="tu in activeCampaign.orgChart.taskUnits || []" :key="tu.name" class="org-node">
                   <div class="node-title">{{ tu.name }}</div>
                   <div class="node-sub">
                     <span class="muted">HQ</span>
@@ -221,12 +212,8 @@
                 <div>OPORD</div>
               </div>
 
-              <div
-                v-for="op in activeCampaign.operations"
-                :key="op.id"
-                class="ops-row"
-              >
-                <div class="op-date">{{ op.date }}</div>
+              <div v-for="op in activeCampaign.operations" :key="op.id" class="ops-row">
+                <div class="op-date">{{ op.date || "—" }}</div>
                 <div class="op-title">{{ op.title }}</div>
                 <div>
                   <span class="op-status-pill" :data-op-status="op.status">
@@ -266,19 +253,182 @@
 </template>
 
 <script>
-import { campaigns as pocCampaigns } from "@/data/pocData";
+// Content-driven campaigns (Vite requires literal globs)
+const campaignJsonLoaders = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw" });
+const operationMdLoaders = import.meta.glob("/src/campaigns/**/operations/*.md", { as: "raw" });
 
 // Change this once the backend roster route is finalized.
 const BACKEND_ROSTER_PATH = "/backend-roster";
+
+function splitLines(text) {
+  return String(text || "").replace(/\r\n/g, "\n").split("\n");
+}
+
+function campaignFolderFromPath(path) {
+  const parts = String(path || "").split("/");
+  const idx = parts.lastIndexOf("campaigns");
+  if (idx < 0) return null;
+  return parts[idx + 1] || null;
+}
+
+function fileStem(path) {
+  const name = String(path || "").split("/").pop() || "";
+  return name.replace(/\.[^.]+$/, "");
+}
+
+function normalizeOpStatus(token) {
+  const v = String(token || "").trim().toLowerCase();
+  if (!v) return "pending";
+  if (v === "start") return "pending";
+  if (["pending", "completed", "failed", "success", "failure", "partial-success"].includes(v)) return v;
+  return v;
+}
+
+function parseOpord(mdRaw) {
+  // Supported:
+  // - "opord: https://..." (anywhere)
+  // - Markdown link: [OPORD](https://...)
+  const text = String(mdRaw || "");
+  const m1 = text.match(/\bopord\s*:\s*(https?:\/\/\S+)/i);
+  if (m1?.[1]) return { url: m1[1] };
+
+  const m2 = text.match(/\[([^\]]*opord[^\]]*)\]\((https?:\/\/[^)]+)\)/i);
+  if (m2?.[2]) return { url: m2[2], title: m2[1] };
+
+  return null;
+}
+
+function parseDate(mdRaw, path) {
+  // Supported:
+  // - "date: YYYY-MM-DD"
+  // - fallback: YYYY-MM-DD in filename
+  const text = String(mdRaw || "");
+  const m1 = text.match(/\bdate\s*:\s*(\d{4}-\d{2}-\d{2})\b/i);
+  if (m1?.[1]) return m1[1];
+
+  const stem = fileStem(path);
+  const m2 = stem.match(/(\d{4}-\d{2}-\d{2})/);
+  if (m2?.[1]) return m2[1];
+
+  return "";
+}
+
+function parseTitle(mdRaw, path) {
+  const ls = splitLines(mdRaw);
+  const h = String(ls[0] || "").trim();
+  if (h.startsWith("#")) return h.replace(/^#+\s*/, "").trim();
+  return fileStem(path).replace(/[-_]/g, " ").trim() || "Operation";
+}
+
+function parseOpSummary(mdRaw) {
+  // Quick POC: first non-empty paragraph after line 2.
+  const ls = splitLines(mdRaw).slice(2);
+  const para = [];
+  for (const line of ls) {
+    const t = String(line || "").trim();
+    if (!t) {
+      if (para.length) break;
+      continue;
+    }
+    if (t.startsWith("#")) continue;
+    para.push(t);
+    if (para.join(" ").length > 180) break;
+  }
+  const s = para.join(" ").trim();
+  return s ? s : "";
+}
+
+async function loadCampaignsFromContent() {
+  const campaigns = [];
+  const campaignEntries = Object.entries(campaignJsonLoaders).sort(([a], [b]) => a.localeCompare(b));
+
+  for (const [path, loader] of campaignEntries) {
+    const raw = await loader();
+    const obj = JSON.parse(raw);
+
+    const folder = campaignFolderFromPath(path) || obj.id || obj.slug || "unknown";
+    const id = obj.id || folder;
+
+    campaigns.push({
+      id,
+      folder,
+      name: obj.name || id,
+      status: obj.status || "active",
+      startDate: obj.startDate || "",
+      endDate: obj.endDate || "",
+      quarter: obj.quarter || "",
+      overview: obj.overview || "",
+      orgChart: obj.orgChart || null,
+      // carry-through extra fields for future use
+      ...obj,
+      operations: [],
+    });
+  }
+
+  // Map ops into each campaign by folder
+  const byFolder = new Map(campaigns.map((c) => [String(c.folder).toLowerCase(), c]));
+  const opEntries = Object.entries(operationMdLoaders).sort(([a], [b]) => a.localeCompare(b));
+
+  for (const [path, loader] of opEntries) {
+    const folder = campaignFolderFromPath(path);
+    const key = String(folder || "").toLowerCase();
+    const campaign = byFolder.get(key);
+    if (!campaign) continue;
+
+    const md = await loader();
+    const ls = splitLines(md);
+
+    const statusToken = String(ls[1] || "").trim();
+    const status = normalizeOpStatus(statusToken);
+    const title = parseTitle(md, path);
+    const date = parseDate(md, path);
+    const opord = parseOpord(md);
+
+    campaign.operations.push({
+      id: fileStem(path),
+      title,
+      date,
+      status,
+      opordUrl: opord?.url || "",
+      opordTitle: opord?.title || "",
+      opordSummary: parseOpSummary(md),
+      sourcePath: path,
+    });
+  }
+
+  // Sort ops by date if present, otherwise by id
+  for (const c of campaigns) {
+    c.operations = (c.operations || []).slice().sort((a, b) => {
+      const ad = a.date || "";
+      const bd = b.date || "";
+      if (ad && bd) return ad.localeCompare(bd);
+      if (ad && !bd) return -1;
+      if (!ad && bd) return 1;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  }
+
+  // Sort campaigns by startDate then name
+  return campaigns.slice().sort((a, b) => {
+    const ad = a.startDate || "";
+    const bd = b.startDate || "";
+    if (ad && bd) return ad.localeCompare(bd);
+    if (ad && !bd) return -1;
+    if (!ad && bd) return 1;
+    return String(a.name).localeCompare(String(b.name));
+  });
+}
 
 export default {
   name: "CampaignLogView",
   data() {
     return {
-      campaigns: pocCampaigns,
+      campaigns: [],
       search: "",
       statusFilter: "",
       activeCampaign: null,
+      loadError: "",
+      _loadedOnce: false,
     };
   },
   computed: {
@@ -311,9 +461,22 @@ export default {
       this.openFromRoute();
     },
   },
+  async created() {
+    try {
+      this.campaigns = await loadCampaignsFromContent();
+      this._loadedOnce = true;
+      this.openFromRoute();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[CampaignLogView] failed to load campaigns:", e);
+      this.loadError =
+        "Campaign content could not be loaded. Ensure src/campaigns/<campaign>/campaign.json exists and operations are under src/campaigns/<campaign>/operations/*.md";
+      this.campaigns = [];
+      this._loadedOnce = true;
+    }
+  },
   mounted() {
     window.addEventListener("keydown", this.onKeydown);
-    this.openFromRoute();
   },
   beforeUnmount() {
     window.removeEventListener("keydown", this.onKeydown);
@@ -329,10 +492,10 @@ export default {
       this.$router.push(href);
     },
     openFromRoute() {
+      if (!this._loadedOnce) return;
       const id = this.$route?.query?.campaignId;
       if (!id) return;
-
-      const match = (this.campaigns || []).find((c) => String(c.id) === String(id));
+      const match = (this.campaigns || []).find((c) => String(c.id) === String(id) || String(c.folder) === String(id));
       if (match) this.openCampaign(match);
     },
     fmtDates(start, end) {
@@ -343,6 +506,11 @@ export default {
     },
     openCampaign(c) {
       this.activeCampaign = c;
+      // Make link shareable
+      const q = { ...(this.$route?.query || {}) };
+      if (c?.id) q.campaignId = c.id;
+      this.$router.replace({ query: q });
+
       this.$nextTick(() => {
         if (this.$refs.modalRef) this.$refs.modalRef.focus();
       });
@@ -374,10 +542,8 @@ export default {
   min-width: 0;
   box-sizing: border-box;
 
-  /* Keep the layout padding rules */
   padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
 
-  /* Text defaults (use theme vars when present) */
   color: var(--text-pilot-value, #d6f1ff);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
@@ -526,7 +692,6 @@ export default {
   letter-spacing: 0.08em;
 }
 
-/* Make existing input/select look terminal-ish without touching global styles */
 .term-input,
 .term-select {
   width: 100%;
@@ -545,6 +710,15 @@ export default {
 .term-select:focus {
   box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.14);
   border-color: rgba(90, 220, 255, 0.28);
+}
+
+.load-error {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.26);
+  padding: 10px 12px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  color: rgba(230, 251, 255, 0.92);
 }
 
 /* Cards */
@@ -936,13 +1110,16 @@ export default {
   opacity: 0.95;
 }
 
-.op-status-pill[data-op-status="completed"] {
+.op-status-pill[data-op-status="completed"],
+.op-status-pill[data-op-status="success"] {
   box-shadow: 0 0 16px rgba(90, 220, 255, 0.12);
 }
-.op-status-pill[data-op-status="pending"] {
+.op-status-pill[data-op-status="pending"],
+.op-status-pill[data-op-status="start"] {
   opacity: 0.85;
 }
-.op-status-pill[data-op-status="failed"] {
+.op-status-pill[data-op-status="failed"],
+.op-status-pill[data-op-status="failure"] {
   opacity: 0.75;
 }
 
