@@ -33,32 +33,33 @@
         </video>
 
         <div class="location-info" aria-label="Current AO details">
-          <!-- NOTE: No "Operation Atlas / Active" header line; only location details. -->
-          <div class="location-row grid">
-            <div id="system">
-              <h4>{{ labels.system }}</h4>
+          <!-- PRIMARY: SYSTEM > PLANET > AO -->
+          <div class="location-row primary">
+            <div class="meta-block">
+              <h4>SYSTEM</h4>
               <span class="subtitle">{{ campaignHeader?.system }}</span>
             </div>
 
-            <div id="planet">
-              <h4>{{ labels.planet }}</h4>
+            <div class="meta-block">
+              <h4>PLANET</h4>
               <span class="subtitle">{{ campaignHeader?.planet }}</span>
             </div>
 
-            <div id="AO">
-              <h4>{{ labels.ao }}</h4>
+            <div class="meta-block">
+              <h4>AO</h4>
               <span class="subtitle">{{ campaignHeader?.ao }}</span>
             </div>
           </div>
 
-          <div class="location-row grid secondary">
-            <div id="year">
-              <h4>{{ labels.year }}</h4>
+          <!-- SECONDARY (placeholders) -->
+          <div class="location-row secondary">
+            <div class="meta-block small">
+              <h4>YEAR</h4>
               <span class="subtitle">TBD</span>
             </div>
 
-            <div id="status" class="span-2">
-              <h4>{{ labels.status }}</h4>
+            <div class="meta-block small">
+              <h4>STATUS</h4>
               <span class="subtitle">TBD</span>
             </div>
           </div>
@@ -293,9 +294,6 @@ export default {
     authLogoutLabel() {
       return (getConfig().ui?.auth?.logoutLabel || "Logout");
     },
-    labels() {
-      return (getConfig().ui?.labels || {});
-    },
 
     isLoggedIn() {
       return this.role === "member" || this.isStaff;
@@ -487,7 +485,7 @@ header .planet-location-container{
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 14px;
+  gap: 12px;
   padding-right: 12px;
 }
 
@@ -496,25 +494,35 @@ header .planet-location-container{
 /* Panel can grow/shrink while staying neat */
 .location-info{
   min-width: 0;
-  width: clamp(420px, 44vw, 980px);
+  width: clamp(520px, 52vw, 1040px);
 }
 
-/* Existing layout styles */
-.location-row.grid {
+/* Tight "SYSTEM > PLANET > AO" row */
+.location-row.primary{
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 18px;
+  flex-wrap: nowrap;
+}
+
+/* Secondary row: YEAR / STATUS */
+.location-row.secondary{
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+.meta-block{
+  min-width: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: 0.7rem;
-  row-gap: 0.35rem;
-  align-items: end;
+  gap: 4px;
 }
 
-.location-row.grid.secondary{
-  grid-template-columns: minmax(0, 140px) minmax(0, 1fr);
-  column-gap: 0.7rem;
-  margin-top: 6px;
+.meta-block.small{
+  width: 140px;
 }
-
-.span-2 { grid-column: span 2; }
 
 .location-row h4{
   text-transform: uppercase;
@@ -533,16 +541,10 @@ header .planet-location-container{
   text-overflow: ellipsis;
 }
 
-/* Make the top row read as SYSTEM > PLANET > AO (tighter + consistent) */
-#system { order: 1; }
-#planet { order: 2; }
-#AO     { order: 3; }
-
-/* Reduce visual "air" inside the panel */
-.location-info{
-  min-width: 0;
-  width: clamp(520px, 52vw, 1080px);
-}
+/* Make AO flex wider if needed */
+.location-row.primary .meta-block:nth-child(1){ flex: 0 0 170px; }
+.location-row.primary .meta-block:nth-child(2){ flex: 0 0 190px; }
+.location-row.primary .meta-block:nth-child(3){ flex: 1 1 auto; }
 
 /* =========================
    UNSC TERMINAL HEADER THEME
