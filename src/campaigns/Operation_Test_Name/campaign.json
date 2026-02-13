@@ -1,7 +1,133 @@
 {
-  "id": "OP_ATLAS",
-  "name": "Operation ATLAS",
+  "id": "operation_test_name",
+  "name": "Operation: Test Name",
+  "status": "active",
   "system": "Epsilon Eridani",
   "planet": "Reach",
-  "ao": "Viery Territory"
+  "ao": "Viery Territory",
+  "theatre": "CENTCOM / REACH AO",
+  "startDate": "2026-01-10",
+  "endDate": "",
+  "quarter": "2026 Q1",
+  "location": "Reach / Viery Territory",
+  "overview": "POC campaign overview. Replace this with a short, high-level summary of the campaign\u2019s purpose and arc.",
+  "assets": {
+    "defaultPortrait": "/assets/portraits/portrait-placeholder.png",
+    "defaultUnitPatch": "/assets/patches/patch-placeholder.png",
+    "fallbackPortraits": [
+      "/assets/portraits/portrait-placeholder.png"
+    ]
+  },
+  "commandRoster": {
+    "title": "CENTCOM Task Force Command",
+    "notes": "POC roster. Each entry can supply an image; if missing, UI should fall back to assets.defaultPortrait then assets.fallbackPortraits.",
+    "entries": [
+      {
+        "id": "atlas",
+        "callsign": "ATLAS",
+        "name": "CPT John Doe",
+        "position": "Task Force Commander",
+        "unit": "CENTCOM Task Force Atlas",
+        "portrait": "",
+        "portraitFallbacks": [
+          "/assets/portraits/atlas.png",
+          "/assets/portraits/portrait-placeholder.png"
+        ],
+        "links": {
+          "steam": "",
+          "discord": ""
+        },
+        "awards": [
+          {
+            "id": "svc_star",
+            "name": "Service Star",
+            "level": 2,
+            "date": "2026-01-20",
+            "reason": "Sustained operational leadership."
+          }
+        ]
+      },
+      {
+        "id": "odyssey",
+        "callsign": "ODYSSEY",
+        "name": "MAJ Jane Roe",
+        "position": "Task Unit Commander",
+        "unit": "Task Unit Odyssey",
+        "portrait": "",
+        "portraitFallbacks": [
+          "/assets/portraits/odyssey.png",
+          "/assets/portraits/portrait-placeholder.png"
+        ],
+        "links": {},
+        "awards": []
+      }
+    ]
+  },
+  "orgChart": {
+    "taskForceName": "CENTCOM Task Force Atlas",
+    "taskForceHQ": {
+      "name": "TF HQ",
+      "commanderId": "atlas",
+      "commander": "CPT John Doe",
+      "patch": "",
+      "patchFallbacks": [
+        "/assets/patches/tf-atlas.png",
+        "/assets/patches/patch-placeholder.png"
+      ]
+    },
+    "taskUnits": [
+      {
+        "id": "tu-odyssey",
+        "name": "Task Unit Odyssey",
+        "hq": {
+          "name": "TU HQ",
+          "commanderId": "odyssey",
+          "commander": "MAJ Jane Roe",
+          "patch": "",
+          "patchFallbacks": [
+            "/assets/patches/tu-odyssey.png",
+            "/assets/patches/patch-placeholder.png"
+          ]
+        },
+        "units": [
+          {
+            "id": "1st_marines",
+            "name": "1st Marines",
+            "type": "Infantry",
+            "patch": "",
+            "patchFallbacks": [
+              "/assets/patches/1st-marines.png",
+              "/assets/patches/patch-placeholder.png"
+            ],
+            "backendUnitSlug": "1st_marines",
+            "notes": "Participating unit notes."
+          },
+          {
+            "id": "77th_air",
+            "name": "77th Air Wing",
+            "type": "Aviation",
+            "patch": "",
+            "patchFallbacks": [
+              "/assets/patches/77th-air.png",
+              "/assets/patches/patch-placeholder.png"
+            ],
+            "backendUnitSlug": "77th_air",
+            "notes": ""
+          }
+        ]
+      }
+    ]
+  },
+  "operationsIndex": [
+    {
+      "id": "001",
+      "title": "Recon in Force",
+      "date": "2026-01-10",
+      "status": "active",
+      "opordTitle": "OPORD 001",
+      "opordUrl": "https://example.com/opord-001",
+      "opordSummary": "Recon enemy lines, identify supply routes, capture map intel.",
+      "file": "operations/001.md"
+    }
+  ]
 }
