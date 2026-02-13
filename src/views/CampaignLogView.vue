@@ -191,7 +191,16 @@
                   <div class="node-units">
                     <div class="muted">PARTICIPATING UNITS</div>
                     <ul class="unit-list">
-                      <li v-for="u in (tu.units || [])" :key="u">{{ u }}</li>
+                      <li v-for="u in (tu.units || [])" :key="u">
+                        <button
+                          class="unit-link"
+                          type="button"
+                          @click="goToUnit(u)"
+                          :title="`Open backend roster for ${u}`"
+                        >
+                          {{ u }}
+                        </button>
+                      </li>
                     </ul>
                   </div>
                 </div>
@@ -259,6 +268,9 @@
 <script>
 import { campaigns as pocCampaigns } from "@/data/pocData";
 
+// Change this once the backend roster route is finalized.
+const BACKEND_ROSTER_PATH = "/backend-roster";
+
 export default {
   name: "CampaignLogView",
   data() {
@@ -307,6 +319,15 @@ export default {
     window.removeEventListener("keydown", this.onKeydown);
   },
   methods: {
+    backendRosterHref(unitName) {
+      const unit = String(unitName || "").trim();
+      if (!unit) return BACKEND_ROSTER_PATH;
+      return `${BACKEND_ROSTER_PATH}?unit=${encodeURIComponent(unit)}`;
+    },
+    goToUnit(unitName) {
+      const href = this.backendRosterHref(unitName);
+      this.$router.push(href);
+    },
     openFromRoute() {
       const id = this.$route?.query?.campaignId;
       if (!id) return;
@@ -846,6 +867,28 @@ export default {
   margin: 8px 0 0;
   padding-left: 18px;
   color: var(--text-pilot-value, #d6f1ff);
+}
+
+.unit-link {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--text-location, #e6fbff);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.unit-link:hover {
+  opacity: 0.9;
+}
+
+.unit-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.18);
+  border-radius: 8px;
 }
 
 .node-units .muted {
