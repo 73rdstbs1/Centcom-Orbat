@@ -8,19 +8,7 @@
       </div>
     </div>
 
-    <!-- DEBUG banner (only when ?debugHeader=1) -->
-    <div v-if="debugEnabled" class="debug-banner">
-      <div class="debug-title">HEADER DEBUG</div>
-      <div class="debug-line">ops seen: {{ debug.opsCount }}</div>
-      <div class="debug-line">campaign.json seen: {{ debug.campaignCount }}</div>
-      <div class="debug-line">start found: {{ debug.startFound ? "YES" : "NO" }}</div>
-      <div v-if="debug.startOpPath" class="debug-line">start op: {{ debug.startOpPath }}</div>
-      <div v-if="debug.campaignFolder" class="debug-line">folder: {{ debug.campaignFolder }}</div>
-      <div v-if="debug.campaignJsonPath" class="debug-line">campaign.json: {{ debug.campaignJsonPath }}</div>
-      <div v-if="debug.error" class="debug-error">error: {{ debug.error }}</div>
-    </div>
-
-    <!-- Existing layout preserved: campaign panel appears only when START detected -->
+    <!-- Campaign details panel only appears when an operation has START on line 2 -->
     <div v-if="showCampaignPanel" class="right">
       <div class="active-panel" role="status" aria-label="Active campaign">
         <div class="panel-top">
@@ -67,27 +55,28 @@
 
 <script>
 /**
- * BUGFIX-FIRST header detector
+ * Header active-campaign detector (content-driven)
  *
- * Why this version:
- * - No async imports. No runtime chunk fetch. No loader functions.
- * - Uses eager + raw, so content is embedded at build time.
- * - Adds an ON-PAGE debug banner via ?debugHeader=1 (works even if console is noisy/minified).
- *
- * Expected layout:
+ * Folder model:
  *   src/campaigns/<campaignFolder>/
  *     campaign.json
  *     operations/<op>.md
  *
- * Detection:
- * - Scan ALL op md files under operations/
- * - Find FIRST where 2nd NON-EMPTY line contains "start" (case-insensitive)
+ * Active rule:
+ * - Find FIRST operation file where the 2nd NON-EMPTY line includes "start" (case-insensitive).
+ * - Load that campaign's campaign.json and show it in the header panel.
+ *
+ * Build/runtime notes:
+ * - Vite globs MUST use literal strings.
+ * - We use eager raw globs to avoid runtime chunk fetching (prevents _chunkError 404).
+ * - Globs are rooted (leading "/") so they resolve from project root, not relative to this file.
  */
 
 const campaignJson = import.meta.glob("/src/campaigns/**/campaign.json", {
   as: "raw",
   eager: true,
 });
+
 const operationMd = import.meta.glob("/src/campaigns/**/operations/*.md", {
   as: "raw",
   eager: true,
@@ -115,7 +104,7 @@ function hasStartOnLine2(mdRaw) {
 }
 
 function campaignFolderFromOpPath(opPath) {
-  // ./src/campaigns/<campaignFolder>/operations/<file>.md
+  // /src/campaigns/<campaignFolder>/operations/<file>.md
   const parts = String(opPath || "").split("/campaigns/");
   if (parts.length < 2) return null;
   return parts[1].split("/")[0] || null;
@@ -123,14 +112,16 @@ function campaignFolderFromOpPath(opPath) {
 
 function resolveCampaignJsonPath(folder) {
   if (!folder) return null;
+
   const exact = `/src/campaigns/${folder}/campaign.json`;
   if (campaignJson[exact]) return exact;
 
-  // fallback search by folder segment
+  // Fallback: match by folder segment
   for (const path of Object.keys(campaignJson)) {
     const f = String(path).split("/campaigns/")[1]?.split("/")[0];
     if (f && f.toLowerCase() === String(folder).toLowerCase()) return path;
   }
+
   return null;
 }
 
@@ -143,36 +134,26 @@ function loadCampaignJsonByPath(jsonPath) {
   }
 }
 
-function detectActiveCampaign(debug) {
+function detectActiveCampaign() {
   const ops = Object.entries(operationMd).sort(([a], [b]) => a.localeCompare(b));
-  debug.opsCount = ops.length;
-  debug.campaignCount = Object.keys(campaignJson).length;
 
   for (const [path, mdRaw] of ops) {
     if (!hasStartOnLine2(mdRaw)) continue;
 
-    debug.startFound = true;
-    debug.startOpPath = path;
-
     const folder = campaignFolderFromOpPath(path);
-    debug.campaignFolder = folder;
-
     const jsonPath = resolveCampaignJsonPath(folder);
-    debug.campaignJsonPath = jsonPath;
 
-    const campaign =
+    return (
       loadCampaignJsonByPath(jsonPath) || {
         id: folder || "unknown",
         name: folder ? folder.replace(/[-_]/g, " ") : "Active Campaign",
         system: "—",
         planet: "—",
         ao: "—",
-      };
-
-    return campaign;
+      }
+    );
   }
 
-  debug.startFound = false;
   return null;
 }
 
@@ -181,16 +162,6 @@ export default {
   data() {
     return {
       activeCampaign: null,
-      debugEnabled: false,
-      debug: {
-        opsCount: 0,
-        campaignCount: 0,
-        startFound: false,
-        startOpPath: "",
-        campaignFolder: "",
-        campaignJsonPath: "",
-        error: "",
-      },
     };
   },
   computed: {
@@ -200,6 +171,7 @@ export default {
     campaignHeader() {
       const c = this.activeCampaign;
       if (!c) return null;
+
       return {
         name: c.name || c.id || "—",
         system: c.system || "—",
@@ -209,15 +181,8 @@ export default {
     },
   },
   created() {
-    try {
-      const url = new URL(window.location.href);
-      this.debugEnabled = url.searchParams.get("debugHeader") === "1";
-
-      this.activeCampaign = detectActiveCampaign(this.debug);
-    } catch (e) {
-      this.activeCampaign = null;
-      this.debug.error = String(e?.message || e || "unknown error");
-    }
+    // Pure sync: eager-globbed raw content.
+    this.activeCampaign = detectActiveCampaign();
   },
   methods: {
     openCampaignLog() {
@@ -228,7 +193,7 @@ export default {
 </script>
 
 <style scoped>
-/* Same header styling as your existing approved version */
+/* Original approved header look/layout (terminal clean) */
 .app-header {
   height: var(--app-header-height, 72px);
   display: grid;
@@ -360,36 +325,6 @@ export default {
   box-shadow: 0 0 18px rgba(90, 220, 255, 0.12);
 }
 
-/* Debug banner */
-.debug-banner {
-  justify-self: end;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.22);
-  padding: 8px 10px;
-  max-width: 520px;
-}
-.debug-title {
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(230, 251, 255, 0.92);
-  margin-bottom: 6px;
-}
-.debug-line {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: rgba(214, 241, 255, 0.85);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.debug-error {
-  margin-top: 6px;
-  font-size: 10px;
-  color: rgba(255, 170, 170, 0.95);
-}
-
 @media (max-width: 980px) {
   .app-header {
     grid-template-columns: 1fr;
@@ -398,9 +333,6 @@ export default {
   .active-panel {
     min-width: 0;
     width: 100%;
-  }
-  .debug-banner {
-    max-width: none;
   }
 }
 </style>
