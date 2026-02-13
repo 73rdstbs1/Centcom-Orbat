@@ -52,10 +52,6 @@
           </div>
         </div>
 
-        <div v-if="loadError" class="load-error">
-          {{ loadError }}
-        </div>
-
         <div class="campaign-list">
           <article v-for="c in filteredCampaigns" :key="c.id" class="campaign-card">
             <div class="card-topline"></div>
@@ -63,7 +59,7 @@
             <header class="campaign-header">
               <div class="campaign-title">
                 <span class="status-pill" :data-status="c.status">
-                  {{ String(c.status || "active").toUpperCase() }}
+                  {{ (c.status || "—").toUpperCase() }}
                 </span>
                 <h3>{{ c.name }}</h3>
               </div>
@@ -80,7 +76,7 @@
               </div>
             </header>
 
-            <p class="desc">{{ c.overview || "—" }}</p>
+            <p class="desc">{{ c.overview }}</p>
 
             <div class="overview-snippets">
               <div class="snippet">
@@ -90,7 +86,7 @@
                     <span class="op-date">{{ op.date || "—" }}</span>
                     <span class="op-title">{{ op.title }}</span>
                     <span class="op-status" :data-op-status="op.status">
-                      {{ op.status }}
+                      {{ op.status || "pending" }}
                     </span>
                   </li>
                 </ul>
@@ -102,7 +98,7 @@
               <div class="snippet">
                 <div class="section-label">ROSTER</div>
                 <div class="muted">
-                  Per-unit roster is managed by unit leads. Open details for task force structure.
+                  Participating units are managed by unit leads. Open details for org chart + unit links.
                 </div>
               </div>
             </div>
@@ -130,7 +126,7 @@
         <header class="modal-header">
           <div class="modal-title">
             <span class="status-pill" :data-status="activeCampaign.status">
-              {{ String(activeCampaign.status || "active").toUpperCase() }}
+              {{ (activeCampaign.status || "—").toUpperCase() }}
             </span>
             <div>
               <div class="kicker">CAMPAIGN RECORD</div>
@@ -160,37 +156,45 @@
 
             <div v-if="activeCampaign.orgChart" class="orgchart">
               <div class="org-node root">
-                <div class="node-title">{{ activeCampaign.orgChart.taskForceName }}</div>
+                <div class="node-title">{{ activeCampaign.orgChart.taskForceName || "Task Force" }}</div>
                 <div class="node-sub">
                   <span class="muted">HQ</span>
-                  <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.name }}</span>
+                  <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.name || "—" }}</span>
                   <span class="muted">/</span>
-                  <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.commander }}</span>
+                  <span class="value">
+                    {{ commanderLabel(activeCampaign, activeCampaign.orgChart.taskForceHQ?.commanderId) }}
+                  </span>
                 </div>
               </div>
 
               <div class="org-children">
-                <div v-for="tu in activeCampaign.orgChart.taskUnits || []" :key="tu.name" class="org-node">
+                <div
+                  v-for="tu in activeCampaign.orgChart.taskUnits || []"
+                  :key="tu.id || tu.name"
+                  class="org-node"
+                >
                   <div class="node-title">{{ tu.name }}</div>
+
                   <div class="node-sub">
                     <span class="muted">HQ</span>
-                    <span class="value">{{ tu.hq?.name }}</span>
+                    <span class="value">{{ tu.hqName || (tu.name + " HQ") }}</span>
                     <span class="muted">/</span>
-                    <span class="value">{{ tu.hq?.commander }}</span>
+                    <span class="value">{{ commanderLabel(activeCampaign, tu.commanderId) }}</span>
                   </div>
 
                   <div class="node-units">
                     <div class="muted">PARTICIPATING UNITS</div>
                     <ul class="unit-list">
-                      <li v-for="u in (tu.units || [])" :key="u">
-                        <button
+                      <li v-for="u in unitsForTaskUnit(activeCampaign, tu)" :key="u.id">
+                        <a
+                          v-if="u.backendUnitSlug"
                           class="unit-link"
-                          type="button"
-                          @click="goToUnit(u)"
-                          :title="`Open backend roster for ${u}`"
+                          href="#"
+                          @click.prevent="openBackendUnit(u.backendUnitSlug)"
                         >
-                          {{ u }}
-                        </button>
+                          {{ u.name }}
+                        </a>
+                        <span v-else>{{ u.name }}</span>
                       </li>
                     </ul>
                   </div>
@@ -216,8 +220,8 @@
                 <div class="op-date">{{ op.date || "—" }}</div>
                 <div class="op-title">{{ op.title }}</div>
                 <div>
-                  <span class="op-status-pill" :data-op-status="op.status">
-                    {{ op.status }}
+                  <span class="op-status-pill" :data-op-status="op.status || 'pending'">
+                    {{ op.status || "pending" }}
                   </span>
                 </div>
                 <div>
@@ -253,21 +257,45 @@
 </template>
 
 <script>
-// Content-driven campaigns (Vite requires literal globs)
-const campaignJsonLoaders = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw", eager: true });
-const operationMdLoaders = import.meta.glob("/src/campaigns/**/operations/*.md", { as: "raw", eager: true });
+/**
+ * Content-driven campaign loader.
+ *
+ * Folder model:
+ *   src/campaigns/<campaignFolder>/
+ *     campaign.json
+ *     operations/<op>.md
+ *
+ * Operations:
+ * - from campaign.json `operationsIndex[]`
+ * - optional md overrides (first ~40 non-empty lines) for:
+ *     date:
+ *     status:
+ *     opord_title:
+ *     opord_url:
+ */
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { eager: true, as: "raw" });
+const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { eager: true, as: "raw" });
 
-// Change this once the backend roster route is finalized.
-const BACKEND_ROSTER_PATH = "/backend-roster";
+function safeJson(raw) {
+  try {
+    return JSON.parse(String(raw || ""));
+  } catch {
+    return null;
+  }
+}
+
+function normalizeStatus(s) {
+  const v = String(s || "").trim().toLowerCase();
+  return v || "pending";
+}
 
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
 }
 
-function firstNonEmptyLines(mdRaw, max = 20) {
+function firstNonEmptyLines(mdRaw, max = 40) {
   const out = [];
-  const ls = splitLines(mdRaw);
-  for (const line of ls) {
+  for (const line of splitLines(mdRaw)) {
     const t = String(line || "").trim();
     if (!t) continue;
     out.push(t);
@@ -276,178 +304,85 @@ function firstNonEmptyLines(mdRaw, max = 20) {
   return out;
 }
 
+function parseOpMdMeta(mdRaw) {
+  const lines = firstNonEmptyLines(mdRaw);
+  const meta = {};
+  for (const l of lines) {
+    const idx = l.indexOf(":");
+    if (idx <= 0) continue;
+    const key = l.slice(0, idx).trim().toLowerCase();
+    const val = l.slice(idx + 1).trim();
+    if (!key || !val) continue;
+
+    if (["date", "status", "opord_title", "opord_url"].includes(key)) meta[key] = val;
+  }
+  return meta;
+}
 
 function campaignFolderFromPath(path) {
-  const parts = String(path || "").split("/");
-  const idx = parts.lastIndexOf("campaigns");
-  if (idx < 0) return null;
-  return parts[idx + 1] || null;
+  const parts = String(path || "").split("/campaigns/");
+  if (parts.length < 2) return null;
+  return parts[1].split("/")[0] || null;
 }
 
-function fileStem(path) {
-  const name = String(path || "").split("/").pop() || "";
-  return name.replace(/\.[^.]+$/, "");
-}
-
-function normalizeOpStatus(token) {
-  const v = String(token || "").trim().toLowerCase();
-  if (!v) return "pending";
-  if (v === "start") return "active";
-  if (["pending", "completed", "failed", "success", "failure", "partial-success"].includes(v)) return v;
-  return v;
-}
-
-function parseOpord(mdRaw) {
-  // Supported:
-  // - "opord: https://..." (anywhere)
-  // - Markdown link: [OPORD](https://...)
-  const text = String(mdRaw || "");
-  const m1 = text.match(/\bopord\s*:\s*(https?:\/\/\S+)/i);
-  if (m1?.[1]) return { url: m1[1] };
-
-  const m2 = text.match(/\[([^\]]*opord[^\]]*)\]\((https?:\/\/[^)]+)\)/i);
-  if (m2?.[2]) return { url: m2[2], title: m2[1] };
-
-  return null;
-}
-
-function parseDate(mdRaw, path) {
-  // Supported:
-  // - "date: YYYY-MM-DD"
-  // - fallback: YYYY-MM-DD in filename
-  const text = String(mdRaw || "");
-  const m1 = text.match(/\bdate\s*:\s*(\d{4}-\d{2}-\d{2})\b/i);
-  if (m1?.[1]) return m1[1];
-
-  const stem = fileStem(path);
-  const m2 = stem.match(/(\d{4}-\d{2}-\d{2})/);
-  if (m2?.[1]) return m2[1];
-
-  return "";
-}
-
-function parseTitle(mdRaw, path) {
-  const ls = firstNonEmptyLines(mdRaw);
-  const h = String(ls[0] || "").trim();
-  if (h.startsWith("#")) return h.replace(/^#+\s*/, "").trim();
-  return fileStem(path).replace(/[-_]/g, " ").trim() || "Operation";
-}
-
-function parseOpSummary(mdRaw) {
-  // Quick POC: first non-empty paragraph after line 2.
-  const ls = splitLines(mdRaw).slice(2);
-  const para = [];
-  for (const line of ls) {
-    const t = String(line || "").trim();
-    if (!t) {
-      if (para.length) break;
-      continue;
-    }
-    if (t.startsWith("#")) continue;
-    para.push(t);
-    if (para.join(" ").length > 180) break;
-  }
-  const s = para.join(" ").trim();
-  return s ? s : "";
-}
-
-async function loadCampaignsFromContent() {
-  const campaigns = [];
-  const campaignEntries = Object.entries(campaignJsonLoaders).sort(([a], [b]) => a.localeCompare(b));
-
-  for (const [path, loader] of campaignEntries) {
-    const raw = loader;
-    const obj = JSON.parse(raw);
-
-    const folder = campaignFolderFromPath(path) || obj.id || obj.slug || "unknown";
-    const id = obj.id || folder;
-
-    campaigns.push({
-      id,
-      folder,
-      name: obj.name || id,
-      status: obj.status || "active",
-      startDate: obj.startDate || "",
-      endDate: obj.endDate || "",
-      quarter: obj.quarter || "",
-      overview: obj.overview || "",
-      orgChart: obj.orgChart || null,
-      // carry-through extra fields for future use
-      ...obj,
-      operations: [],
-    });
-  }
-
-  // Map ops into each campaign by folder
-  const byFolder = new Map(campaigns.map((c) => [String(c.folder).toLowerCase(), c]));
-  const opEntries = Object.entries(operationMdLoaders).sort(([a], [b]) => a.localeCompare(b));
-
-  for (const [path, loader] of opEntries) {
+function buildOpMdIndex() {
+  // Map: { "<campaignFolder>/operations/<file>.md": mdRaw }
+  const out = {};
+  for (const [path, raw] of Object.entries(OPERATION_MD)) {
     const folder = campaignFolderFromPath(path);
-    const key = String(folder || "").toLowerCase();
-    const campaign = byFolder.get(key);
-    if (!campaign) continue;
-
-    const md = loader;
-    const ls = firstNonEmptyLines(md);
-
-    const statusToken = String(ls[1] || "").trim();
-    const status = normalizeOpStatus(statusToken);
-    const title = parseTitle(md, path);
-    const date = parseDate(md, path);
-    const opord = parseOpord(md);
-
-    campaign.operations.push({
-      id: fileStem(path),
-      title,
-      date,
-      status,
-      opordUrl: opord?.url || "",
-      opordTitle: opord?.title || "",
-      opordSummary: parseOpSummary(md),
-      sourcePath: path,
-    });
+    if (!folder) continue;
+    const rel = String(path).split(`/src/campaigns/${folder}/`)[1] || "";
+    out[`${folder}/${rel}`] = raw;
   }
+  return out;
+}
 
-  // Derive campaign status: if any operation is active, campaign is active.
-  for (const c of campaigns) {
-    const hasActive = (c.operations || []).some((op) => op.status === "active");
-    if (hasActive) c.status = "active";
-  }
+function loadCampaignsFromContent() {
+  const mdIndex = buildOpMdIndex();
 
-  // Sort ops by date if present, otherwise by id
-  for (const c of campaigns) {
-    c.operations = (c.operations || []).slice().sort((a, b) => {
-      const ad = a.date || "";
-      const bd = b.date || "";
-      if (ad && bd) return ad.localeCompare(bd);
-      if (ad && !bd) return -1;
-      if (!ad && bd) return 1;
-      return String(a.id).localeCompare(String(b.id));
-    });
-  }
+  return Object.entries(CAMPAIGN_JSON)
+    .map(([path, raw]) => {
+      const folder = campaignFolderFromPath(path);
+      const json = safeJson(raw);
+      if (!json || !folder) return null;
 
-  // Sort campaigns by startDate then name
-  return campaigns.slice().sort((a, b) => {
-    const ad = a.startDate || "";
-    const bd = b.startDate || "";
-    if (ad && bd) return ad.localeCompare(bd);
-    if (ad && !bd) return -1;
-    if (!ad && bd) return 1;
-    return String(a.name).localeCompare(String(b.name));
-  });
+      const ops = (json.operationsIndex || []).map((op) => {
+        const file = String(op.file || "").trim(); // e.g. "operations/001.md"
+        const mdKey = file ? `${folder}/${file}` : "";
+        const mdRaw = mdKey && mdIndex[mdKey] ? mdIndex[mdKey] : null;
+        const meta = mdRaw ? parseOpMdMeta(mdRaw) : {};
+
+        return {
+          id: op.id || file || op.title,
+          title: op.title || "—",
+          date: meta.date || op.date || "",
+          status: normalizeStatus(meta.status || op.status),
+          opordTitle: op.opordTitle || meta.opord_title || "",
+          opordUrl: op.opordUrl || meta.opord_url || "",
+          opordSummary: op.opordSummary || "",
+          file,
+        };
+      });
+
+      return {
+        ...json,
+        id: json.id || folder,
+        status: normalizeStatus(json.status),
+        operations: ops,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(b.startDate || "").localeCompare(String(a.startDate || "")));
 }
 
 export default {
   name: "CampaignLogView",
   data() {
     return {
-      campaigns: [],
+      campaigns: loadCampaignsFromContent(),
       search: "",
       statusFilter: "",
       activeCampaign: null,
-      loadError: "",
-      _loadedOnce: false,
     };
   },
   computed: {
@@ -456,12 +391,16 @@ export default {
       const status = this.statusFilter;
 
       return (this.campaigns || []).filter((c) => {
-        if (status && c.status !== status) return false;
+        if (status && normalizeStatus(c.status) !== status) return false;
         if (!q) return true;
 
         const inCampaign =
           (c.name || "").toLowerCase().includes(q) ||
-          (c.overview || "").toLowerCase().includes(q);
+          (c.overview || "").toLowerCase().includes(q) ||
+          (c.location || "").toLowerCase().includes(q) ||
+          (c.system || "").toLowerCase().includes(q) ||
+          (c.planet || "").toLowerCase().includes(q) ||
+          (c.ao || "").toLowerCase().includes(q);
 
         const inOps = (c.operations || []).some((op) => {
           return (
@@ -475,25 +414,6 @@ export default {
       });
     },
   },
-  watch: {
-    "$route.query.campaignId"() {
-      this.openFromRoute();
-    },
-  },
-  async created() {
-    try {
-      this.campaigns = await loadCampaignsFromContent();
-      this._loadedOnce = true;
-      this.openFromRoute();
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[CampaignLogView] failed to load campaigns:", e);
-      this.loadError =
-        "Campaign content could not be loaded. Ensure src/campaigns/<campaign>/campaign.json exists and operations are under src/campaigns/<campaign>/operations/*.md";
-      this.campaigns = [];
-      this._loadedOnce = true;
-    }
-  },
   mounted() {
     window.addEventListener("keydown", this.onKeydown);
   },
@@ -501,22 +421,6 @@ export default {
     window.removeEventListener("keydown", this.onKeydown);
   },
   methods: {
-    backendRosterHref(unitName) {
-      const unit = String(unitName || "").trim();
-      if (!unit) return BACKEND_ROSTER_PATH;
-      return `${BACKEND_ROSTER_PATH}?unit=${encodeURIComponent(unit)}`;
-    },
-    goToUnit(unitName) {
-      const href = this.backendRosterHref(unitName);
-      this.$router.push(href);
-    },
-    openFromRoute() {
-      if (!this._loadedOnce) return;
-      const id = this.$route?.query?.campaignId;
-      if (!id) return;
-      const match = (this.campaigns || []).find((c) => String(c.id) === String(id) || String(c.folder) === String(id));
-      if (match) this.openCampaign(match);
-    },
     fmtDates(start, end) {
       if (!start && !end) return "—";
       if (start && !end) return start;
@@ -525,25 +429,45 @@ export default {
     },
     openCampaign(c) {
       this.activeCampaign = c;
-      // Make link shareable
-      const q = { ...(this.$route?.query || {}) };
-      if (c?.id) q.campaignId = c.id;
-      this.$router.replace({ query: q });
-
       this.$nextTick(() => {
         if (this.$refs.modalRef) this.$refs.modalRef.focus();
       });
     },
     closeCampaign() {
       this.activeCampaign = null;
-      const q = { ...(this.$route?.query || {}) };
-      if (q.campaignId) {
-        delete q.campaignId;
-        this.$router.replace({ query: q });
-      }
     },
     onKeydown(e) {
       if (e.key === "Escape" && this.activeCampaign) this.closeCampaign();
+    },
+
+    commanderLabel(campaign, commanderId) {
+      if (!campaign || !commanderId) return "—";
+
+      const roster = campaign.commandRoster || {};
+      const all = [
+        roster.commander ? roster.commander : null,
+        ...(Array.isArray(roster.subCommanders) ? roster.subCommanders : []),
+      ].filter(Boolean);
+
+      const found = all.find(
+        (x) => String(x.id || "").toLowerCase() === String(commanderId).toLowerCase(),
+      );
+      if (!found) return "—";
+
+      const callsign = found.callsign ? `CALLSIGN ${found.callsign}` : "";
+      const name = found.name || "";
+      return [callsign, name].filter(Boolean).join(" / ") || "—";
+    },
+
+    unitsForTaskUnit(campaign, taskUnit) {
+      const units = campaign?.roster?.units || [];
+      const ids = Array.isArray(taskUnit?.unitIds) ? taskUnit.unitIds : [];
+      return units.filter((u) => ids.includes(u.id));
+    },
+
+    openBackendUnit(unitSlug) {
+      // Placeholder route for POC – later we can build the unit filter UI.
+      this.$router.push({ path: "/backend-roster", query: { unit: unitSlug } });
     },
   },
 };
@@ -561,8 +485,10 @@ export default {
   min-width: 0;
   box-sizing: border-box;
 
+  /* Keep the layout padding rules */
   padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
 
+  /* Text defaults (use theme vars when present) */
   color: var(--text-pilot-value, #d6f1ff);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
@@ -711,6 +637,7 @@ export default {
   letter-spacing: 0.08em;
 }
 
+/* Make existing input/select look terminal-ish without touching global styles */
 .term-input,
 .term-select {
   width: 100%;
@@ -729,15 +656,6 @@ export default {
 .term-select:focus {
   box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.14);
   border-color: rgba(90, 220, 255, 0.28);
-}
-
-.load-error {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.26);
-  padding: 10px 12px;
-  border-radius: 12px;
-  margin-bottom: 12px;
-  color: rgba(230, 251, 255, 0.92);
 }
 
 /* Cards */
@@ -1063,25 +981,9 @@ export default {
 }
 
 .unit-link {
-  appearance: none;
-  border: none;
-  background: transparent;
-  padding: 0;
   color: var(--text-location, #e6fbff);
   text-decoration: underline;
   text-underline-offset: 3px;
-  cursor: pointer;
-  font: inherit;
-}
-
-.unit-link:hover {
-  opacity: 0.9;
-}
-
-.unit-link:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.18);
-  border-radius: 8px;
 }
 
 .node-units .muted {
@@ -1129,16 +1031,13 @@ export default {
   opacity: 0.95;
 }
 
-.op-status-pill[data-op-status="completed"],
-.op-status-pill[data-op-status="success"] {
+.op-status-pill[data-op-status="completed"] {
   box-shadow: 0 0 16px rgba(90, 220, 255, 0.12);
 }
-.op-status-pill[data-op-status="pending"],
-.op-status-pill[data-op-status="active"] {
+.op-status-pill[data-op-status="pending"] {
   opacity: 0.85;
 }
-.op-status-pill[data-op-status="failed"],
-.op-status-pill[data-op-status="failure"] {
+.op-status-pill[data-op-status="failed"] {
   opacity: 0.75;
 }
 
