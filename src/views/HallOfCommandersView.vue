@@ -123,8 +123,10 @@
                       :alt="`${activeCommander.name} portrait`"
                       loading="lazy"
                     />
+                    <div class="callsign-pill">{{ commanderCallsign(activeCommander) }}</div>
                   </div>
-                  <div class="tile-name">{{ activeCommander.name }}</div>
+                  <div class="tile-name" :title="campaignName(activeCommander)">{{ campaignName(activeCommander) }}</div>
+                  <div class="tile-subname">{{ activeCommander.name }}</div>
                   <div class="tile-footer">
                     <div class="tile-foot-left">{{ taskForceFor(activeCommander) }}</div>
                     <div class="tile-foot-right">{{ campaignDates(activeCommander) }}</div>
@@ -176,8 +178,10 @@
                       :alt="`${subCommanderName(0)} portrait`"
                       loading="lazy"
                     />
+                    <div class="callsign-pill">{{ commanderCallsign(subCommanders[0]) }}</div>
                   </div>
-                  <div class="tile-name">{{ subCommanderName(0) }}</div>
+                  <div class="tile-name" :title="campaignName(subCommanders[0])">{{ campaignName(subCommanders[0]) }}</div>
+                  <div class="tile-subname">{{ subCommanderName(0) }}</div>
                   <div class="tile-footer">
                     <div class="tile-foot-left">{{ subCommanderUnit(0) }}</div>
                     <div class="tile-foot-right">SUB</div>
@@ -199,8 +203,10 @@
                       :alt="`${subCommanderName(1)} portrait`"
                       loading="lazy"
                     />
+                    <div class="callsign-pill">{{ commanderCallsign(subCommanders[1]) }}</div>
                   </div>
-                  <div class="tile-name">{{ subCommanderName(1) }}</div>
+                  <div class="tile-name" :title="campaignName(subCommanders[1])">{{ campaignName(subCommanders[1]) }}</div>
+                  <div class="tile-subname">{{ subCommanderName(1) }}</div>
                   <div class="tile-footer">
                     <div class="tile-foot-left">{{ subCommanderUnit(1) }}</div>
                     <div class="tile-foot-right">SUB</div>
@@ -221,7 +227,12 @@
               <div class="panel">
                 <div class="kv2">
                   <div class="k">CAMPAIGN</div>
-                  <div class="v">{{ campaignName(activeCommander) }}</div>
+                  <div class="v">
+                    <div class="campaign-row">
+                      <span>{{ campaignName(activeCommander) }}</span>
+                      <button class="link-button" type="button" @click="goToCampaign(activeCommander.campaignId)">OPEN RECORD</button>
+                    </div>
+                  </div>
                 </div>
                 <div class="kv2">
                   <div class="k">STATUS</div>
@@ -455,6 +466,17 @@ export default {
       if (!commander) return PLACEHOLDER_PORTRAIT;
       return PLACEHOLDER_PORTRAIT;
     },
+
+    commanderCallsign(commander) {
+      if (!commander) return "CALLSIGN";
+      return commander.callsign || commander.name || "CALLSIGN";
+    },
+    goToCampaign(campaignId) {
+      if (!campaignId) return;
+      this.closeDetails();
+      this.$router.push({ path: "/campaigns", query: { campaignId } });
+    },
+
     tileDate(campaign) {
       if (!campaign) return "—";
       const s = campaign.startDate;
@@ -740,7 +762,38 @@ export default {
 }
 
 .tile-media {
+  position: relative;
   padding: 12px 12px 0;
+}
+
+.callsign-pill {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(90, 220, 255, 0.22);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(230, 251, 255, 0.92);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.tile-subname {
+  padding: 6px 12px 0;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(214, 241, 255, 0.72);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .portrait {
@@ -1001,6 +1054,29 @@ export default {
 .kv2 .v {
   color: var(--text-pilot-value, #d6f1ff);
   overflow-wrap: anywhere;
+}
+
+.campaign-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.link-button {
+  border-radius: 999px;
+  border: 1px solid rgba(90, 220, 255, 0.22);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(230, 251, 255, 0.92);
+  padding: 6px 10px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.12);
 }
 
 .divider {
