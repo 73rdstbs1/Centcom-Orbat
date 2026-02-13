@@ -26,37 +26,18 @@
 
       <div class="rhombus"></div>
 
+      <!-- Details panel only appears when an operation has START on line 2 -->
       <div v-if="showCampaignPanel" class="planet-location-container">
         <video class="planet-vid" autoplay muted loop width="90px" height="90px">
           <source :src="`${planetPath}`" type="video/webm" />
         </video>
 
-        <div class="location-info">
-          <div class="campaign-kicker">ACTIVE CAMPAIGN</div>
-
-          <div class="campaign-name-row">
-            <div class="campaign-name">{{ campaignHeader?.name }}</div>
-            <span class="status-pill" :data-status="activeCampaign?.status">
-              {{ campaignHeader?.status }}
-            </span>
-          </div>
-
+        <div class="location-info" aria-label="Current AO details">
+          <!-- NOTE: No "Operation Atlas / Active" header line; only location details. -->
           <div class="location-row grid">
-            <div id="year">
-              <h4>{{ labels.year }}</h4>
-              <span class="subtitle">{{ campaignHeader?.year }}</span>
-            </div>
-
-            <div id="status" class="span-2">
-              <h4>{{ labels.status }}</h4>
-              <span class="subtitle">{{ campaignHeader?.dates }}</span>
-            </div>
-          </div>
-
-          <div class="location-row grid">
-            <div id="AO">
-              <h4>{{ labels.ao }}</h4>
-              <span class="subtitle">{{ campaignHeader?.ao }}</span>
+            <div id="system">
+              <h4>{{ labels.system }}</h4>
+              <span class="subtitle">{{ campaignHeader?.system }}</span>
             </div>
 
             <div id="planet">
@@ -64,9 +45,21 @@
               <span class="subtitle">{{ campaignHeader?.planet }}</span>
             </div>
 
-            <div id="system">
-              <h4>{{ labels.system }}</h4>
-              <span class="subtitle">{{ campaignHeader?.system }}</span>
+            <div id="AO">
+              <h4>{{ labels.ao }}</h4>
+              <span class="subtitle">{{ campaignHeader?.ao }}</span>
+            </div>
+          </div>
+
+          <div class="location-row grid secondary">
+            <div id="year">
+              <h4>{{ labels.year }}</h4>
+              <span class="subtitle">TBD</span>
+            </div>
+
+            <div id="status" class="span-2">
+              <h4>{{ labels.status }}</h4>
+              <span class="subtitle">TBD</span>
             </div>
           </div>
         </div>
@@ -154,7 +147,6 @@ function hasStartOnLine2(mdRaw) {
 }
 
 function campaignFolderFromOpPath(opPath) {
-  // /src/campaigns/<campaignFolder>/operations/<file>.md
   const parts = String(opPath || "").split("/campaigns/");
   if (parts.length < 2) return null;
   return parts[1].split("/")[0] || null;
@@ -195,7 +187,6 @@ function detectActiveCampaign() {
     const campaign =
       loadCampaignJsonByPath(jsonPath) || {
         id: folder || "unknown",
-        name: folder ? folder.replace(/[-_]/g, " ") : "Active Campaign",
         system: "—",
         planet: "—",
         ao: "—",
@@ -283,24 +274,16 @@ export default {
       return this.activeCampaignStore?.activeCampaign || null;
     },
     showCampaignPanel() {
-      // Always show if an active campaign exists (route-independent).
       return !!this.activeCampaign;
     },
     campaignHeader() {
       const c = this.activeCampaign;
       if (!c) return null;
 
-      const dates = this.fmtDates(c.startDate, c.endDate);
-      const year = (c.startDate || c.endDate || "").slice(0, 4) || this.header?.year || "—";
-
       return {
-        name: c.name || "—",
-        status: (c.status || "active").toUpperCase(),
-        dates,
-        year,
-        ao: c.ao || c.AO || this.header?.AO || "—",
-        planet: c.planet || this.header?.planet || "—",
         system: c.system || this.header?.system || "—",
+        planet: c.planet || this.header?.planet || "—",
+        ao: c.ao || c.AO || this.header?.AO || "—",
       };
     },
 
@@ -340,7 +323,6 @@ export default {
     },
   },
   created() {
-    // Set active campaign once on startup (sync: eager globs).
     const active = detectActiveCampaign();
     if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = active;
 
@@ -384,12 +366,6 @@ export default {
     },
   },
   methods: {
-    fmtDates(start, end) {
-      if (!start && !end) return "—";
-      if (start && !end) return start;
-      if (!start && end) return end;
-      return `${start} → ${end}`;
-    },
     readAuth() {
       this.role = sessionStorage.getItem("authRole") || null;
       this.staffUser = adminUser();
@@ -496,7 +472,7 @@ export default {
 /* Header spans top edge: no rounding */
 header{ border-radius: 0 !important; }
 
-/* Keep planet/location panel on the right — but allow it to expand LEFT when content is long */
+/* Keep planet/location panel on the right — and allow it to expand LEFT when content is long */
 header .header-container,
 header .inner,
 header .topbar{
@@ -505,8 +481,6 @@ header .topbar{
 }
 header .planet-location-container{
   margin-left: auto !important;
-
-  /* Critical: lets the panel claim remaining header width and grow left */
   flex: 1 1 auto;
   min-width: 0;
 
@@ -525,53 +499,6 @@ header .planet-location-container{
   width: clamp(420px, 44vw, 980px);
 }
 
-.campaign-kicker{
-  font-family: "Titillium Web", sans-serif;
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(190,230,255,0.85);
-  margin-bottom: 4px;
-}
-
-.campaign-name-row{
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-
-.campaign-name{
-  font-family: "Titillium Web", sans-serif;
-  font-size: 14px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(230,251,255,0.95);
-
-  min-width: 0;
-  max-width: none;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  line-height: 1.2;
-}
-
-/* Header-scoped status pill */
-.status-pill{
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(90, 220, 255, 0.18);
-  background: rgba(0, 0, 0, 0.18);
-  color: rgba(214, 241, 255, 0.9);
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
 /* Existing layout styles */
 .location-row.grid {
   display: grid;
@@ -579,13 +506,22 @@ header .planet-location-container{
   column-gap: 1.2rem;
   align-items: end;
 }
+.location-row.grid.secondary{
+  margin-top: 6px;
+}
 .span-2 { grid-column: span 2; }
 .location-row h4 {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 0.7rem;
 }
-.subtitle { font-size: 0.85rem; letter-spacing: 0.08em; }
+.subtitle {
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* =========================
    UNSC TERMINAL HEADER THEME
