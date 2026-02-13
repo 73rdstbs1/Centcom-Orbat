@@ -111,91 +111,83 @@
           <section class="modal-section first">
             <div class="section-label">COMMAND ELEMENT</div>
 
+            <!-- Streamlined: dedicated connector ROW (no absolute positioning = no clipping) -->
             <div class="command-tree">
               <div class="tree-top">
-                <div class="tree-node">
-                  <button class="tile tile--modal tile--primary" type="button" @click="noop">
-                    <div class="tile-topline"></div>
-                    <div class="tile-media">
-                      <img
-                        class="portrait"
-                        :src="portraitUrlFor(activeCommander)"
-                        :alt="`${activeCommander.name} portrait`"
-                        loading="lazy"
-                      />
-                    </div>
-                    <div class="tile-name">{{ activeCommander.name }}</div>
-                    <div class="tile-footer">
-                      <div class="tile-foot-left">{{ taskForceFor(activeCommander) }}</div>
-                      <div class="tile-foot-right">{{ campaignDates(activeCommander) }}</div>
-                    </div>
-                  </button>
-                </div>
+                <button class="tile tile--modal tile--primary" type="button" @click="noop">
+                  <div class="tile-topline"></div>
+                  <div class="tile-media">
+                    <img
+                      class="portrait"
+                      :src="portraitUrlFor(activeCommander)"
+                      :alt="`${activeCommander.name} portrait`"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div class="tile-name">{{ activeCommander.name }}</div>
+                  <div class="tile-footer">
+                    <div class="tile-foot-left">{{ taskForceFor(activeCommander) }}</div>
+                    <div class="tile-foot-right">{{ campaignDates(activeCommander) }}</div>
+                  </div>
+                </button>
               </div>
 
-              <!-- Single-piece connector (SVG) to avoid clipping/overlap across breakpoints -->
-              <svg class="chain-lines" viewBox="0 0 1000 240" preserveAspectRatio="none" aria-hidden="true">
-                <!-- Down from commander -->
-                <path d="M500 0 V90" />
-                <!-- Horizontal bus -->
-                <path d="M120 120 H880" />
-                <!-- Down toward sub-commanders -->
-                <path d="M250 120 V240" />
-                <path d="M750 120 V240" />
-                <!-- Junction nodes -->
-                <circle cx="500" cy="120" r="6" />
-                <circle cx="250" cy="120" r="6" />
-                <circle cx="750" cy="120" r="6" />
-              </svg>
+              <div class="tree-connector" aria-hidden="true">
+                <svg class="chain-lines" viewBox="0 0 1000 200" preserveAspectRatio="none">
+                  <path d="M500 0 V70" />
+                  <path d="M140 100 H860" />
+                  <path d="M250 100 V200" />
+                  <path d="M750 100 V200" />
+                  <circle cx="500" cy="100" r="6" />
+                  <circle cx="250" cy="100" r="6" />
+                  <circle cx="750" cy="100" r="6" />
+                </svg>
+              </div>
 
               <div class="tree-bottom">
-                <div class="tree-node">
-                  <button
-                    class="tile tile--modal tile--sub"
-                    type="button"
-                    :disabled="!subCommanders[0]"
-                    @click="subCommanders[0] && setActiveCommander(subCommanders[0])"
-                  >
-                    <div class="tile-topline"></div>
-                    <div class="tile-media">
-                      <img
-                        class="portrait"
-                        :src="portraitUrlFor(subCommanders[0])"
-                        :alt="`${subCommanderName(0)} portrait`"
-                        loading="lazy"
-                      />
-                    </div>
-                    <div class="tile-name">{{ subCommanderName(0) }}</div>
-                    <div class="tile-footer">
-                      <div class="tile-foot-left">{{ subCommanderUnit(0) }}</div>
-                      <div class="tile-foot-right">SUB</div>
-                    </div>
-                  </button>
-                </div>
+                <button
+                  class="tile tile--modal tile--sub"
+                  type="button"
+                  :disabled="!subCommanders[0]"
+                  @click="subCommanders[0] && setActiveCommander(subCommanders[0])"
+                >
+                  <div class="tile-topline"></div>
+                  <div class="tile-media">
+                    <img
+                      class="portrait"
+                      :src="portraitUrlFor(subCommanders[0])"
+                      :alt="`${subCommanderName(0)} portrait`"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div class="tile-name">{{ subCommanderName(0) }}</div>
+                  <div class="tile-footer">
+                    <div class="tile-foot-left">{{ subCommanderUnit(0) }}</div>
+                    <div class="tile-foot-right">SUB</div>
+                  </div>
+                </button>
 
-                <div class="tree-node">
-                  <button
-                    class="tile tile--modal tile--sub"
-                    type="button"
-                    :disabled="!subCommanders[1]"
-                    @click="subCommanders[1] && setActiveCommander(subCommanders[1])"
-                  >
-                    <div class="tile-topline"></div>
-                    <div class="tile-media">
-                      <img
-                        class="portrait"
-                        :src="portraitUrlFor(subCommanders[1])"
-                        :alt="`${subCommanderName(1)} portrait`"
-                        loading="lazy"
-                      />
-                    </div>
-                    <div class="tile-name">{{ subCommanderName(1) }}</div>
-                    <div class="tile-footer">
-                      <div class="tile-foot-left">{{ subCommanderUnit(1) }}</div>
-                      <div class="tile-foot-right">SUB</div>
-                    </div>
-                  </button>
-                </div>
+                <button
+                  class="tile tile--modal tile--sub"
+                  type="button"
+                  :disabled="!subCommanders[1]"
+                  @click="subCommanders[1] && setActiveCommander(subCommanders[1])"
+                >
+                  <div class="tile-topline"></div>
+                  <div class="tile-media">
+                    <img
+                      class="portrait"
+                      :src="portraitUrlFor(subCommanders[1])"
+                      :alt="`${subCommanderName(1)} portrait`"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div class="tile-name">{{ subCommanderName(1) }}</div>
+                  <div class="tile-footer">
+                    <div class="tile-foot-left">{{ subCommanderUnit(1) }}</div>
+                    <div class="tile-foot-right">SUB</div>
+                  </div>
+                </button>
               </div>
             </div>
 
@@ -428,7 +420,6 @@ export default {
 </script>
 
 <style scoped>
-/* View-level layout: full-width within content area, symmetric gutters */
 #hallOfCommanders {
   flex: 1;
   min-width: 0;
@@ -440,7 +431,6 @@ export default {
     "Courier New", monospace;
 }
 
-/* Force the framework's section container to not cap width */
 #hallOfCommanders :deep(section.section-container) {
   width: 100%;
   max-width: none;
@@ -840,21 +830,11 @@ export default {
   font-size: 12px;
 }
 
-/* Command tree */
+/* Command tree: three rows (top tile / connector / bottom tiles) */
 .command-tree {
   display: grid;
-  gap: 14px;
-  position: relative;
-}
-
-.tile--primary {
-  animation: riseIn 180ms ease-out;
-}
-
-.tile--sub {
-  animation: riseIn 180ms ease-out;
-  animation-delay: 80ms;
-  animation-fill-mode: both;
+  grid-template-rows: auto 120px auto;
+  gap: 12px;
 }
 
 .tree-top {
@@ -868,25 +848,17 @@ export default {
   gap: 16px;
   align-items: start;
   justify-items: center;
-
-  padding-top: 190px; /* space reserved for SVG connector */
 }
 
-.tree-node {
-  position: relative;
-  width: 100%;
+.tree-connector {
   display: grid;
+  align-items: center;
   justify-items: center;
 }
 
-/* SVG connector */
 .chain-lines {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 250px; /* aligns under top tile; adjust once */
-  height: 170px;
-  width: 100%;
+  width: min(980px, 100%);
+  height: 120px;
   pointer-events: none;
 }
 
@@ -905,7 +877,6 @@ export default {
   margin-top: 10px;
 }
 
-/* Details */
 .details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -954,34 +925,16 @@ export default {
 
 /* Animations */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-
 @keyframes popIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
-
 @keyframes riseIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Responsive */
@@ -1006,14 +959,12 @@ export default {
   }
   .tree-bottom {
     grid-template-columns: 1fr;
-    padding-top: 190px;
+  }
+  .tree-connector {
+    display: none; /* avoid awkward 2-branch connector when stacked */
   }
   .details-grid {
     grid-template-columns: 1fr;
-  }
-  .chain-lines {
-    left: 4%;
-    right: 4%;
   }
 }
 
