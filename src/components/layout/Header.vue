@@ -120,8 +120,20 @@ function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
 }
 
-function hasStartOnLine2(mdRaw) {
+function firstNonEmptyLines(mdRaw, max = 20) {
+  const out = [];
   const ls = splitLines(mdRaw);
+  for (const line of ls) {
+    const t = String(line || "").trim();
+    if (!t) continue;
+    out.push(t);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function hasStartOnLine2(mdRaw) {
+  const ls = firstNonEmptyLines(mdRaw);
   const line2 = String(ls[1] || "").trim().toLowerCase();
   return line2 === "start";
 }
