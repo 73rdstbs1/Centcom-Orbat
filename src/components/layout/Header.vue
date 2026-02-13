@@ -26,38 +26,47 @@
 
       <div class="rhombus"></div>
 
-      <div class="planet-location-container">
-        <video autoplay muted loop width="90px" height="90px">
+            <div v-if="showCampaignPanel" class="planet-location-container">
+        <video class="planet-vid" autoplay muted loop width="90px" height="90px">
           <source :src="`${planetPath}`" type="video/webm" />
         </video>
 
         <div class="location-info">
+          <div class="campaign-kicker">ACTIVE CAMPAIGN</div>
+
+          <div class="campaign-name-row">
+            <div class="campaign-name">{{ campaignHeader?.name }}</div>
+            <span class="status-pill" :data-status="activeCampaign?.status">
+              {{ campaignHeader?.status }}
+            </span>
+          </div>
+
           <div class="location-row grid">
             <div id="year">
               <h4>{{ labels.year }}</h4>
-              <span class="subtitle">{{ header.year }}</span>
+              <span class="subtitle">{{ campaignHeader?.year }}</span>
             </div>
 
             <div id="status" class="span-2">
               <h4>{{ labels.status }}</h4>
-              <span class="subtitle">{{ header.status }}</span>
+              <span class="subtitle">{{ campaignHeader?.dates }}</span>
             </div>
           </div>
 
           <div class="location-row grid">
             <div id="AO">
               <h4>{{ labels.ao }}</h4>
-              <span class="subtitle">{{ header.AO }}</span>
+              <span class="subtitle">{{ campaignHeader?.ao }}</span>
             </div>
 
             <div id="planet">
               <h4>{{ labels.planet }}</h4>
-              <span class="subtitle">{{ header.planet }}</span>
+              <span class="subtitle">{{ campaignHeader?.planet }}</span>
             </div>
 
             <div id="system">
               <h4>{{ labels.system }}</h4>
-              <span class="subtitle">{{ header.system }}</span>
+              <span class="subtitle">{{ campaignHeader?.system }}</span>
             </div>
           </div>
         </div>
@@ -139,6 +148,7 @@ const defaultNewsItems = [
 ];
 
 export default {
+  inject: ["activeCampaignStore"],
   props: {
     planetPath: { type: String, required: true },
     header: { type: Object, required: true },
@@ -187,6 +197,34 @@ export default {
     };
   },
   computed: {
+
+    activeCampaign() {
+      return this.activeCampaignStore?.activeCampaign || null;
+    },
+    showCampaignPanel() {
+      return this.$route?.path === "/campaigns" && !!this.activeCampaign;
+    },
+    campaignHeader() {
+      const c = this.activeCampaign;
+      if (!c) return null;
+
+      const dates = this.fmtDates(c.startDate, c.endDate);
+      const year = (c.startDate || c.endDate || "").slice(0, 4) || this.header?.year || "—";
+
+      return {
+        name: c.name || "—",
+        status: (c.status || "—").toUpperCase(),
+        dates,
+        year,
+        quarter: c.quarter || "—",
+        location: c.location || "CLASSIFIED / TBD",
+        ao: c.ao || c.AO || this.header?.AO || "—",
+        theatre: c.theatre || c.theater || c.system || this.header?.system || "—",
+        planet: c.planet || this.header?.planet || "—",
+        system: c.system || this.header?.system || "—",
+      };
+    },
+
     branding() {
       return getConfig().branding || {};
     },
@@ -263,6 +301,12 @@ export default {
     },
   },
   methods: {
+    fmtDates(start, end) {
+      if (!start && !end) return "—";
+      if (start && !end) return start;
+      if (!start && end) return end;
+      return `${start} → ${end}`;
+    },
     readAuth() {
       this.role = sessionStorage.getItem("authRole") || null;
       this.staffUser = adminUser();
@@ -382,6 +426,57 @@ header .topbar{
 header .planet-location-container{
   margin-left: auto !important;
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-right: 12px;
+}
+
+.planet-vid{ border-radius: 12px; border: 1px solid rgba(170,220,255,0.16); background: rgba(0,0,0,0.18); }
+
+.location-info{ min-width: 420px; }
+
+.campaign-kicker{
+  font-family: "Titillium Web", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(190,230,255,0.85);
+  margin-bottom: 4px;
+}
+
+.campaign-name-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.campaign-name{
+  font-family: "Titillium Web", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(230,251,255,0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 340px;
+}
+
+/* Header-scoped status pill */
+.status-pill{
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(90, 220, 255, 0.18);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(214, 241, 255, 0.9);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
 /* =========================
