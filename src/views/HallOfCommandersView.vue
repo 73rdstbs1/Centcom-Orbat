@@ -68,9 +68,12 @@
                 :alt="`${t.name} portrait`"
                 loading="lazy"
               />
+              <div class="callsign-pill">{{ commanderCallsign(t.raw) }}</div>
             </div>
 
-            <div class="tile-name" :title="t.name">{{ t.name }}</div>
+            <div class="tile-name" :title="campaignName(t.raw)">{{ campaignName(t.raw) }}</div>
+
+            <div class="tile-subname">{{ t.name }}</div>
 
             <div class="tile-footer">
               <div class="tile-foot-left" :title="t.taskForce">{{ t.taskForce }}</div>
@@ -123,10 +126,8 @@
                       :alt="`${activeCommander.name} portrait`"
                       loading="lazy"
                     />
-                    <div class="callsign-pill">{{ commanderCallsign(activeCommander) }}</div>
                   </div>
-                  <div class="tile-name" :title="campaignName(activeCommander)">{{ campaignName(activeCommander) }}</div>
-                  <div class="tile-subname">{{ activeCommander.name }}</div>
+                  <div class="tile-name">{{ activeCommander.name }}</div>
                   <div class="tile-footer">
                     <div class="tile-foot-left">{{ taskForceFor(activeCommander) }}</div>
                     <div class="tile-foot-right">{{ campaignDates(activeCommander) }}</div>
@@ -178,10 +179,8 @@
                       :alt="`${subCommanderName(0)} portrait`"
                       loading="lazy"
                     />
-                    <div class="callsign-pill">{{ commanderCallsign(subCommanders[0]) }}</div>
                   </div>
-                  <div class="tile-name" :title="campaignName(subCommanders[0])">{{ campaignName(subCommanders[0]) }}</div>
-                  <div class="tile-subname">{{ subCommanderName(0) }}</div>
+                  <div class="tile-name">{{ subCommanderName(0) }}</div>
                   <div class="tile-footer">
                     <div class="tile-foot-left">{{ subCommanderUnit(0) }}</div>
                     <div class="tile-foot-right">SUB</div>
@@ -203,10 +202,8 @@
                       :alt="`${subCommanderName(1)} portrait`"
                       loading="lazy"
                     />
-                    <div class="callsign-pill">{{ commanderCallsign(subCommanders[1]) }}</div>
                   </div>
-                  <div class="tile-name" :title="campaignName(subCommanders[1])">{{ campaignName(subCommanders[1]) }}</div>
-                  <div class="tile-subname">{{ subCommanderName(1) }}</div>
+                  <div class="tile-name">{{ subCommanderName(1) }}</div>
                   <div class="tile-footer">
                     <div class="tile-foot-left">{{ subCommanderUnit(1) }}</div>
                     <div class="tile-foot-right">SUB</div>
