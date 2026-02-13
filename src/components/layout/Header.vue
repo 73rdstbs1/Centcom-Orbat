@@ -113,8 +113,8 @@ import {
 
 
 // Static content loaders (Vite). Keep glob strings as literals (Vite requirement).
-const campaignJsonLoaders = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw" });
-const operationMdLoaders = import.meta.glob("/src/campaigns/**/*.md", { as: "raw" });
+const campaignJsonLoaders = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw", eager: true });
+const operationMdLoaders = import.meta.glob("/src/campaigns/**/*.md", { as: "raw", eager: true });
 
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
@@ -152,13 +152,13 @@ function campaignFolderFromOpPath(opPath) {
 async function loadCampaignJsonForFolder(folderName) {
   if (!folderName) return null;
   const exact = `/src/campaigns/${folderName}/campaign.json`;
-  const loader = campaignJsonLoaders[exact];
-  if (loader) return JSON.parse(await loader());
+  const raw = campaignJsonLoaders[exact];
+  if (raw) return JSON.parse(raw);
 
-  for (const [path, fn] of Object.entries(campaignJsonLoaders)) {
+  for (const [path, raw] of Object.entries(campaignJsonLoaders)) {
     const folder = String(path).split("/campaigns/")[1]?.split("/")[0];
     if (folder && folder.toLowerCase() === String(folderName).toLowerCase()) {
-      return JSON.parse(await fn());
+      return JSON.parse(raw);
     }
   }
   return null;
@@ -347,9 +347,8 @@ export default {
     async refreshActiveCampaign() {
       try {
         const opEntries = Object.entries(operationMdLoaders).sort(([a], [b]) => a.localeCompare(b));
-        for (const [path, loader] of opEntries) {
+        for (const [path, md] of opEntries) {
           if (!isOperationPath(path)) continue;
-          const md = await loader();
           if (!hasStartOnLine2(md)) continue;
           const folder = campaignFolderFromOpPath(path);
           const campaign = await loadCampaignJsonForFolder(folder);
