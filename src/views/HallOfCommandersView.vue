@@ -416,11 +416,12 @@ export default {
         }
 
         const wRect = wrap.getBoundingClientRect();
+        const wClient = Math.max(1, Math.round(wrap.clientWidth || wRect.width));
         const topRect = top.getBoundingClientRect();
         const leftRect = left.getBoundingClientRect();
         const rightRect = right.getBoundingClientRect();
 
-        const w = Math.max(1, Math.round(wRect.width));
+        const w = wClient;
         const h = 140; // fixed connector row height in CSS
 
         const midX = (topRect.left + topRect.width / 2) - wRect.left;
@@ -950,13 +951,13 @@ export default {
 }
 
 .tree-connector {
+  width: 100%;
   display: grid;
   align-items: center;
-  justify-items: center;
 }
 
 .chain-lines {
-  width: min(980px, 100%);
+  width: 100%;
   height: 140px;
   pointer-events: none;
 }
