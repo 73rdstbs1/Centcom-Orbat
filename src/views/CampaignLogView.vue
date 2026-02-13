@@ -1,119 +1,86 @@
 <!-- FILE: src/views/CampaignLogView.vue -->
 <template>
   <div id="campaignLog">
-    <section class="section-container terminal-shell">
-      <header class="terminal-header">
-        <div class="terminal-badge">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
-        </div>
+    <section class="section-container">
+      <div class="term-title">HISTORICAL CAMPAIGN LOG</div>
 
-        <div class="terminal-title">
-          <div class="kicker">CENTCOM / ARCHIVES</div>
-          <div class="title">HISTORICAL CAMPAIGN LOG</div>
-        </div>
+      <div class="filters">
+        <input
+          v-model="search"
+          class="term-input"
+          type="text"
+          placeholder="Search campaigns / operations"
+        />
 
-        <div class="terminal-right">
-          <div class="stamp">SECURE TERMINAL</div>
-          <div class="stamp subtle">POC BUILD</div>
-        </div>
-      </header>
+        <select v-model="statusFilter" class="term-select">
+          <option value="">All status</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="training">Training</option>
+          <option value="deployed">Deployed</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
 
-      <div class="terminal-body">
-        <div class="filters">
-          <div class="filter-block">
-            <div class="filter-label">SEARCH</div>
-            <input
-              v-model="search"
-              class="term-input"
-              type="text"
-              placeholder="Campaign / operation / OPORD…"
-            />
-          </div>
-
-          <div class="filter-block">
-            <div class="filter-label">STATUS</div>
-            <select v-model="statusFilter" class="term-select">
-              <option value="">All</option>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-              <option value="training">Training</option>
-              <option value="deployed">Deployed</option>
-              <option value="archived">Archived</option>
-            </select>
-          </div>
-
-          <div class="filter-block meta-block">
-            <div class="filter-label">RECORDS</div>
-            <div class="meta-chip">
-              {{ filteredCampaigns.length }} campaign{{ filteredCampaigns.length === 1 ? "" : "s" }}
+      <div class="campaign-list">
+        <article
+          v-for="c in filteredCampaigns"
+          :key="c.id"
+          class="campaign-card"
+        >
+          <header class="campaign-header">
+            <div class="campaign-title">
+              <span class="status-pill" :data-status="c.status">
+                {{ c.status.toUpperCase() }}
+              </span>
+              <h3>{{ c.name }}</h3>
             </div>
-          </div>
-        </div>
 
-        <div class="campaign-list">
-          <article
-            v-for="c in filteredCampaigns"
-            :key="c.id"
-            class="campaign-card"
-          >
-            <div class="card-topline"></div>
-
-            <header class="campaign-header">
-              <div class="campaign-title">
-                <span class="status-pill" :data-status="c.status">
-                  {{ c.status.toUpperCase() }}
-                </span>
-                <h3>{{ c.name }}</h3>
+            <div class="campaign-meta">
+              <div class="meta-line">
+                <span class="label">Dates:</span>
+                <span class="value">{{ fmtDates(c.startDate, c.endDate) }}</span>
               </div>
-
-              <div class="campaign-meta">
-                <div class="meta-line">
-                  <span class="label">DATES</span>
-                  <span class="value">{{ fmtDates(c.startDate, c.endDate) }}</span>
-                </div>
-                <div class="meta-line">
-                  <span class="label">QTR</span>
-                  <span class="value">{{ c.quarter }}</span>
-                </div>
+              <div class="meta-line">
+                <span class="label">Quarter:</span>
+                <span class="value">{{ c.quarter }}</span>
               </div>
-            </header>
+            </div>
+          </header>
 
-            <p class="desc">{{ c.overview }}</p>
+          <p class="desc">{{ c.overview }}</p>
 
-            <div class="overview-snippets">
-              <div class="snippet">
-                <div class="section-label">OPS OVERVIEW</div>
-                <ul class="mini-list">
-                  <li v-for="op in (c.operations || []).slice(0, 2)" :key="op.id">
-                    <span class="op-date">{{ op.date }}</span>
-                    <span class="op-title">{{ op.title }}</span>
-                    <span class="op-status" :data-op-status="op.status">
-                      {{ op.status }}
-                    </span>
-                  </li>
-                </ul>
-                <div v-if="(c.operations || []).length > 2" class="muted">
-                  + {{ (c.operations || []).length - 2 }} additional entries
-                </div>
-              </div>
-
-              <div class="snippet">
-                <div class="section-label">ROSTER</div>
-                <div class="muted">
-                  Per-unit roster is managed by unit leads. Open details for task force structure.
-                </div>
+          <div class="overview-snippets">
+            <div class="snippet">
+              <div class="section-label">Operations (overview)</div>
+              <ul class="mini-list">
+                <li v-for="op in (c.operations || []).slice(0, 2)" :key="op.id">
+                  <span class="op-date">{{ op.date }}</span>
+                  <span class="op-title">{{ op.title }}</span>
+                  <span class="op-status" :data-op-status="op.status">
+                    {{ op.status }}
+                  </span>
+                </li>
+              </ul>
+              <div v-if="(c.operations || []).length > 2" class="muted">
+                + {{ (c.operations || []).length - 2 }} more…
               </div>
             </div>
 
-            <footer class="campaign-actions">
-              <button class="term-button terminal-button" type="button" @click="openCampaign(c)">
-                VIEW DETAILS
-              </button>
-            </footer>
-          </article>
-        </div>
+            <div class="snippet">
+              <div class="section-label">Per-unit roster (teaser)</div>
+              <div class="muted">
+                Managed by unit leads per campaign. Open details to view org chart + full ops list.
+              </div>
+            </div>
+          </div>
+
+          <footer class="campaign-actions">
+            <button class="term-button" type="button" @click="openCampaign(c)">
+              View details
+            </button>
+          </footer>
+        </article>
       </div>
     </section>
 
@@ -137,10 +104,7 @@
             <span class="status-pill" :data-status="activeCampaign.status">
               {{ activeCampaign.status.toUpperCase() }}
             </span>
-            <div>
-              <div class="kicker">CAMPAIGN RECORD</div>
-              <h2>{{ activeCampaign.name }}</h2>
-            </div>
+            <h2>{{ activeCampaign.name }}</h2>
           </div>
 
           <button class="icon-button" type="button" @click="closeCampaign" aria-label="Close">
@@ -151,25 +115,26 @@
         <div class="modal-body">
           <div class="modal-meta">
             <div>
-              <span class="label">DATES</span>
+              <span class="label">Dates:</span>
               <span class="value">{{ fmtDates(activeCampaign.startDate, activeCampaign.endDate) }}</span>
             </div>
             <div>
-              <span class="label">QTR</span>
+              <span class="label">Quarter:</span>
               <span class="value">{{ activeCampaign.quarter }}</span>
             </div>
           </div>
 
+          <!-- 1) Org Chart -->
           <section class="modal-section">
-            <div class="section-label">TASK FORCE ORG CHART</div>
+            <div class="section-label">Task Force Org Chart</div>
 
             <div v-if="activeCampaign.orgChart" class="orgchart">
               <div class="org-node root">
                 <div class="node-title">{{ activeCampaign.orgChart.taskForceName }}</div>
                 <div class="node-sub">
-                  <span class="muted">HQ</span>
+                  <span class="muted">HQ:</span>
                   <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.name }}</span>
-                  <span class="muted">/</span>
+                  <span class="muted">—</span>
                   <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.commander }}</span>
                 </div>
               </div>
@@ -182,14 +147,14 @@
                 >
                   <div class="node-title">{{ tu.name }}</div>
                   <div class="node-sub">
-                    <span class="muted">HQ</span>
+                    <span class="muted">HQ:</span>
                     <span class="value">{{ tu.hq?.name }}</span>
-                    <span class="muted">/</span>
+                    <span class="muted">—</span>
                     <span class="value">{{ tu.hq?.commander }}</span>
                   </div>
 
                   <div class="node-units">
-                    <div class="muted">PARTICIPATING UNITS</div>
+                    <div class="muted">Participating Units</div>
                     <ul class="unit-list">
                       <li v-for="u in (tu.units || [])" :key="u">{{ u }}</li>
                     </ul>
@@ -201,14 +166,15 @@
             <div v-else class="muted">No org chart data yet.</div>
           </section>
 
+          <!-- 2) Operations -->
           <section class="modal-section">
-            <div class="section-label">OPERATIONS</div>
+            <div class="section-label">Operations</div>
 
             <div v-if="(activeCampaign.operations || []).length" class="ops-table">
               <div class="ops-row ops-head">
-                <div>DATE</div>
-                <div>OPERATION</div>
-                <div>STATUS</div>
+                <div>Date</div>
+                <div>Operation</div>
+                <div>Status</div>
                 <div>OPORD</div>
               </div>
 
@@ -247,9 +213,7 @@
         </div>
 
         <footer class="modal-footer">
-          <button class="term-button terminal-button" type="button" @click="closeCampaign">
-            CLOSE
-          </button>
+          <button class="term-button" type="button" @click="closeCampaign">Close</button>
         </footer>
       </div>
     </div>
@@ -294,14 +258,14 @@ export default {
       });
     },
   },
-  mounted() {
-    window.addEventListener("keydown", this.onKeydown);
-    this.openFromRoute();
-  },
   watch: {
     "$route.query.campaignId"() {
       this.openFromRoute();
     },
+  },
+  mounted() {
+    window.addEventListener("keydown", this.onKeydown);
+    this.openFromRoute();
   },
   beforeUnmount() {
     window.removeEventListener("keydown", this.onKeydown);
@@ -313,20 +277,19 @@ export default {
       if (!start && end) return end;
       return `${start} → ${end}`;
     },
+
+    openFromRoute() {
+      const id = this.$route?.query?.campaignId;
+      if (!id) return;
+      const match = (this.campaigns || []).find((c) => String(c.id) === String(id));
+      if (match) this.openCampaign(match);
+    },
+
     openCampaign(c) {
       this.activeCampaign = c;
       this.$nextTick(() => {
         if (this.$refs.modalRef) this.$refs.modalRef.focus();
       });
-    },
-    openCampaignById(id) {
-      if (!id) return;
-      const found = (this.campaigns || []).find((c) => String(c.id) === String(id));
-      if (found) this.openCampaign(found);
-    },
-    openFromRoute() {
-      const id = this.$route?.query?.campaignId;
-      if (id) this.openCampaignById(id);
     },
     closeCampaign() {
       this.activeCampaign = null;
@@ -339,188 +302,40 @@ export default {
 </script>
 
 <style scoped>
-/* UNSC-ish terminal styling (view-scoped)
-   - Strong container background
-   - Subtle scanlines + grid
-   - Hard borders + soft glow
-   - Compact, military UI typography
+/* Layout + readability (this view only)
+   - We keep equal padding on left/right inside the main content area,
+     so the right gap matches the gap next to the sidebar.
 */
 #campaignLog {
   flex: 1;
   min-width: 0;
+  color: var(--text-pilot-value);
+  padding: 0 24px; /* symmetric gutters */
   box-sizing: border-box;
-
-  /* Keep the layout padding rules */
-  padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
-
-  /* Text defaults (use theme vars when present) */
-  color: var(--text-pilot-value, #d6f1ff);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
-    monospace;
 }
 
-/* Shell */
-.terminal-shell {
+#campaignLog :deep(section.section-container) {
   width: 100%;
-  max-width: none;
-  margin: 0;
-
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow:
-    0 0 0 1px rgba(150, 240, 255, 0.08),
-    0 12px 40px rgba(0, 0, 0, 0.55);
-  overflow: hidden;
-
-  background:
-    radial-gradient(1200px 600px at 10% 0%, rgba(90, 220, 255, 0.08), transparent 60%),
-    radial-gradient(900px 500px at 90% 0%, rgba(90, 220, 255, 0.06), transparent 55%),
-    linear-gradient(180deg, rgba(5, 15, 22, 0.92), rgba(3, 10, 16, 0.94));
+  max-width: 1600px; /* keeps it centered on ultrawide while still "most of the screen" */
+  margin: 0 auto;
 }
 
-/* Scanlines + grid overlay */
-.terminal-shell::before,
-.terminal-shell::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-}
-.terminal-shell {
-  position: relative;
-}
-.terminal-shell::before {
-  inset: 0;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 100% 28px,
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px) 0 0 / 28px 100%;
-  opacity: 0.22;
-}
-.terminal-shell::after {
-  inset: 0;
-  background: linear-gradient(transparent 60%, rgba(0, 0, 0, 0.22));
-  opacity: 0.55;
+#campaignLog :deep(.section-content-container) {
+  color: var(--text-pilot-value);
 }
 
-/* Header bar */
-.terminal-header {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: 110px 1fr 180px;
-  gap: 12px;
-  align-items: center;
-
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-
-  background:
-    linear-gradient(90deg, rgba(90, 220, 255, 0.14), rgba(90, 220, 255, 0.02) 35%, transparent 70%),
-    rgba(0, 0, 0, 0.22);
-}
-
-.terminal-badge {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(90, 220, 255, 0.14);
-  box-shadow: 0 0 12px rgba(90, 220, 255, 0.16);
-}
-
-.terminal-title .kicker {
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.75));
-  text-transform: uppercase;
-}
-.terminal-title .title {
-  margin-top: 2px;
-  font-size: 16px;
-  letter-spacing: 0.14em;
-  color: var(--text-location, #e6fbff);
-  text-transform: uppercase;
-}
-
-.terminal-right {
-  display: grid;
-  justify-items: end;
-  gap: 4px;
-}
-.stamp {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: rgba(214, 241, 255, 0.9);
-  border: 1px solid rgba(90, 220, 255, 0.18);
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.22);
-}
-.stamp.subtle {
-  opacity: 0.7;
-}
-
-/* Body */
-.terminal-body {
-  position: relative;
-  z-index: 1;
-  padding: 16px;
-}
-
-/* Filters */
+/* Controls */
 .filters {
-  display: grid;
-  grid-template-columns: 1.4fr 0.6fr 0.3fr;
+  display: flex;
   gap: 12px;
-  align-items: end;
-  margin-bottom: 14px;
-}
-
-.filter-label {
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.75));
-}
-
-.meta-chip {
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 38px;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(90, 220, 255, 0.18);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text-location, #e6fbff);
-  letter-spacing: 0.08em;
+  margin: 12px 0 16px;
 }
 
-/* Make existing input/select look terminal-ish without touching global styles */
 .term-input,
 .term-select {
   width: 100%;
-  min-height: 38px;
-  border-radius: 10px;
-  border: 1px solid rgba(90, 220, 255, 0.18);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text-pilot-value, #d6f1ff);
-  padding: 10px 12px;
-  outline: none;
-}
-.term-input::placeholder {
-  color: rgba(214, 241, 255, 0.5);
-}
-.term-input:focus,
-.term-select:focus {
-  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.14);
-  border-color: rgba(90, 220, 255, 0.28);
+  max-width: 420px;
 }
 
 /* Cards */
@@ -531,33 +346,10 @@ export default {
 }
 
 .campaign-card {
-  position: relative;
-  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  overflow: hidden;
-
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.32)),
-    radial-gradient(900px 260px at 20% 0%, rgba(90, 220, 255, 0.06), transparent 60%);
-}
-
-.card-topline {
-  height: 2px;
-  background: linear-gradient(90deg, rgba(90, 220, 255, 0.5), transparent 70%);
-}
-
-.campaign-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.35;
-  background: linear-gradient(transparent 65%, rgba(0, 0, 0, 0.28));
-}
-
-.campaign-card > * {
-  position: relative;
-  z-index: 1;
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .campaign-header {
@@ -565,7 +357,6 @@ export default {
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
-  padding: 12px 12px 0;
 }
 
 .campaign-title {
@@ -576,50 +367,35 @@ export default {
 
 .campaign-title h3 {
   margin: 0;
-  font-size: 14px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-location, #e6fbff);
+  color: var(--text-location);
+  letter-spacing: 0.5px;
 }
 
 .campaign-meta {
   display: grid;
   gap: 6px;
-  text-align: right;
 }
 
 .meta-line .label {
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.7));
-  margin-right: 8px;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-.meta-line .value {
-  color: var(--text-pilot-value, #d6f1ff);
-  font-variant-numeric: tabular-nums;
+  color: var(--text-pilot-header);
+  margin-right: 6px;
 }
 
 .desc {
-  margin: 10px 12px 12px;
-  color: var(--text-pilot-value, #d6f1ff);
-  line-height: 1.35;
-  opacity: 0.95;
+  margin: 10px 0 12px;
+  color: var(--text-pilot-value);
 }
 
 .overview-snippets {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  padding: 0 12px 12px;
 }
 
 .section-label {
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.75));
-  margin-bottom: 8px;
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  color: var(--text-location);
+  margin-bottom: 6px;
+  font-weight: 600;
 }
 
 .mini-list {
@@ -627,83 +403,82 @@ export default {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .mini-list li {
-  display: grid;
-  grid-template-columns: 120px 1fr 92px;
+  display: flex;
   gap: 10px;
   align-items: center;
-  padding: 8px 10px;
-
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.22);
 }
 
 .op-date {
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.75));
+  color: var(--text-pilot-header);
   font-variant-numeric: tabular-nums;
 }
+
 .op-title {
-  color: var(--text-pilot-value, #d6f1ff);
-}
-.op-status {
-  justify-self: end;
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.75));
-  opacity: 0.95;
+  color: var(--text-pilot-value);
 }
 
 .muted {
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.7));
-  opacity: 0.95;
+  color: var(--text-pilot-header);
+  opacity: 0.9;
+  margin-top: 6px;
 }
 
 .campaign-actions {
-  padding: 0 12px 12px;
+  margin-top: 12px;
   display: flex;
   justify-content: flex-end;
 }
 
-/* Buttons */
-.terminal-button {
-  border-radius: 12px;
-  border: 1px solid rgba(90, 220, 255, 0.22);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text-location, #e6fbff);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  padding: 10px 14px;
-}
-.terminal-button:hover {
-  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.12);
-}
-
-/* Pills (status) */
+/* Pills */
 .status-pill {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(90, 220, 255, 0.18);
-  background: rgba(0, 0, 0, 0.18);
-  color: var(--text-pilot-value, #d6f1ff);
-  font-size: 10px;
-  letter-spacing: 0.18em;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--text-pilot-value);
+  font-size: 12px;
+  letter-spacing: 0.4px;
 }
-.status-pill[data-status="active"] {
-  box-shadow: 0 0 18px rgba(90, 220, 255, 0.12);
+
+.op-status {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-pilot-header);
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.op-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--text-pilot-value);
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.op-status-pill[data-op-status="completed"] {
+  opacity: 1;
+}
+.op-status-pill[data-op-status="pending"] {
+  opacity: 0.85;
+}
+.op-status-pill[data-op-status="failed"] {
+  opacity: 0.75;
 }
 
 /* Modal */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.68);
   display: grid;
   place-items: center;
   padding: 18px;
@@ -711,17 +486,13 @@ export default {
 }
 
 .modal {
-  width: min(1200px, 100%);
+  width: min(1100px, 100%);
   max-height: 90vh;
   overflow: auto;
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background:
-    radial-gradient(1200px 600px at 10% 0%, rgba(90, 220, 255, 0.08), transparent 60%),
-    linear-gradient(180deg, rgba(5, 15, 22, 0.92), rgba(3, 10, 16, 0.94));
-  box-shadow:
-    0 0 0 1px rgba(150, 240, 255, 0.08),
-    0 18px 60px rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
   outline: none;
 }
 
@@ -730,10 +501,10 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
 }
+
 .modal-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   border-bottom: none;
@@ -741,37 +512,26 @@ export default {
 
 .modal-title {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
 }
-.modal-title .kicker {
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.75));
-}
+
 .modal-title h2 {
-  margin: 2px 0 0;
-  font-size: 16px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-location, #e6fbff);
+  margin: 0;
+  color: var(--text-location);
 }
 
 .icon-button {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(90, 220, 255, 0.18);
-  color: var(--text-pilot-value, #d6f1ff);
-  border-radius: 12px;
-  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-pilot-value);
+  border-radius: 10px;
+  padding: 6px 10px;
   cursor: pointer;
-}
-.icon-button:hover {
-  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.12);
 }
 
 .modal-body {
-  padding: 16px;
+  padding: 14px;
 }
 
 .modal-meta {
@@ -779,27 +539,16 @@ export default {
   gap: 18px;
   flex-wrap: wrap;
   margin-bottom: 14px;
+}
 
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(90, 220, 255, 0.14);
-  background: rgba(0, 0, 0, 0.22);
-}
 .modal-meta .label {
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.7));
-  margin-right: 8px;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-.modal-meta .value {
-  color: var(--text-pilot-value, #d6f1ff);
-  font-variant-numeric: tabular-nums;
+  color: var(--text-pilot-header);
+  margin-right: 6px;
 }
 
 .modal-section {
   margin-top: 14px;
-  padding-top: 14px;
+  padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
@@ -810,27 +559,24 @@ export default {
 }
 
 .org-node {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .org-node.root {
-  border-color: rgba(90, 220, 255, 0.18);
+  background: rgba(0, 0, 0, 0.32);
 }
 
 .node-title {
-  color: var(--text-location, #e6fbff);
+  color: var(--text-location);
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .node-sub {
-  color: var(--text-pilot-value, #d6f1ff);
-  opacity: 0.95;
+  color: var(--text-pilot-value);
 }
 
 .org-children {
@@ -840,100 +586,41 @@ export default {
 }
 
 .unit-list {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   padding-left: 18px;
-  color: var(--text-pilot-value, #d6f1ff);
-}
-
-.node-units .muted {
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  color: var(--text-pilot-value);
 }
 
 /* Operations table */
 .ops-table {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .ops-row {
   display: grid;
   grid-template-columns: 120px 1fr 140px 1.2fr;
   gap: 10px;
-  padding: 12px;
+  padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  border-radius: 10px;
   background: rgba(0, 0, 0, 0.22);
 }
 
 .ops-head {
-  background: rgba(0, 0, 0, 0.28);
-  color: var(--text-location, #e6fbff);
+  background: rgba(0, 0, 0, 0.32);
   font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  font-size: 10px;
-}
-
-.op-status-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(90, 220, 255, 0.18);
-  background: rgba(0, 0, 0, 0.18);
-  color: var(--text-pilot-value, #d6f1ff);
-  text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  opacity: 0.95;
-}
-
-.op-status-pill[data-op-status="completed"] {
-  box-shadow: 0 0 16px rgba(90, 220, 255, 0.12);
-}
-.op-status-pill[data-op-status="pending"] {
-  opacity: 0.85;
-}
-.op-status-pill[data-op-status="failed"] {
-  opacity: 0.75;
+  color: var(--text-location);
 }
 
 .opord-link {
-  color: var(--text-location, #e6fbff);
+  color: var(--text-pilot-value);
   text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.opord-summary {
-  margin-top: 8px;
-  color: var(--text-pilot-header, rgba(214, 241, 255, 0.72));
-  line-height: 1.25;
 }
 
-/* Responsive */
-@media (max-width: 980px) {
-  .filters {
-    grid-template-columns: 1fr;
-  }
-  .overview-snippets {
-    grid-template-columns: 1fr;
-  }
-  .mini-list li {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
-  .campaign-meta {
-    text-align: left;
-  }
-  .campaign-header {
-    flex-direction: column;
-  }
-  .org-children {
-    grid-template-columns: 1fr;
-  }
-  .ops-row {
-    grid-template-columns: 1fr;
-  }
+.opord-summary {
+  margin-top: 6px;
+  color: var(--text-pilot-header);
+  line-height: 1.25;
 }
 </style>
