@@ -114,7 +114,7 @@
             <!-- Streamlined: dedicated connector ROW (no absolute positioning = no clipping) -->
             <div class="command-tree">
               <div class="tree-top">
-                <button class="tile tile--modal tile--primary" type="button" @click="noop">
+                <button ref="topTile" class="tile tile--modal tile--primary" type="button" @click="noop">
                   <div class="tile-topline"></div>
                   <div class="tile-media">
                     <img
@@ -132,17 +132,28 @@
                 </button>
               </div>
 
-              <div class="tree-connector" aria-hidden="true">
-                                                <svg class="chain-lines" viewBox="0 0 1000 200" preserveAspectRatio="none">
-                  <!-- Commander downline to junction -->
+              <div class="tree-connector" aria-hidden="true" ref="connectorWrap">
+                <svg
+                  v-if="connector.ready"
+                  class="chain-lines"
+                  :viewBox="`0 0 ${connector.w} ${connector.h}`"
+                  preserveAspectRatio="none"
+                >
+                  <path :d="connectorPathMid" />
+                  <path :d="connectorPathBus" />
+                  <path :d="connectorPathLeft" />
+                  <path :d="connectorPathRight" />
+                  <circle :cx="connector.midX" :cy="connector.busY" r="6" />
+                  <circle :cx="connector.leftX" :cy="connector.busY" r="6" />
+                  <circle :cx="connector.rightX" :cy="connector.busY" r="6" />
+                </svg>
+
+                <svg v-else class="chain-lines" viewBox="0 0 1000 200" preserveAspectRatio="none">
+                  <!-- fallback before measurement -->
                   <path d="M500 0 V70" />
-                  <path d="M500 70 V100" />
-                  <!-- Horizontal bus (ends align with sub-commander tile centers) -->
                   <path d="M250 100 H750" />
-                  <!-- Downlines to sub-commanders from bus ends -->
                   <path d="M250 100 V200" />
                   <path d="M750 100 V200" />
-                  <!-- Junction nodes -->
                   <circle cx="500" cy="100" r="6" />
                   <circle cx="250" cy="100" r="6" />
                   <circle cx="750" cy="100" r="6" />
@@ -151,6 +162,7 @@
 
               <div class="tree-bottom">
                 <button
+                  ref="leftSubTile"
                   class="tile tile--modal tile--sub"
                   type="button"
                   :disabled="!subCommanders[0]"
@@ -173,6 +185,7 @@
                 </button>
 
                 <button
+                  ref="rightSubTile"
                   class="tile tile--modal tile--sub"
                   type="button"
                   :disabled="!subCommanders[1]"
@@ -290,6 +303,8 @@ export default {
       search: "",
       statusFilter: "",
       activeCommander: null,
+      connector: { ready: false, w: 1000, h: 200, midX: 500, leftX: 250, rightX: 750, midY0: 0, midY1: 70, busY: 100, subY1: 200 },
+      _ro: null,
     };
   },
   computed: {
@@ -350,18 +365,90 @@ export default {
       while (out.length < 2) out.push(null);
       return out;
     },
+
+    connectorPathMid() {
+      const c = this.connector;
+      return `M${c.midX} ${c.midY0} V${c.midY1}`;
+    },
+    connectorPathBus() {
+      const c = this.connector;
+      return `M${c.leftX} ${c.busY} H${c.rightX}`;
+    },
+    connectorPathLeft() {
+      const c = this.connector;
+      return `M${c.leftX} ${c.busY} V${c.subY1}`;
+    },
+    connectorPathRight() {
+      const c = this.connector;
+      return `M${c.rightX} ${c.busY} V${c.subY1}`;
+    },
   },
   mounted() {
     window.addEventListener("keydown", this.onKeydown);
+    this._ro = new ResizeObserver(() => {
+      if (this.activeCommander) this.refreshConnector();
+    });
+    this.$nextTick(() => {
+      const el = this.$refs.connectorWrap;
+      if (el && this._ro) this._ro.observe(el);
+    });
+    window.addEventListener("resize", this.onResize);
   },
   beforeUnmount() {
     window.removeEventListener("keydown", this.onKeydown);
+    window.removeEventListener("resize", this.onResize);
+    if (this._ro) this._ro.disconnect();
   },
   methods: {
     noop() {},
+
+    refreshConnector() {
+      // Measure actual tile centers and build an SVG in pixel space to avoid any overlap/clipping guessing.
+      this.$nextTick(() => {
+        const wrap = this.$refs.connectorWrap;
+        const top = this.$refs.topTile;
+        const left = this.$refs.leftSubTile;
+        const right = this.$refs.rightSubTile;
+
+        if (!wrap || !top || !left || !right) {
+          this.connector.ready = false;
+          return;
+        }
+
+        const wRect = wrap.getBoundingClientRect();
+        const topRect = top.getBoundingClientRect();
+        const leftRect = left.getBoundingClientRect();
+        const rightRect = right.getBoundingClientRect();
+
+        const w = Math.max(1, Math.round(wRect.width));
+        const h = 140; // fixed connector row height in CSS
+
+        const midX = (topRect.left + topRect.width / 2) - wRect.left;
+        const leftX = (leftRect.left + leftRect.width / 2) - wRect.left;
+        const rightX = (rightRect.left + rightRect.width / 2) - wRect.left;
+
+        this.connector = {
+          ...this.connector,
+          ready: true,
+          w,
+          h,
+          midX,
+          leftX,
+          rightX,
+          midY0: 0,
+          midY1: 55,
+          busY: 80,
+          subY1: h,
+        };
+      });
+    },
+
     setActiveCommander(c) {
       this.activeCommander = c;
-      this.$nextTick(() => this.$refs.modalRef?.focus?.());
+      this.$nextTick(() => {
+        this.$refs.modalRef?.focus?.();
+        this.refreshConnector();
+      });
     },
     portraitUrlFor(commander) {
       if (!commander) return PLACEHOLDER_PORTRAIT;
@@ -403,10 +490,14 @@ export default {
     },
     openDetails(c) {
       this.activeCommander = c;
-      this.$nextTick(() => this.$refs.modalRef?.focus?.());
+      this.$nextTick(() => {
+        this.$refs.modalRef?.focus?.();
+        this.refreshConnector();
+      });
     },
     closeDetails() {
       this.activeCommander = null;
+      this.connector.ready = false;
     },
     subCommanderName(idx) {
       const c = this.subCommanders[idx];
@@ -416,6 +507,9 @@ export default {
       const c = this.subCommanders[idx];
       if (!c) return "—";
       return this.taskForceFor(c) || "—";
+    },
+    onResize() {
+      if (this.activeCommander) this.refreshConnector();
     },
     onKeydown(e) {
       if (e.key === "Escape" && this.activeCommander) this.closeDetails();
@@ -838,7 +932,7 @@ export default {
 /* Command tree: three rows (top tile / connector / bottom tiles) */
 .command-tree {
   display: grid;
-  grid-template-rows: auto 120px auto;
+  grid-template-rows: auto 140px auto;
   gap: 12px;
 }
 
@@ -863,7 +957,7 @@ export default {
 
 .chain-lines {
   width: min(980px, 100%);
-  height: 120px;
+  height: 140px;
   pointer-events: none;
 }
 
