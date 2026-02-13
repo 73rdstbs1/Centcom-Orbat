@@ -113,8 +113,8 @@ import {
 
 
 // Static content loaders (Vite). Keep glob strings as literals (Vite requirement).
-const campaignJsonLoaders = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw", eager: true });
-const operationMdLoaders = import.meta.glob("/src/campaigns/**/*.md", { as: "raw", eager: true });
+const campaignJsonLoaders = import.meta.glob("./src/campaigns/**/campaign.json", { as: "raw", eager: true });
+const operationMdLoaders = import.meta.glob("./src/campaigns/**/operations/*.md", { as: "raw", eager: true });
 
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
@@ -135,11 +135,7 @@ function firstNonEmptyLines(mdRaw, max = 20) {
 function hasStartOnLine2(mdRaw) {
   const ls = firstNonEmptyLines(mdRaw);
   const line2 = String(ls[1] || "").trim().toLowerCase();
-  return line2 === "start";
-}
-
-function isOperationPath(path) {
-  return String(path || "").includes("/operations/");
+  return line2 === "start" || line2.includes("start");
 }
 
 function campaignFolderFromOpPath(opPath) {
@@ -151,8 +147,9 @@ function campaignFolderFromOpPath(opPath) {
 
 async function loadCampaignJsonForFolder(folderName) {
   if (!folderName) return null;
-  const exact = `/src/campaigns/${folderName}/campaign.json`;
-  const raw = campaignJsonLoaders[exact];
+  const exact = `./src/campaigns/${folderName}/campaign.json`;
+  const exactAlt = `./src/campaigns/${encodeURIComponent(folderName)}/campaign.json`;
+  const raw = campaignJsonLoaders[exact] || campaignJsonLoaders[exactAlt];
   if (raw) return JSON.parse(raw);
 
   for (const [path, raw] of Object.entries(campaignJsonLoaders)) {
@@ -347,9 +344,18 @@ export default {
     async refreshActiveCampaign() {
       try {
         const opEntries = Object.entries(operationMdLoaders).sort(([a], [b]) => a.localeCompare(b));
+        if (DEBUG_ACTIVE_CAMPAIGN) {
+          // eslint-disable-next-line no-console
+          console.log('[Header] op files:', opEntries.map(([p]) => p));
+          // eslint-disable-next-line no-console
+          console.log('[Header] campaign files:', Object.keys(campaignJsonLoaders));
+        }
         for (const [path, md] of opEntries) {
-          if (!isOperationPath(path)) continue;
           if (!hasStartOnLine2(md)) continue;
+          if (DEBUG_ACTIVE_CAMPAIGN) {
+            // eslint-disable-next-line no-console
+            console.log('[Header] START detected in:', path);
+          }
           const folder = campaignFolderFromOpPath(path);
           const campaign = await loadCampaignJsonForFolder(folder);
           this.activeCampaign = campaign || { id: folder || "unknown", name: folder || "Active Campaign" };
