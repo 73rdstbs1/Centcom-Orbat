@@ -197,7 +197,10 @@ export default {
 .app-header {
   height: var(--app-header-height, 72px);
   display: grid;
-  grid-template-columns: 1fr auto;
+
+  /* Allow the right panel to grow LEFT while keeping it aligned right */
+  grid-template-columns: 1fr minmax(360px, 1fr);
+
   align-items: center;
   gap: 16px;
   padding: 10px 16px;
@@ -229,11 +232,15 @@ export default {
 
 .right {
   min-width: 0;
+  justify-self: end; /* key: keep it pinned right while it expands left */
 }
 
 .active-panel {
-  min-width: 420px;
-  max-width: 820px;
+  min-width: 0;
+
+  /* Grow left as needed, but stay within a sane range */
+  width: clamp(420px, 46vw, 980px);
+
   border-radius: 14px;
   border: 1px solid rgba(90, 220, 255, 0.18);
   background: rgba(0, 0, 0, 0.22);
@@ -260,9 +267,11 @@ export default {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: rgba(230, 251, 255, 0.92);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+  /* Allow wrapping so it stays neat when panel grows/shrinks */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 
 .panel-meta {
@@ -272,7 +281,7 @@ export default {
 }
 .meta-row {
   display: grid;
-  grid-template-columns: 90px 1fr;
+  grid-template-columns: 90px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
 }
@@ -286,9 +295,10 @@ export default {
   font-size: 10px;
   letter-spacing: 0.08em;
   color: rgba(214, 241, 255, 0.9);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+  /* Wrap cleanly instead of clipping */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .panel-actions {
@@ -323,6 +333,7 @@ export default {
   font-size: 10px;
   letter-spacing: 0.18em;
   box-shadow: 0 0 18px rgba(90, 220, 255, 0.12);
+  white-space: nowrap;
 }
 
 @media (max-width: 980px) {
@@ -331,7 +342,6 @@ export default {
     height: auto;
   }
   .active-panel {
-    min-width: 0;
     width: 100%;
   }
 }
