@@ -114,7 +114,7 @@ import {
 
 // Static content loaders (Vite). Keep glob strings as literals (Vite requirement).
 const campaignJsonLoaders = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw" });
-const operationMdLoaders = import.meta.glob("/src/campaigns/**/operations/*.md", { as: "raw" });
+const operationMdLoaders = import.meta.glob("/src/campaigns/**/*.md", { as: "raw" });
 
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
@@ -136,6 +136,10 @@ function hasStartOnLine2(mdRaw) {
   const ls = firstNonEmptyLines(mdRaw);
   const line2 = String(ls[1] || "").trim().toLowerCase();
   return line2 === "start";
+}
+
+function isOperationPath(path) {
+  return String(path || "").includes("/operations/");
 }
 
 function campaignFolderFromOpPath(opPath) {
@@ -344,6 +348,7 @@ export default {
       try {
         const opEntries = Object.entries(operationMdLoaders).sort(([a], [b]) => a.localeCompare(b));
         for (const [path, loader] of opEntries) {
+          if (!isOperationPath(path)) continue;
           const md = await loader();
           if (!hasStartOnLine2(md)) continue;
           const folder = campaignFolderFromOpPath(path);
