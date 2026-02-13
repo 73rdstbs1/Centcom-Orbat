@@ -264,6 +264,19 @@ function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
 }
 
+function firstNonEmptyLines(mdRaw, max = 20) {
+  const out = [];
+  const ls = splitLines(mdRaw);
+  for (const line of ls) {
+    const t = String(line || "").trim();
+    if (!t) continue;
+    out.push(t);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+
 function campaignFolderFromPath(path) {
   const parts = String(path || "").split("/");
   const idx = parts.lastIndexOf("campaigns");
@@ -279,7 +292,7 @@ function fileStem(path) {
 function normalizeOpStatus(token) {
   const v = String(token || "").trim().toLowerCase();
   if (!v) return "pending";
-  if (v === "start") return "pending";
+  if (v === "start") return "active";
   if (["pending", "completed", "failed", "success", "failure", "partial-success"].includes(v)) return v;
   return v;
 }
@@ -314,7 +327,7 @@ function parseDate(mdRaw, path) {
 }
 
 function parseTitle(mdRaw, path) {
-  const ls = splitLines(mdRaw);
+  const ls = firstNonEmptyLines(mdRaw);
   const h = String(ls[0] || "").trim();
   if (h.startsWith("#")) return h.replace(/^#+\s*/, "").trim();
   return fileStem(path).replace(/[-_]/g, " ").trim() || "Operation";
@@ -376,7 +389,7 @@ async function loadCampaignsFromContent() {
     if (!campaign) continue;
 
     const md = await loader();
-    const ls = splitLines(md);
+    const ls = firstNonEmptyLines(md);
 
     const statusToken = String(ls[1] || "").trim();
     const status = normalizeOpStatus(statusToken);
@@ -394,6 +407,12 @@ async function loadCampaignsFromContent() {
       opordSummary: parseOpSummary(md),
       sourcePath: path,
     });
+  }
+
+  // Derive campaign status: if any operation is active, campaign is active.
+  for (const c of campaigns) {
+    const hasActive = (c.operations || []).some((op) => op.status === "active");
+    if (hasActive) c.status = "active";
   }
 
   // Sort ops by date if present, otherwise by id
@@ -1115,7 +1134,7 @@ export default {
   box-shadow: 0 0 16px rgba(90, 220, 255, 0.12);
 }
 .op-status-pill[data-op-status="pending"],
-.op-status-pill[data-op-status="start"] {
+.op-status-pill[data-op-status="active"] {
   opacity: 0.85;
 }
 .op-status-pill[data-op-status="failed"],
