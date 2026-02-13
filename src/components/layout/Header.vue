@@ -33,8 +33,11 @@
         </video>
 
         <div class="location-info" aria-label="Current AO details">
-          <!-- SYSTEM > PLANET > AO -->
-          <div class="meta-grid meta-grid--primary">
+          <!-- 2x2 stacked tiles + AO column spanning both rows:
+               [ SYSTEM | PLANET | AO ]
+               [ YEAR   | STATUS | AO ]
+          -->
+          <div class="meta-grid">
             <div class="meta-tile">
               <h4>SYSTEM</h4>
               <span class="subtitle">{{ campaignHeader?.system }}</span>
@@ -45,20 +48,17 @@
               <span class="subtitle">{{ campaignHeader?.planet }}</span>
             </div>
 
-            <div class="meta-tile meta-tile--wide">
+            <div class="meta-tile meta-tile--ao">
               <h4>AO</h4>
               <span class="subtitle">{{ campaignHeader?.ao }}</span>
             </div>
-          </div>
 
-          <!-- placeholders -->
-          <div class="meta-grid meta-grid--secondary">
             <div class="meta-tile">
               <h4>YEAR</h4>
               <span class="subtitle">TBD</span>
             </div>
 
-            <div class="meta-tile meta-tile--wide">
+            <div class="meta-tile">
               <h4>STATUS</h4>
               <span class="subtitle">TBD</span>
             </div>
@@ -89,8 +89,18 @@
 <script>
 /**
  * ACTIVE CAMPAIGN (content-driven)
+ * Folder model:
+ *   src/campaigns/<campaignFolder>/
+ *     campaign.json
+ *     operations/<op>.md
+ *
+ * Rule:
  * - Find FIRST operation file where the 2nd NON-EMPTY line includes "start" (case-insensitive)
  * - Load that campaign's campaign.json
+ *
+ * Notes:
+ * - Vite globs MUST be literal strings.
+ * - eager+raw avoids runtime chunk fetching (_chunkError 404).
  */
 import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
@@ -101,6 +111,7 @@ const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { as:
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
 }
+
 function firstNonEmptyLines(mdRaw, max = 30) {
   const out = [];
   for (const line of splitLines(mdRaw)) {
@@ -111,18 +122,22 @@ function firstNonEmptyLines(mdRaw, max = 30) {
   }
   return out;
 }
+
 function hasStartOnLine2(mdRaw) {
   const ls = firstNonEmptyLines(mdRaw);
   const line2 = String(ls[1] || "").trim().toLowerCase();
   return line2.includes("start");
 }
+
 function campaignFolderFromOpPath(opPath) {
   const parts = String(opPath || "").split("/campaigns/");
   if (parts.length < 2) return null;
   return parts[1].split("/")[0] || null;
 }
+
 function resolveCampaignJsonPath(folder) {
   if (!folder) return null;
+
   const exact = `/src/campaigns/${folder}/campaign.json`;
   if (CAMPAIGN_JSON[exact]) return exact;
 
@@ -130,8 +145,10 @@ function resolveCampaignJsonPath(folder) {
     const f = String(path).split("/campaigns/")[1]?.split("/")[0];
     if (f && f.toLowerCase() === String(folder).toLowerCase()) return path;
   }
+
   return null;
 }
+
 function loadCampaignJsonByPath(jsonPath) {
   if (!jsonPath) return null;
   try {
@@ -140,10 +157,13 @@ function loadCampaignJsonByPath(jsonPath) {
     return null;
   }
 }
+
 function detectActiveCampaign() {
   const ops = Object.entries(OPERATION_MD).sort(([a], [b]) => a.localeCompare(b));
+
   for (const [path, mdRaw] of ops) {
     if (!hasStartOnLine2(mdRaw)) continue;
+
     const folder = campaignFolderFromOpPath(path);
     const jsonPath = resolveCampaignJsonPath(folder);
 
@@ -158,6 +178,7 @@ function detectActiveCampaign() {
     if (!campaign.status) campaign.status = "active";
     return campaign;
   }
+
   return null;
 }
 
@@ -177,12 +198,15 @@ export default {
     header: { type: Object, required: true },
     authOffsetX: { type: Number, default: 330 },
     authOffsetY: { type: Number, default: 10 },
+
     newsEnabled: { type: Boolean, default: true },
     newsItems: { type: Array, default: () => defaultNewsItems },
+
     tickerItemsPerLoop: { type: Number, default: 10 },
     tickerSeparator: { type: String, default: " // " },
     tickerSeparatorToken: { type: String, default: "//" },
     tickerSeparatorPad: { type: Number, default: 10 },
+
     tickerPxPerSecond: { type: Number, default: 45 },
     sequenceRefreshMs: { type: Number, default: 45000 },
   },
@@ -191,9 +215,11 @@ export default {
       role: null,
       staffUser: null,
       unsub: null,
+
       tickerKey: 0,
       tickerSequence: "",
       tickerDuration: 28,
+
       _sequenceTimer: null,
       _resizeTimer: null,
       _lastPick: -1,
@@ -209,18 +235,21 @@ export default {
     campaignHeader() {
       const c = this.activeCampaign;
       if (!c) return null;
+
       return {
         system: c.system || this.header?.system || "—",
         planet: c.planet || this.header?.planet || "—",
         ao: c.ao || c.AO || this.header?.AO || "—",
       };
     },
+
     branding() {
       return getConfig().branding || {};
     },
     authLogoutLabel() {
       return getConfig().ui?.auth?.logoutLabel || "Logout";
     },
+
     isLoggedIn() {
       return this.role === "member" || this.isStaff;
     },
@@ -237,6 +266,7 @@ export default {
       if (!this.isStaff) return "";
       return (this.staffUser && this.staffUser.displayName) || "";
     },
+
     normalizedNewsItems() {
       const items = Array.isArray(this.newsItems) ? this.newsItems : [];
       return items
@@ -311,18 +341,21 @@ export default {
         this.$router.push("/status");
       }
     },
+
     onResize() {
       if (this._resizeTimer) clearTimeout(this._resizeTimer);
       this._resizeTimer = setTimeout(() => this.recalcTickerDuration(), 120);
     },
+
     startTicker() {
       this.stopTicker();
       if (!this.newsEnabled) return;
       if (!this.normalizedNewsItems.length) return;
+
       this.buildNewSequence();
       this._sequenceTimer = setInterval(
         () => this.buildNewSequence(),
-        Math.max(5000, Number(this.sequenceRefreshMs) || 45000)
+        Math.max(5000, Number(this.sequenceRefreshMs) || 45000),
       );
     },
     stopTicker() {
@@ -331,6 +364,7 @@ export default {
       if (this._resizeTimer) clearTimeout(this._resizeTimer);
       this._resizeTimer = null;
     },
+
     buildNewSequence() {
       const items = this.normalizedNewsItems;
       const n = items.length;
@@ -362,14 +396,18 @@ export default {
       this.tickerKey += 1;
       this.$nextTick(() => this.recalcTickerDuration());
     },
+
     recalcTickerDuration() {
       const seqEl = this.$refs.seq;
       if (!seqEl || !seqEl.scrollWidth) return;
+
       const widthPx = seqEl.scrollWidth;
       const speed = Math.max(10, Number(this.tickerPxPerSecond) || 45);
       const seconds = widthPx / speed;
+
       this.tickerDuration = Math.max(12, Math.round(seconds * 10) / 10);
     },
+
     randomIndex(n, avoid) {
       if (n <= 1) return 0;
       let idx = Math.floor(Math.random() * n);
@@ -393,7 +431,7 @@ header {
   border-radius: 0 !important;
 }
 
-/* Keep planet/location panel on the right — expand LEFT if long */
+/* Keep planet/location panel on the right — expand LEFT when content is long */
 header .header-container,
 header .inner,
 header .topbar {
@@ -406,8 +444,8 @@ header .planet-location-container {
   min-width: 0;
 
   display: flex;
-  flex-direction: row; /* force normal flow */
-  direction: ltr; /* prevent RTL flips */
+  flex-direction: row;
+  direction: ltr;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
@@ -420,49 +458,45 @@ header .planet-location-container {
   background: rgba(0, 0, 0, 0.18);
 }
 
-/* Panel can grow/shrink while staying neat */
 .location-info {
   min-width: 0;
-  width: clamp(560px, 56vw, 1100px);
+  width: clamp(560px, 56vw, 1120px);
   direction: ltr;
 }
 
-/* SIMPLE GRID: evenly spaced, grows LEFT because it's right-aligned */
+/* Even spacing, expands LEFT because it hugs right edge */
 .meta-grid {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: max-content; /* each tile sizes to its content */
-  justify-content: end; /* grid hugs right and expands left */
+  grid-template-columns: max-content max-content minmax(220px, 420px);
+  grid-template-rows: auto auto;
+  gap: 10px 16px; /* row / column gaps */
+  justify-content: end;
   align-items: end;
-  column-gap: 14px; /* small, consistent gap */
-  row-gap: 6px;
-}
-
-.meta-grid--secondary {
-  margin-top: 8px;
 }
 
 .meta-tile {
   min-width: 0;
   display: grid;
   gap: 4px;
+  align-content: start;
 }
 
-.meta-tile--wide {
-  max-width: 420px;
+.meta-tile--ao {
+  grid-column: 3;
+  grid-row: 1 / span 2;
 }
 
 .meta-tile h4 {
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem; /* larger labels */
   margin: 0;
 }
 
 .subtitle {
   display: block;
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
+  font-size: 0.95rem; /* larger values */
+  letter-spacing: 0.10em;
   line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
