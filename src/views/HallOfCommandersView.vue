@@ -466,7 +466,6 @@ export default {
       if (!commander) return PLACEHOLDER_PORTRAIT;
       return PLACEHOLDER_PORTRAIT;
     },
-
     commanderCallsign(commander) {
       if (!commander) return "CALLSIGN";
       return commander.callsign || commander.name || "CALLSIGN";
@@ -476,7 +475,6 @@ export default {
       this.closeDetails();
       this.$router.push({ path: "/campaigns", query: { campaignId } });
     },
-
     tileDate(campaign) {
       if (!campaign) return "—";
       const s = campaign.startDate;
@@ -485,6 +483,7 @@ export default {
       return s || e || "—";
     },
     campaignName(c) {
+      if (!c || !c.campaignId) return "—";
       return campaignById?.[c.campaignId]?.name || "—";
     },
     campaignDates(c) {
@@ -766,6 +765,15 @@ export default {
   padding: 12px 12px 0;
 }
 
+.portrait {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(90, 220, 255, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+}
+
 .callsign-pill {
   position: absolute;
   left: 50%;
@@ -785,24 +793,36 @@ export default {
 }
 
 .tile-subname {
-  padding: 6px 12px 0;
+  margin-top: 6px;
+  text-align: center;
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(214, 241, 255, 0.72);
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--text-pilot-header, rgba(214, 241, 255, 0.72));
+  padding: 0 12px;
 }
 
-.portrait {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid rgba(90, 220, 255, 0.18);
-  background: rgba(0, 0, 0, 0.22);
+.campaign-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.link-button {
+  border-radius: 999px;
+  border: 1px solid rgba(90, 220, 255, 0.22);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(230, 251, 255, 0.92);
+  padding: 6px 10px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.12);
 }
 
 .tile-name {
@@ -1054,29 +1074,6 @@ export default {
 .kv2 .v {
   color: var(--text-pilot-value, #d6f1ff);
   overflow-wrap: anywhere;
-}
-
-.campaign-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.link-button {
-  border-radius: 999px;
-  border: 1px solid rgba(90, 220, 255, 0.22);
-  background: rgba(0, 0, 0, 0.18);
-  color: rgba(230, 251, 255, 0.92);
-  padding: 6px 10px;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.link-button:hover {
-  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.12);
 }
 
 .divider {
