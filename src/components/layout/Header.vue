@@ -503,24 +503,45 @@ header .planet-location-container{
 .location-row.grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: 1.2rem;
+  column-gap: 0.7rem;
+  row-gap: 0.35rem;
   align-items: end;
 }
+
 .location-row.grid.secondary{
+  grid-template-columns: minmax(0, 140px) minmax(0, 1fr);
+  column-gap: 0.7rem;
   margin-top: 6px;
 }
+
 .span-2 { grid-column: span 2; }
-.location-row h4 {
+
+.location-row h4{
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 0.7rem;
+  margin: 0;
 }
-.subtitle {
+
+.subtitle{
+  display: block;
   font-size: 0.85rem;
   letter-spacing: 0.08em;
+  line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Make the top row read as SYSTEM > PLANET > AO (tighter + consistent) */
+#system { order: 1; }
+#planet { order: 2; }
+#AO     { order: 3; }
+
+/* Reduce visual "air" inside the panel */
+.location-info{
+  min-width: 0;
+  width: clamp(520px, 52vw, 1080px);
 }
 
 /* =========================
