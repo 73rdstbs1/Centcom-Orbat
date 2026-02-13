@@ -72,11 +72,8 @@
  * - "line 2" is interpreted as the SECOND line after normalizing CRLF -> LF.
  */
 
-const CAMPAIGN_JSON_GLOB = "/src/campaigns/**/campaign.json";
-const OPS_MD_GLOB = "/src/campaigns/**/operations/*.md";
-
-const campaignJsonLoaders = import.meta.glob(CAMPAIGN_JSON_GLOB, { as: "raw" });
-const operationMdLoaders = import.meta.glob(OPS_MD_GLOB, { as: "raw" });
+const campaignJsonLoaders = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw" });
+const operationMdLoaders = import.meta.glob("/src/campaigns/**/operations/*.md", { as: "raw" });
 
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
