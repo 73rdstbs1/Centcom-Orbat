@@ -41,7 +41,7 @@
             </span>
           </div>
 
-          <div class="location-row grid">
+          <div class="location-row grid primary-grid">
             <div id="year">
               <h4>{{ labels.year }}</h4>
               <span class="subtitle">{{ campaignHeader?.year }}</span>
@@ -53,7 +53,7 @@
             </div>
           </div>
 
-          <div class="location-row grid">
+          <div class="location-row grid secondary-grid">
             <div id="AO">
               <h4>{{ labels.ao }}</h4>
               <span class="subtitle">{{ campaignHeader?.ao }}</span>
@@ -96,16 +96,15 @@
 /**
  * /src/components/layout/Header.vue
  *
- * Active campaign (content-driven):
- * - Scans /src/campaigns/**/operations/*.md
- * - If the 2nd NON-EMPTY line includes "start" => that campaign becomes active
- * - Loads /src/campaigns/<campaignFolder>/campaign.json
- * - Writes result into injected activeCampaignStore.activeCampaign
+ * Active campaign detector (content-driven):
+ * - Looks in: /src/campaigns/**/operations/*.md
+ * - If the 2nd NON-EMPTY line contains "start" => that campaign is active
+ * - Loads: /src/campaigns/<campaignFolder>/campaign.json
+ * - Writes into injected activeCampaignStore.activeCampaign
  *
- * Build/runtime notes:
- * - Vite globs must be literal strings.
- * - Use rooted paths (leading "/") so globs resolve from project root.
- * - eager+raw bundles content at build time (avoids runtime chunk fetch).
+ * Important:
+ * - Rooted globs (leading "/") so paths resolve from project root.
+ * - eager+raw so no runtime chunk fetching.
  */
 import { getConfig } from "../../config/runtimeConfig";
 
@@ -116,8 +115,8 @@ import {
   subscribe as authSubscribe,
 } from "@/utils/adminAuth";
 
-const campaignJson = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw", eager: true });
-const operationMd = import.meta.glob("/src/campaigns/**/operations/*.md", { as: "raw", eager: true });
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw", eager: true });
+const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { as: "raw", eager: true });
 
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
@@ -141,6 +140,7 @@ function isStartOp(mdRaw) {
 }
 
 function campaignFolderFromOpPath(opPath) {
+  // /src/campaigns/<campaignFolder>/operations/<file>.md
   const parts = String(opPath || "").split("/campaigns/");
   if (parts.length < 2) return null;
   return parts[1].split("/")[0] || null;
@@ -150,36 +150,34 @@ function resolveCampaignJsonPath(folder) {
   if (!folder) return null;
 
   const exact = `/src/campaigns/${folder}/campaign.json`;
-  if (campaignJson[exact]) return exact;
+  if (CAMPAIGN_JSON[exact]) return exact;
 
-  for (const path of Object.keys(campaignJson)) {
+  for (const path of Object.keys(CAMPAIGN_JSON)) {
     const f = String(path).split("/campaigns/")[1]?.split("/")[0];
     if (f && f.toLowerCase() === String(folder).toLowerCase()) return path;
   }
-
   return null;
 }
 
-function loadCampaignJsonByPath(jsonPath) {
+function loadCampaignJson(jsonPath) {
   if (!jsonPath) return null;
   try {
-    return JSON.parse(campaignJson[jsonPath]);
+    return JSON.parse(CAMPAIGN_JSON[jsonPath]);
   } catch {
     return null;
   }
 }
 
 function detectActiveCampaign() {
-  const ops = Object.entries(operationMd).sort(([a], [b]) => a.localeCompare(b));
+  const entries = Object.entries(OPERATION_MD).sort(([a], [b]) => a.localeCompare(b));
 
-  for (const [path, mdRaw] of ops) {
+  for (const [path, mdRaw] of entries) {
     if (!isStartOp(mdRaw)) continue;
 
     const folder = campaignFolderFromOpPath(path);
     const jsonPath = resolveCampaignJsonPath(folder);
-
     const c =
-      loadCampaignJsonByPath(jsonPath) || {
+      loadCampaignJson(jsonPath) || {
         id: folder || "unknown",
         name: folder ? folder.replace(/[-_]/g, " ") : "Active Campaign",
       };
@@ -224,7 +222,7 @@ const defaultNewsItems = [
   "FLEET GOSSIP: Officer insists plasma burns are 'barely second degree'.",
   "MESS HALL UPDATE: Dehydrated eggs reclassified as biological hazard.",
   "ADMIN NOTE: Whoever labeled the crate 'definitely not explosives'—report in.",
-  "BREAKING: Marine promoted after surviving three drops and one briefing."
+  "BREAKING: Marine promoted after surviving three drops and one briefing.",
 ];
 
 export default {
@@ -280,10 +278,7 @@ export default {
         status: (c.status || "active").toUpperCase(),
         dates,
         year,
-        quarter: c.quarter || "—",
-        location: c.location || "CLASSIFIED / TBD",
         ao: c.ao || c.AO || this.header?.AO || "—",
-        theatre: c.theatre || c.theater || c.system || this.header?.system || "—",
         planet: c.planet || this.header?.planet || "—",
         system: c.system || this.header?.system || "—",
       };
@@ -293,10 +288,10 @@ export default {
       return getConfig().branding || {};
     },
     authLogoutLabel() {
-      return (getConfig().ui?.auth?.logoutLabel || "Logout");
+      return getConfig().ui?.auth?.logoutLabel || "Logout";
     },
     labels() {
-      return (getConfig().ui?.labels || {});
+      return getConfig().ui?.labels || {};
     },
 
     isLoggedIn() {
@@ -428,7 +423,6 @@ export default {
       const padCount = Math.max(0, Number(this.tickerSeparatorPad) || 0);
       const pad = "\u00A0".repeat(padCount);
       const token = String(this.tickerSeparatorToken || "//").trim() || "//";
-      const sep = `${pad}${token}${pad}`;
 
       const baseSep = String(this.tickerSeparator ?? " // ");
       const effectiveSep = padCount > 0 ? `${pad}${baseSep.trim() || token}${pad}` : baseSep;
@@ -444,10 +438,10 @@ export default {
 
       this._lastPick = last;
 
-      const seq = picks.join(effectiveSep || sep) + (effectiveSep || sep);
+      const seq = picks.join(effectiveSep) + effectiveSep;
 
       this.tickerSequence = seq;
-      this.tickerKey += 1; // restart animation cleanly
+      this.tickerKey += 1;
       this.$nextTick(() => this.recalcTickerDuration());
     },
 
@@ -483,11 +477,20 @@ export default {
 /* Header spans top edge: no rounding */
 header{ border-radius: 0 !important; }
 
-/* >>> LAYOUT FIX: let the details block expand LEFT instead of forcing a narrow box */
+/* Keep planet/location panel on the right */
+header .header-container,
+header .inner,
+header .topbar{
+  display: flex;
+  align-items: center;
+}
+
+/* Let the details area expand LEFT so it wraps neatly, not squished */
 header .planet-location-container{
   margin-left: auto !important;
   flex: 1 1 auto;
   min-width: 0;
+
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -495,47 +498,12 @@ header .planet-location-container{
   padding-right: 12px;
 }
 
+.planet-vid{ border-radius: 12px; border: 1px solid rgba(170,220,255,0.16); background: rgba(0,0,0,0.18); }
+
 .location-info{
   min-width: 0;
-  width: clamp(420px, 42vw, 920px); /* extends left as needed */
+  width: clamp(420px, 44vw, 980px);
 }
-
-.campaign-name-row{
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items: baseline;
-}
-
-.campaign-name{
-  max-width: none;
-  min-width: 0;
-  white-space: normal;
-  line-height: 1.2;
-}
-
-/* Keep your original grid, but allow it to wrap on tighter widths */
-.location-row.grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: 1.2rem;
-  row-gap: 0.4rem;
-  align-items: end;
-}
-.span-2 { grid-column: span 2; }
-
-@media (max-width: 980px) {
-  header .planet-location-container{
-    justify-content: flex-start;
-    padding-right: 0;
-  }
-  .location-info{ width: 100%; }
-  .location-row.grid{ grid-template-columns: 1fr; }
-  .span-2{ grid-column: span 1; }
-}
-
-/* === Everything below is unchanged from your original file === */
-
-.planet-vid{ border-radius: 12px; border: 1px solid rgba(170,220,255,0.16); background: rgba(0,0,0,0.18); }
 
 .campaign-kicker{
   font-family: "Titillium Web", sans-serif;
@@ -546,6 +514,30 @@ header .planet-location-container{
   margin-bottom: 4px;
 }
 
+.campaign-name-row{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.campaign-name{
+  font-family: "Titillium Web", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(230,251,255,0.95);
+
+  min-width: 0;
+  max-width: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+/* Header-scoped status pill */
 .status-pill{
   display: inline-flex;
   align-items: center;
@@ -557,6 +549,28 @@ header .planet-location-container{
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.location-row.grid {
+  display: grid;
+  column-gap: 1.2rem;
+  row-gap: 0.5rem;
+  align-items: end;
+}
+.primary-grid{
+  grid-template-columns: 180px minmax(260px, 1fr);
+}
+.secondary-grid{
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+}
+.span-2 { grid-column: span 1; }
+
+@media (max-width: 980px){
+  header .planet-location-container{ justify-content: flex-start; padding-right: 0; }
+  .location-info{ width: 100%; }
+  .primary-grid{ grid-template-columns: 1fr; }
+  .secondary-grid{ grid-template-columns: 1fr; }
 }
 
 /* =========================
@@ -699,7 +713,6 @@ header > *{ position: relative; z-index: 1; }
   mask-image: linear-gradient(to right, transparent 0%, black 7%, black 93%, transparent 100%);
 }
 
-/* Track contains TWO identical sequences => total width ~200% of one sequence */
 .news-track{
   --ticker-duration: 28s;
   display: inline-flex;
@@ -709,7 +722,6 @@ header > *{ position: relative; z-index: 1; }
   animation: tickerLoop var(--ticker-duration) linear infinite;
 }
 
-/* Each sequence is inline and identical; second one makes loop seamless */
 .news-seq{
   font-family: "Titillium Web", sans-serif;
   font-size: 12px;
@@ -720,7 +732,6 @@ header > *{ position: relative; z-index: 1; }
   padding-right: 48px;
 }
 
-/* Move left by exactly one sequence width (half of the duplicated content) */
 @keyframes tickerLoop{
   0%   { transform: translate3d(0, 0, 0); }
   100% { transform: translate3d(-50%, 0, 0); }
