@@ -296,6 +296,12 @@ export default {
   },
   mounted() {
     window.addEventListener("keydown", this.onKeydown);
+    this.openFromRoute();
+  },
+  watch: {
+    "$route.query.campaignId"() {
+      this.openFromRoute();
+    },
   },
   beforeUnmount() {
     window.removeEventListener("keydown", this.onKeydown);
@@ -312,6 +318,15 @@ export default {
       this.$nextTick(() => {
         if (this.$refs.modalRef) this.$refs.modalRef.focus();
       });
+    },
+    openCampaignById(id) {
+      if (!id) return;
+      const found = (this.campaigns || []).find((c) => String(c.id) === String(id));
+      if (found) this.openCampaign(found);
+    },
+    openFromRoute() {
+      const id = this.$route?.query?.campaignId;
+      if (id) this.openCampaignById(id);
     },
     closeCampaign() {
       this.activeCampaign = null;
