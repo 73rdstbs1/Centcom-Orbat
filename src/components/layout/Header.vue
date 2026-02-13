@@ -1,6 +1,6 @@
 <!-- /src/components/layout/Header.vue -->
 <template>
-  <div class="header-wrap" :style="{'--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px'}">
+  <div class="header-wrap" :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }">
     <header>
       <!-- Auth Indicator -->
       <div class="auth-indicator" v-if="isLoggedIn">
@@ -33,32 +33,32 @@
         </video>
 
         <div class="location-info" aria-label="Current AO details">
-          <!-- PRIMARY: SYSTEM > PLANET > AO -->
-          <div class="location-row primary">
-            <div class="meta-block">
+          <!-- SYSTEM > PLANET > AO -->
+          <div class="meta-grid meta-grid--primary">
+            <div class="meta-tile">
               <h4>SYSTEM</h4>
               <span class="subtitle">{{ campaignHeader?.system }}</span>
             </div>
 
-            <div class="meta-block">
+            <div class="meta-tile">
               <h4>PLANET</h4>
               <span class="subtitle">{{ campaignHeader?.planet }}</span>
             </div>
 
-            <div class="meta-block">
+            <div class="meta-tile meta-tile--wide">
               <h4>AO</h4>
               <span class="subtitle">{{ campaignHeader?.ao }}</span>
             </div>
           </div>
 
-          <!-- SECONDARY (placeholders) -->
-          <div class="location-row secondary">
-            <div class="meta-block small">
+          <!-- placeholders -->
+          <div class="meta-grid meta-grid--secondary">
+            <div class="meta-tile">
               <h4>YEAR</h4>
               <span class="subtitle">TBD</span>
             </div>
 
-            <div class="meta-block small">
+            <div class="meta-tile meta-tile--wide">
               <h4>STATUS</h4>
               <span class="subtitle">TBD</span>
             </div>
@@ -88,48 +88,19 @@
 
 <script>
 /**
- * /src/components/layout/Header.vue
- *
  * ACTIVE CAMPAIGN (content-driven)
- * Folder model:
- *   src/campaigns/<campaignFolder>/
- *     campaign.json
- *     operations/<op>.md
- *
- * Rule:
  * - Find FIRST operation file where the 2nd NON-EMPTY line includes "start" (case-insensitive)
  * - Load that campaign's campaign.json
- * - Store into injected activeCampaignStore.activeCampaign (if present)
- * - Header shows panel when an active campaign exists (any route)
- *
- * Notes:
- * - Vite globs MUST be literal strings.
- * - eager+raw avoids runtime chunk fetching (_chunkError 404).
- * - Rooted globs (leading "/") resolve from project root.
  */
 import { getConfig } from "../../config/runtimeConfig";
+import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
-import {
-  adminUser,
-  isAdmin,
-  adminLogout,
-  subscribe as authSubscribe,
-} from "@/utils/adminAuth";
-
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
-  as: "raw",
-  eager: true,
-});
-
-const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", {
-  as: "raw",
-  eager: true,
-});
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw", eager: true });
+const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { as: "raw", eager: true });
 
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
 }
-
 function firstNonEmptyLines(mdRaw, max = 30) {
   const out = [];
   for (const line of splitLines(mdRaw)) {
@@ -140,22 +111,18 @@ function firstNonEmptyLines(mdRaw, max = 30) {
   }
   return out;
 }
-
 function hasStartOnLine2(mdRaw) {
   const ls = firstNonEmptyLines(mdRaw);
   const line2 = String(ls[1] || "").trim().toLowerCase();
   return line2.includes("start");
 }
-
 function campaignFolderFromOpPath(opPath) {
   const parts = String(opPath || "").split("/campaigns/");
   if (parts.length < 2) return null;
   return parts[1].split("/")[0] || null;
 }
-
 function resolveCampaignJsonPath(folder) {
   if (!folder) return null;
-
   const exact = `/src/campaigns/${folder}/campaign.json`;
   if (CAMPAIGN_JSON[exact]) return exact;
 
@@ -163,10 +130,8 @@ function resolveCampaignJsonPath(folder) {
     const f = String(path).split("/campaigns/")[1]?.split("/")[0];
     if (f && f.toLowerCase() === String(folder).toLowerCase()) return path;
   }
-
   return null;
 }
-
 function loadCampaignJsonByPath(jsonPath) {
   if (!jsonPath) return null;
   try {
@@ -175,13 +140,10 @@ function loadCampaignJsonByPath(jsonPath) {
     return null;
   }
 }
-
 function detectActiveCampaign() {
   const ops = Object.entries(OPERATION_MD).sort(([a], [b]) => a.localeCompare(b));
-
   for (const [path, mdRaw] of ops) {
     if (!hasStartOnLine2(mdRaw)) continue;
-
     const folder = campaignFolderFromOpPath(path);
     const jsonPath = resolveCampaignJsonPath(folder);
 
@@ -196,7 +158,6 @@ function detectActiveCampaign() {
     if (!campaign.status) campaign.status = "active";
     return campaign;
   }
-
   return null;
 }
 
@@ -206,34 +167,7 @@ const defaultNewsItems = [
   "ONI ADVISORY: OPSEC reminders in effect. Avoid publishing mission details outside TACNET.",
   "SITREP: Patrol activity increased near contested sectors. Proceed with caution.",
   "SYSTEM NOTICE: Training rotations updated. Check your squad channel for timings.",
-  "TACTICAL ALERT: Orbital traffic control temporarily suspended pending debris clearance.",
-  "FLEETCOM: Capital ship movements classified. Expect irregular patrol coverage.",
-  "SITREP: Long-range sensors reporting intermittent contacts—no IFF confirmation.",
-  "NAVWARN: Slipspace turbulence detected along primary transit lanes. Plot alternates.",
-  "COMMAND NOTICE: Boarding drills reinstated fleet-wide. Review zero-g protocols.",
-  "TACTICAL UPDATE: Orbital denial assets detected in fringe systems. ROE unchanged.",
-  "ONI BULLETIN: Disinformation spike detected on civilian channels. Verify sources.",
-  "ONI ADVISORY: Unscheduled asset loss under review. No further comment.",
-  "SECSTATE: Elevated threat posture following attempted assassination of colonial governor.",
-  "INTEL FLASH: Insurrectionist funding traced to off-world shell corporations.",
-  "CLASSIFIED BRIEF: Data leak contained. Personnel interviews ongoing.",
-  "COLONY WATCH: Labor strikes escalate into armed standoff on outer rim world.",
-  "CIVIL ALERT: Martial law declared after attacks on spaceport infrastructure.",
-  "NEWSNET: Protest leaders call for planetary referendum amid troop deployments.",
-  "SYSTEM UPDATE: Power grid sabotage leaves multiple arcologies offline.",
-  "LOCAL REPORT: Separatist banners raised over former UNSC administrative hub.",
-  "EMERGENCY FEED: Evacuation corridors established following urban bombardment.",
-  "MARKET WATCH: Titanium prices surge as shipyard demand spikes.",
-  "TRAVEL NOTICE: Interstellar passenger routes suspended pending security review.",
-  "HEALTHNET: Low-G adaptation clinics overwhelmed on frontier worlds.",
-  "MEDIA: Popular war correspondent embedded with frontline units—again.",
-  "CULTURE: Museum opens exhibit on early Insurrection conflicts.",
-  "LOCAL CRIME: Man arrested for succulent Sangheili meal.",
-  "SAFETY REMINDER: EVA tethers are not optional, no matter your confidence.",
-  "FLEET GOSSIP: Officer insists plasma burns are 'barely second degree'.",
-  "MESS HALL UPDATE: Dehydrated eggs reclassified as biological hazard.",
-  "ADMIN NOTE: Whoever labeled the crate 'definitely not explosives'—report in.",
-  "BREAKING: Marine promoted after surviving three drops and one briefing."
+  "BREAKING: Marine promoted after surviving three drops and one briefing.",
 ];
 
 export default {
@@ -243,15 +177,12 @@ export default {
     header: { type: Object, required: true },
     authOffsetX: { type: Number, default: 330 },
     authOffsetY: { type: Number, default: 10 },
-
     newsEnabled: { type: Boolean, default: true },
     newsItems: { type: Array, default: () => defaultNewsItems },
-
     tickerItemsPerLoop: { type: Number, default: 10 },
     tickerSeparator: { type: String, default: " // " },
     tickerSeparatorToken: { type: String, default: "//" },
     tickerSeparatorPad: { type: Number, default: 10 },
-
     tickerPxPerSecond: { type: Number, default: 45 },
     sequenceRefreshMs: { type: Number, default: 45000 },
   },
@@ -260,11 +191,9 @@ export default {
       role: null,
       staffUser: null,
       unsub: null,
-
       tickerKey: 0,
       tickerSequence: "",
       tickerDuration: 28,
-
       _sequenceTimer: null,
       _resizeTimer: null,
       _lastPick: -1,
@@ -280,21 +209,18 @@ export default {
     campaignHeader() {
       const c = this.activeCampaign;
       if (!c) return null;
-
       return {
         system: c.system || this.header?.system || "—",
         planet: c.planet || this.header?.planet || "—",
         ao: c.ao || c.AO || this.header?.AO || "—",
       };
     },
-
     branding() {
       return getConfig().branding || {};
     },
     authLogoutLabel() {
-      return (getConfig().ui?.auth?.logoutLabel || "Logout");
+      return getConfig().ui?.auth?.logoutLabel || "Logout";
     },
-
     isLoggedIn() {
       return this.role === "member" || this.isStaff;
     },
@@ -311,7 +237,6 @@ export default {
       if (!this.isStaff) return "";
       return (this.staffUser && this.staffUser.displayName) || "";
     },
-
     normalizedNewsItems() {
       const items = Array.isArray(this.newsItems) ? this.newsItems : [];
       return items
@@ -375,28 +300,29 @@ export default {
       }
     },
     async onLogout() {
-      try { adminLogout(); } catch {}
-      try { sessionStorage.removeItem("authRole"); } catch {}
+      try {
+        adminLogout();
+      } catch {}
+      try {
+        sessionStorage.removeItem("authRole");
+      } catch {}
       this.readAuth();
       if (this.$router?.currentRoute?.value?.path !== "/status") {
         this.$router.push("/status");
       }
     },
-
     onResize() {
       if (this._resizeTimer) clearTimeout(this._resizeTimer);
       this._resizeTimer = setTimeout(() => this.recalcTickerDuration(), 120);
     },
-
     startTicker() {
       this.stopTicker();
       if (!this.newsEnabled) return;
       if (!this.normalizedNewsItems.length) return;
-
       this.buildNewSequence();
       this._sequenceTimer = setInterval(
         () => this.buildNewSequence(),
-        Math.max(5000, Number(this.sequenceRefreshMs) || 45000),
+        Math.max(5000, Number(this.sequenceRefreshMs) || 45000)
       );
     },
     stopTicker() {
@@ -405,7 +331,6 @@ export default {
       if (this._resizeTimer) clearTimeout(this._resizeTimer);
       this._resizeTimer = null;
     },
-
     buildNewSequence() {
       const items = this.normalizedNewsItems;
       const n = items.length;
@@ -437,18 +362,14 @@ export default {
       this.tickerKey += 1;
       this.$nextTick(() => this.recalcTickerDuration());
     },
-
     recalcTickerDuration() {
       const seqEl = this.$refs.seq;
       if (!seqEl || !seqEl.scrollWidth) return;
-
       const widthPx = seqEl.scrollWidth;
       const speed = Math.max(10, Number(this.tickerPxPerSecond) || 45);
       const seconds = widthPx / speed;
-
       this.tickerDuration = Math.max(12, Math.round(seconds * 10) / 10);
     },
-
     randomIndex(n, avoid) {
       if (n <= 1) return 0;
       let idx = Math.floor(Math.random() * n);
@@ -461,77 +382,84 @@ export default {
 
 <style scoped>
 /* Wrapper lets ticker sit below header without changing/overlapping header internals */
-.header-wrap{
+.header-wrap {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
 /* Header spans top edge: no rounding */
-header{ border-radius: 0 !important; }
+header {
+  border-radius: 0 !important;
+}
 
-/* Keep planet/location panel on the right — and allow it to expand LEFT when content is long */
+/* Keep planet/location panel on the right — expand LEFT if long */
 header .header-container,
 header .inner,
-header .topbar{
+header .topbar {
   display: flex;
   align-items: center;
 }
-header .planet-location-container{
+header .planet-location-container {
   margin-left: auto !important;
   flex: 1 1 auto;
   min-width: 0;
 
   display: flex;
+  flex-direction: row; /* force normal flow */
+  direction: ltr; /* prevent RTL flips */
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
   padding-right: 12px;
 }
 
-.planet-vid{ border-radius: 12px; border: 1px solid rgba(170,220,255,0.16); background: rgba(0,0,0,0.18); }
+.planet-vid {
+  border-radius: 12px;
+  border: 1px solid rgba(170, 220, 255, 0.16);
+  background: rgba(0, 0, 0, 0.18);
+}
 
 /* Panel can grow/shrink while staying neat */
-.location-info{
+.location-info {
   min-width: 0;
-  width: clamp(520px, 52vw, 1040px);
+  width: clamp(560px, 56vw, 1100px);
+  direction: ltr;
 }
 
-/* Tight "SYSTEM > PLANET > AO" row */
-.location-row.primary{
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 18px;
-  flex-wrap: nowrap;
+/* SIMPLE GRID: evenly spaced, grows LEFT because it's right-aligned */
+.meta-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content; /* each tile sizes to its content */
+  justify-content: end; /* grid hugs right and expands left */
+  align-items: end;
+  column-gap: 14px; /* small, consistent gap */
+  row-gap: 6px;
 }
 
-/* Secondary row: YEAR / STATUS */
-.location-row.secondary{
-  display: flex;
-  align-items: flex-start;
-  gap: 18px;
+.meta-grid--secondary {
   margin-top: 8px;
 }
 
-.meta-block{
+.meta-tile {
   min-width: 0;
   display: grid;
   gap: 4px;
 }
 
-.meta-block.small{
-  width: 140px;
+.meta-tile--wide {
+  max-width: 420px;
 }
 
-.location-row h4{
+.meta-tile h4 {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 0.7rem;
   margin: 0;
 }
 
-.subtitle{
+.subtitle {
   display: block;
   font-size: 0.85rem;
   letter-spacing: 0.08em;
@@ -541,63 +469,77 @@ header .planet-location-container{
   text-overflow: ellipsis;
 }
 
-/* Make AO flex wider if needed */
-.location-row.primary .meta-block:nth-child(1){ flex: 0 0 170px; }
-.location-row.primary .meta-block:nth-child(2){ flex: 0 0 190px; }
-.location-row.primary .meta-block:nth-child(3){ flex: 1 1 auto; }
-
 /* =========================
    UNSC TERMINAL HEADER THEME
    ========================= */
 
-header{
+header {
   position: relative;
   border-radius: 0px;
   border: 1px solid rgba(170, 220, 255, 0.22);
-  background: linear-gradient(180deg, rgba(8,14,20,0.90), rgba(3,6,10,0.94));
-  box-shadow:
-    0 0 0 1px rgba(170,220,255,0.06) inset,
-    0 0 26px rgba(120,180,255,0.10),
-    0 0 110px rgba(0,0,0,0.55);
+  background: linear-gradient(180deg, rgba(8, 14, 20, 0.9), rgba(3, 6, 10, 0.94));
+  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.1),
+    0 0 110px rgba(0, 0, 0, 0.55);
   overflow: hidden;
 }
 
-header::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  pointer-events:none;
+header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(255,255,255,0.02),
-    rgba(255,255,255,0.02) 1px,
-    rgba(0,0,0,0) 3px,
-    rgba(0,0,0,0) 6px
+    rgba(255, 255, 255, 0.02),
+    rgba(255, 255, 255, 0.02) 1px,
+    rgba(0, 0, 0, 0) 3px,
+    rgba(0, 0, 0, 0) 6px
   );
   mix-blend-mode: overlay;
   opacity: 0.22;
   z-index: 0;
 }
-header::after{
-  content:"";
-  position:absolute;
-  inset:-20%;
-  pointer-events:none;
-  background: radial-gradient(circle at 30% 20%, rgba(120,180,255,0.07), transparent 58%);
-  opacity: .85;
+header::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background: radial-gradient(circle at 30% 20%, rgba(120, 180, 255, 0.07), transparent 58%);
+  opacity: 0.85;
   animation: headerFlicker 3.1s infinite;
   z-index: 0;
 }
-@keyframes headerFlicker{
-  0%,100%{ transform: translate3d(0,0,0); opacity:.70; }
-  12%{ transform: translate3d(-1px,1px,0); opacity:.86; }
-  25%{ transform: translate3d(1px,-1px,0); opacity:.68; }
-  42%{ transform: translate3d(0,2px,0); opacity:.90; }
-  70%{ transform: translate3d(2px,0,0); opacity:.76; }
+@keyframes headerFlicker {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.7;
+  }
+  12% {
+    transform: translate3d(-1px, 1px, 0);
+    opacity: 0.86;
+  }
+  25% {
+    transform: translate3d(1px, -1px, 0);
+    opacity: 0.68;
+  }
+  42% {
+    transform: translate3d(0, 2px, 0);
+    opacity: 0.9;
+  }
+  70% {
+    transform: translate3d(2px, 0, 0);
+    opacity: 0.76;
+  }
 }
-header > *{ position: relative; z-index: 1; }
+header > * {
+  position: relative;
+  z-index: 1;
+}
 
-.rhombus{ opacity: .18; }
+.rhombus {
+  opacity: 0.18;
+}
 
 /* Auth indicator pill (position via CSS variables) */
 .auth-indicator {
@@ -608,78 +550,89 @@ header > *{ position: relative; z-index: 1; }
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid rgba(170,255,210,.35);
+  border: 1px solid rgba(170, 255, 210, 0.35);
   border-radius: 999px;
-  background: rgba(0,0,0,.35);
-  color: rgba(170,255,210,.92);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(170, 255, 210, 0.92);
   font-family: "Titillium Web", sans-serif;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   line-height: 1;
   z-index: 2;
 }
-.auth-line { display: inline-flex; align-items: center; gap: 6px; }
+.auth-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .auth-role {
   font-weight: 800;
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(170,255,210,.35);
+  border: 1px solid rgba(170, 255, 210, 0.35);
 }
-.auth-role[data-variant="member"] { opacity: .9; }
-.auth-role[data-variant="staff"]  { border-color: rgba(30,144,255,.75); }
-.auth-name { font-size: 12px; opacity: .9; }
+.auth-role[data-variant="member"] {
+  opacity: 0.9;
+}
+.auth-role[data-variant="staff"] {
+  border-color: rgba(30, 144, 255, 0.75);
+}
+.auth-name {
+  font-size: 12px;
+  opacity: 0.9;
+}
 .auth-logout {
   background: transparent;
-  border: 1px solid rgba(170,255,210,.35);
+  border: 1px solid rgba(170, 255, 210, 0.35);
   border-radius: 999px;
   padding: 2px 10px;
-  color: rgba(170,255,210,.92);
+  color: rgba(170, 255, 210, 0.92);
   cursor: pointer;
   font-size: 11px;
-  letter-spacing: .1em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-.auth-logout:hover { border-color: rgba(170,255,210,.9); }
+.auth-logout:hover {
+  border-color: rgba(170, 255, 210, 0.9);
+}
 
 /* =========================
    News Ticker (continuous loop)
    ========================= */
-.news-ticker{
+.news-ticker {
   height: 32px;
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 10px;
   padding: 0 12px;
-  border: 1px solid rgba(170,220,255,0.14);
+  border: 1px solid rgba(170, 220, 255, 0.14);
   border-top: none;
-  background: linear-gradient(180deg, rgba(8,14,20,0.75), rgba(3,6,10,0.88));
-  box-shadow:
-    0 0 0 1px rgba(170,220,255,0.06) inset,
-    0 0 26px rgba(120,180,255,0.08);
+  background: linear-gradient(180deg, rgba(8, 14, 20, 0.75), rgba(3, 6, 10, 0.88));
+  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.08);
 }
 
-.news-label{
+.news-label {
   font-family: "Titillium Web", sans-serif;
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(190,230,255,0.92);
-  border: 1px solid rgba(170,220,255,0.18);
-  background: rgba(0,0,0,0.18);
+  color: rgba(190, 230, 255, 0.92);
+  border: 1px solid rgba(170, 220, 255, 0.18);
+  background: rgba(0, 0, 0, 0.18);
   border-radius: 999px;
   padding: 3px 10px;
   white-space: nowrap;
 }
 
-.news-viewport{
+.news-viewport {
   overflow: hidden;
   width: 100%;
   mask-image: linear-gradient(to right, transparent 0%, black 7%, black 93%, transparent 100%);
 }
 
-.news-track{
+.news-track {
   --ticker-duration: 28s;
   display: inline-flex;
   align-items: center;
@@ -688,18 +641,22 @@ header > *{ position: relative; z-index: 1; }
   animation: tickerLoop var(--ticker-duration) linear infinite;
 }
 
-.news-seq{
+.news-seq {
   font-family: "Titillium Web", sans-serif;
   font-size: 12px;
-  letter-spacing: 0.10em;
-  color: rgba(226,243,255,0.92);
+  letter-spacing: 0.1em;
+  color: rgba(226, 243, 255, 0.92);
   text-transform: uppercase;
-  text-shadow: 0 0 14px rgba(120,180,255,0.10);
+  text-shadow: 0 0 14px rgba(120, 180, 255, 0.1);
   padding-right: 48px;
 }
 
-@keyframes tickerLoop{
-  0%   { transform: translate3d(0, 0, 0); }
-  100% { transform: translate3d(-50%, 0, 0); }
+@keyframes tickerLoop {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
 }
 </style>
