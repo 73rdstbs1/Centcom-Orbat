@@ -16,104 +16,117 @@
     "defaultUnitPatch": "/assets/patches/patch-placeholder.png",
     "fallbackPortraits": [
       "/assets/portraits/portrait-placeholder.png"
+    ],
+    "fallbackPatches": [
+      "/assets/patches/patch-placeholder.png"
     ]
   },
   "commandRoster": {
-    "title": "CENTCOM Task Force Command",
-    "notes": "POC roster. Each entry can supply an image; if missing, UI should fall back to assets.defaultPortrait then assets.fallbackPortraits.",
-    "entries": [
+    "title": "Command Element",
+    "notes": "POC command element. Provide portrait/patch or rely on fallbacks.",
+    "commander": {
+      "id": "cmd_atlas",
+      "callsign": "ATLAS",
+      "name": "CPT John Doe",
+      "role": "Task Force Commander",
+      "representsUnitId": "tf_atlas_hq",
+      "portrait": "",
+      "portraitFallbacks": [
+        "/assets/portraits/atlas.png"
+      ],
+      "awards": []
+    },
+    "subCommanders": [
       {
-        "id": "atlas",
-        "callsign": "ATLAS",
-        "name": "CPT John Doe",
-        "position": "Task Force Commander",
-        "unit": "CENTCOM Task Force Atlas",
-        "portrait": "",
-        "portraitFallbacks": [
-          "/assets/portraits/atlas.png",
-          "/assets/portraits/portrait-placeholder.png"
-        ],
-        "links": {
-          "steam": "",
-          "discord": ""
-        },
-        "awards": [
-          {
-            "id": "svc_star",
-            "name": "Service Star",
-            "level": 2,
-            "date": "2026-01-20",
-            "reason": "Sustained operational leadership."
-          }
-        ]
-      },
-      {
-        "id": "odyssey",
+        "id": "sub_odyssey",
         "callsign": "ODYSSEY",
         "name": "MAJ Jane Roe",
-        "position": "Task Unit Commander",
-        "unit": "Task Unit Odyssey",
+        "role": "Task Unit Commander",
+        "representsUnitId": "tu_odyssey",
         "portrait": "",
         "portraitFallbacks": [
-          "/assets/portraits/odyssey.png",
-          "/assets/portraits/portrait-placeholder.png"
+          "/assets/portraits/odyssey.png"
         ],
-        "links": {},
         "awards": []
+      },
+      {
+        "id": "sub_vanguard",
+        "callsign": "VANGUARD",
+        "name": "CWO Alex Smith",
+        "role": "Task Unit Commander",
+        "representsUnitId": "tu_vanguard",
+        "portrait": "",
+        "portraitFallbacks": [
+          "/assets/portraits/vanguard.png"
+        ],
+        "awards": []
+      }
+    ]
+  },
+  "roster": {
+    "title": "Participating Units",
+    "notes": "These are the units attending this campaign. Each unit can link to Backend Roster later via backendUnitSlug.",
+    "units": [
+      {
+        "id": "1st_marines",
+        "name": "1st Marines",
+        "type": "Infantry",
+        "backendUnitSlug": "1st_marines",
+        "patch": "",
+        "patchFallbacks": [
+          "/assets/patches/1st-marines.png"
+        ],
+        "assignedTo": "tu_odyssey",
+        "notes": ""
+      },
+      {
+        "id": "77th_air",
+        "name": "77th Air Wing",
+        "type": "Aviation",
+        "backendUnitSlug": "77th_air",
+        "patch": "",
+        "patchFallbacks": [
+          "/assets/patches/77th-air.png"
+        ],
+        "assignedTo": "tu_vanguard",
+        "notes": ""
       }
     ]
   },
   "orgChart": {
     "taskForceName": "CENTCOM Task Force Atlas",
     "taskForceHQ": {
-      "name": "TF HQ",
-      "commanderId": "atlas",
-      "commander": "CPT John Doe",
+      "id": "tf_atlas_hq",
+      "name": "Task Force HQ",
+      "commanderId": "cmd_atlas",
       "patch": "",
       "patchFallbacks": [
-        "/assets/patches/tf-atlas.png",
-        "/assets/patches/patch-placeholder.png"
+        "/assets/patches/tf-atlas.png"
       ]
     },
     "taskUnits": [
       {
-        "id": "tu-odyssey",
+        "id": "tu_odyssey",
         "name": "Task Unit Odyssey",
-        "hq": {
-          "name": "TU HQ",
-          "commanderId": "odyssey",
-          "commander": "MAJ Jane Roe",
-          "patch": "",
-          "patchFallbacks": [
-            "/assets/patches/tu-odyssey.png",
-            "/assets/patches/patch-placeholder.png"
-          ]
-        },
-        "units": [
-          {
-            "id": "1st_marines",
-            "name": "1st Marines",
-            "type": "Infantry",
-            "patch": "",
-            "patchFallbacks": [
-              "/assets/patches/1st-marines.png",
-              "/assets/patches/patch-placeholder.png"
-            ],
-            "backendUnitSlug": "1st_marines",
-            "notes": "Participating unit notes."
-          },
-          {
-            "id": "77th_air",
-            "name": "77th Air Wing",
-            "type": "Aviation",
-            "patch": "",
-            "patchFallbacks": [
-              "/assets/patches/77th-air.png",
-              "/assets/patches/patch-placeholder.png"
-            ],
-            "backendUnitSlug": "77th_air",
-            "notes": ""
-          }
+        "commanderId": "sub_odyssey",
+        "patch": "",
+        "patchFallbacks": [
+          "/assets/patches/tu-odyssey.png"
+        ],
+        "unitIds": [
+          "1st_marines"
+        ]
+      },
+      {
+        "id": "tu_vanguard",
+        "name": "Task Unit Vanguard",
+        "commanderId": "sub_vanguard",
+        "patch": "",
+        "patchFallbacks": [
+          "/assets/patches/tu-vanguard.png"
+        ],
+        "unitIds": [
+          "77th_air"
         ]
       }
     ]
