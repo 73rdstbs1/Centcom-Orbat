@@ -277,14 +277,6 @@ export default {
       if (!start && end) return end;
       return `${start} → ${end}`;
     },
-
-    openFromRoute() {
-      const id = this.$route?.query?.campaignId;
-      if (!id) return;
-      const match = (this.campaigns || []).find((c) => String(c.id) === String(id));
-      if (match) this.openCampaign(match);
-    },
-
     openCampaign(c) {
       this.activeCampaign = c;
       this.$nextTick(() => {
