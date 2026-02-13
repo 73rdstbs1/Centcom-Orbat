@@ -254,8 +254,8 @@
 
 <script>
 // Content-driven campaigns (Vite requires literal globs)
-const campaignJsonLoaders = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw" });
-const operationMdLoaders = import.meta.glob("/src/campaigns/**/operations/*.md", { as: "raw" });
+const campaignJsonLoaders = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw", eager: true });
+const operationMdLoaders = import.meta.glob("/src/campaigns/**/operations/*.md", { as: "raw", eager: true });
 
 // Change this once the backend roster route is finalized.
 const BACKEND_ROSTER_PATH = "/backend-roster";
@@ -356,7 +356,7 @@ async function loadCampaignsFromContent() {
   const campaignEntries = Object.entries(campaignJsonLoaders).sort(([a], [b]) => a.localeCompare(b));
 
   for (const [path, loader] of campaignEntries) {
-    const raw = await loader();
+    const raw = loader;
     const obj = JSON.parse(raw);
 
     const folder = campaignFolderFromPath(path) || obj.id || obj.slug || "unknown";
@@ -388,7 +388,7 @@ async function loadCampaignsFromContent() {
     const campaign = byFolder.get(key);
     if (!campaign) continue;
 
-    const md = await loader();
+    const md = loader;
     const ls = firstNonEmptyLines(md);
 
     const statusToken = String(ls[1] || "").trim();
