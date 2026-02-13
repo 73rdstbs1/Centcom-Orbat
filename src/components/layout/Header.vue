@@ -1,6 +1,6 @@
 <!-- /src/components/layout/Header.vue -->
 <template>
-  <div class="header-wrap" :style="{'--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px'}">
+  <div class="header-wrap" :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }">
     <header>
       <!-- Auth Indicator -->
       <div class="auth-indicator" v-if="isLoggedIn">
@@ -26,6 +26,7 @@
 
       <div class="rhombus"></div>
 
+      <!-- ACTIVE CAMPAIGN DETAILS (auto-detected) -->
       <div v-if="showCampaignPanel" class="planet-location-container">
         <video class="planet-vid" autoplay muted loop width="90px" height="90px">
           <source :src="`${planetPath}`" type="video/webm" />
@@ -41,7 +42,7 @@
             </span>
           </div>
 
-          <div class="location-row grid">
+          <div class="location-row grid primary-grid">
             <div id="year">
               <h4>{{ labels.year }}</h4>
               <span class="subtitle">{{ campaignHeader?.year }}</span>
@@ -53,7 +54,7 @@
             </div>
           </div>
 
-          <div class="location-row grid">
+          <div class="location-row grid secondary-grid">
             <div id="AO">
               <h4>{{ labels.ao }}</h4>
               <span class="subtitle">{{ campaignHeader?.ao }}</span>
@@ -96,20 +97,16 @@
 /**
  * /src/components/layout/Header.vue
  *
- * Added functionality (layout preserved):
- * - Auto-detect "active campaign" by scanning repo content:
- *   src/campaigns/<campaignFolder>/operations/*.md
- *   If the 2nd NON-EMPTY line contains "start" (case-insensitive), that campaign is active.
- * - Loads src/campaigns/<campaignFolder>/campaign.json and writes it into activeCampaignStore.activeCampaign.
- * - If no "start" operation exists, clears activeCampaignStore.activeCampaign and hides the panel.
+ * Auto-active campaign:
+ * - Scans /src/campaigns/**/operations/*.md
+ * - If 2nd NON-EMPTY line contains "start" => that campaign is ACTIVE
+ * - Loads /src/campaigns/<folder>/campaign.json and stores into injected activeCampaignStore
  *
- * Implementation notes:
- * - Vite globs must be literal strings.
- * - Rooted globs (leading "/") so they resolve from project root (NOT relative to this file).
- * - eager+raw so content is bundled at build-time (no runtime chunk fetch).
+ * Notes:
+ * - Rooted globs (leading "/") resolve from Vite project root.
+ * - eager+raw bundles content at build time (no runtime chunk fetch).
  */
 import { getConfig } from "../../config/runtimeConfig";
-
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
 const campaignJson = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw", eager: true });
@@ -168,23 +165,21 @@ function loadCampaignJsonByPath(jsonPath) {
 
 function detectActiveCampaign() {
   const ops = Object.entries(operationMd).sort(([a], [b]) => a.localeCompare(b));
-
   for (const [path, mdRaw] of ops) {
     if (!isStartOp(mdRaw)) continue;
 
     const folder = campaignFolderFromOpPath(path);
     const jsonPath = resolveCampaignJsonPath(folder);
+
     const c =
       loadCampaignJsonByPath(jsonPath) || {
         id: folder || "unknown",
         name: folder ? folder.replace(/[-_]/g, " ") : "Active Campaign",
       };
 
-    // ensure consistent "active" status for the header pill
     if (!c.status) c.status = "active";
     return c;
   }
-
   return null;
 }
 
@@ -261,7 +256,6 @@ export default {
     activeCampaign() {
       return this.activeCampaignStore?.activeCampaign || null;
     },
-    // IMPORTANT: no route coupling (as requested). Panel only depends on "start" existence.
     showCampaignPanel() {
       return !!this.activeCampaign;
     },
@@ -277,10 +271,7 @@ export default {
         status: (c.status || "active").toUpperCase(),
         dates,
         year,
-        quarter: c.quarter || "—",
-        location: c.location || "CLASSIFIED / TBD",
         ao: c.ao || c.AO || this.header?.AO || "—",
-        theatre: c.theatre || c.theater || c.system || this.header?.system || "—",
         planet: c.planet || this.header?.planet || "—",
         system: c.system || this.header?.system || "—",
       };
@@ -322,7 +313,6 @@ export default {
     },
   },
   created() {
-    // NEW: detect active campaign from content once on startup, store into injected store.
     try {
       const active = detectActiveCampaign();
       if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = active;
@@ -487,59 +477,63 @@ header {
   border-radius: 0 !important;
 }
 
-/* Keep planet/location panel on the right */
-header .header-container,
-header .inner,
-header .topbar {
-  display: flex;
-  align-items: center;
-}
+/* Keep planet/location panel on the right but allow it to grow LEFT to fit neatly */
 header .planet-location-container {
   margin-left: auto !important;
-  flex: 0 0 auto;
+  flex: 1 1 auto;            /* allow growing left */
+  min-width: 0;              /* allow wrapping/shrinking */
   display: flex;
   align-items: center;
+  justify-content: flex-end; /* keep aligned right */
   gap: 14px;
   padding-right: 12px;
 }
 
+/* Let the right-side details block expand left to fit content */
+.location-info {
+  min-width: 0;
+  width: min(860px, 100%);   /* can extend left as needed */
+}
+
+/* Improve wrapping/fit */
+.campaign-name-row {
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.campaign-name {
+  max-width: none;
+  min-width: 0;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+/* Tighter, more predictable grids that wrap cleanly */
+.location-row.grid {
+  display: grid;
+  row-gap: 6px;
+  align-items: end;
+}
+
+.primary-grid {
+  grid-template-columns: 180px minmax(260px, 1fr);
+  column-gap: 1.2rem;
+}
+
+.secondary-grid {
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  column-gap: 1.2rem;
+}
+
+.span-2 {
+  grid-column: span 1;
+}
+
+/* Planet vid style */
 .planet-vid {
   border-radius: 12px;
   border: 1px solid rgba(170, 220, 255, 0.16);
   background: rgba(0, 0, 0, 0.18);
-}
-
-.location-info {
-  min-width: 420px;
-}
-
-.campaign-kicker {
-  font-family: "Titillium Web", sans-serif;
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(190, 230, 255, 0.85);
-  margin-bottom: 4px;
-}
-
-.campaign-name-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.campaign-name {
-  font-family: "Titillium Web", sans-serif;
-  font-size: 14px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(230, 251, 255, 0.95);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 340px;
 }
 
 /* Header-scoped status pill */
@@ -554,10 +548,35 @@ header .planet-location-container {
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 980px) {
+  header .planet-location-container {
+    justify-content: flex-start;
+    padding-right: 0;
+  }
+
+  .location-info {
+    width: 100%;
+  }
+
+  .primary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .campaign-name {
+    max-width: 100%;
+  }
 }
 
 /* =========================
-   UNSC TERMINAL HEADER THEME
+   Keep your existing header theme + ticker styles below
+   (unchanged from your file)
    ========================= */
 
 header {
@@ -588,6 +607,7 @@ header::before {
   opacity: 0.22;
   z-index: 0;
 }
+
 header::after {
   content: "";
   position: absolute;
@@ -598,6 +618,7 @@ header::after {
   animation: headerFlicker 3.1s infinite;
   z-index: 0;
 }
+
 @keyframes headerFlicker {
   0%,
   100% {
@@ -621,6 +642,7 @@ header::after {
     opacity: 0.76;
   }
 }
+
 header > * {
   position: relative;
   z-index: 1;
@@ -687,15 +709,6 @@ header > * {
 }
 
 /* Existing layout styles */
-.location-row.grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: 1.2rem;
-  align-items: end;
-}
-.span-2 {
-  grid-column: span 2;
-}
 .location-row h4 {
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -706,9 +719,7 @@ header > * {
   letter-spacing: 0.08em;
 }
 
-/* =========================
-   News Ticker (continuous loop)
-   ========================= */
+/* News ticker unchanged */
 .news-ticker {
   height: 32px;
   display: grid;
