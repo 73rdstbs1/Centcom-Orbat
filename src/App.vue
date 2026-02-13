@@ -96,8 +96,16 @@ import Papa from "papaparse";
 export default {
   name: "App",
   components: { Header, Sidebar, AdminLoginModal },
+  provide() {
+    return {
+      activeCampaignStore: this.activeCampaignStore,
+    };
+  },
   data() {
     return {
+      // Global: active campaign context (set by Campaign Log view)
+      activeCampaignStore: { activeCampaign: null },
+
       // --- existing (working) auth overlay state ---
       showLogin: true,
       isFading: false,
