@@ -26,12 +26,8 @@
 
       <div class="rhombus"></div>
 
-      <!-- Details panel only appears when an operation has START on line 2 -->
+      <!-- DETAILS (right-aligned, with vertical separator like OG header) -->
       <div v-if="showCampaignPanel" class="planet-location-container">
-        <video class="planet-vid" autoplay muted loop width="90px" height="90px">
-          <source :src="`${planetPath}`" type="video/webm" />
-        </video>
-
         <div class="location-info" aria-label="Current AO details">
           <!-- 2x2 stacked tiles + AO column spanning both rows:
                [ SYSTEM | PLANET | AO ]
@@ -194,7 +190,7 @@ const defaultNewsItems = [
 export default {
   inject: ["activeCampaignStore"],
   props: {
-    planetPath: { type: String, required: true },
+    planetPath: { type: String, required: true }, // kept for compatibility; no longer rendered
     header: { type: Object, required: true },
     authOffsetX: { type: Number, default: 330 },
     authOffsetY: { type: Number, default: 10 },
@@ -431,45 +427,33 @@ header {
   border-radius: 0 !important;
 }
 
-/* Keep planet/location panel on the right — expand LEFT when content is long */
-header .header-container,
-header .inner,
-header .topbar {
-  display: flex;
-  align-items: center;
-}
+/* Keep details on the far right + vertical divider */
 header .planet-location-container {
   margin-left: auto !important;
-  flex: 1 1 auto;
-  min-width: 0;
-
+  flex: 0 0 auto;
   display: flex;
-  flex-direction: row;
-  direction: ltr;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+
+  padding-left: 16px;
   padding-right: 12px;
+  border-left: 1px solid rgba(170, 220, 255, 0.22);
 }
 
-.planet-vid {
-  border-radius: 12px;
-  border: 1px solid rgba(170, 220, 255, 0.16);
-  background: rgba(0, 0, 0, 0.18);
-}
-
+/* Panel can grow leftward if content is long */
 .location-info {
   min-width: 0;
-  width: clamp(560px, 56vw, 1120px);
+  width: max-content;
+  max-width: min(1120px, 58vw);
   direction: ltr;
 }
 
-/* Even spacing, expands LEFT because it hugs right edge */
+/* 2x2 stacked tiles + AO spanning both rows, right-aligned */
 .meta-grid {
   display: grid;
   grid-template-columns: max-content max-content minmax(220px, 420px);
   grid-template-rows: auto auto;
-  gap: 10px 16px; /* row / column gaps */
+  gap: 10px 14px;
   justify-content: end;
   align-items: end;
 }
@@ -489,13 +473,13 @@ header .planet-location-container {
 .meta-tile h4 {
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  font-size: 0.78rem; /* larger labels */
+  font-size: 0.78rem;
   margin: 0;
 }
 
 .subtitle {
   display: block;
-  font-size: 0.95rem; /* larger values */
+  font-size: 0.95rem;
   letter-spacing: 0.10em;
   line-height: 1.15;
   white-space: nowrap;
@@ -512,7 +496,7 @@ header {
   border-radius: 0px;
   border: 1px solid rgba(170, 220, 255, 0.22);
   background: linear-gradient(180deg, rgba(8, 14, 20, 0.9), rgba(3, 6, 10, 0.94));
-  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.1),
+  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.10),
     0 0 110px rgba(0, 0, 0, 0.55);
   overflow: hidden;
 }
@@ -547,7 +531,7 @@ header::after {
   0%,
   100% {
     transform: translate3d(0, 0, 0);
-    opacity: 0.7;
+    opacity: 0.70;
   }
   12% {
     transform: translate3d(-1px, 1px, 0);
@@ -559,7 +543,7 @@ header::after {
   }
   42% {
     transform: translate3d(0, 2px, 0);
-    opacity: 0.9;
+    opacity: 0.90;
   }
   70% {
     transform: translate3d(2px, 0, 0);
@@ -678,10 +662,10 @@ header > * {
 .news-seq {
   font-family: "Titillium Web", sans-serif;
   font-size: 12px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.10em;
   color: rgba(226, 243, 255, 0.92);
   text-transform: uppercase;
-  text-shadow: 0 0 14px rgba(120, 180, 255, 0.1);
+  text-shadow: 0 0 14px rgba(120, 180, 255, 0.10);
   padding-right: 48px;
 }
 
