@@ -1,1 +1,7 @@
-details here
+{
+  "id": "OP_ATLAS",
+  "name": "Operation ATLAS",
+  "system": "Epsilon Eridani",
+  "planet": "Reach",
+  "ao": "Viery Territory"
+}
