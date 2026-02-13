@@ -133,19 +133,19 @@
               </div>
 
               <div class="tree-connector" aria-hidden="true">
-                                <svg class="chain-lines" viewBox="0 0 1000 200" preserveAspectRatio="none">
+                                                <svg class="chain-lines" viewBox="0 0 1000 200" preserveAspectRatio="none">
                   <!-- Commander downline to junction -->
                   <path d="M500 0 V70" />
                   <path d="M500 70 V100" />
-                  <!-- Horizontal bus (ends align with sub-commander junction nodes) -->
-                  <path d="M200 100 H800" />
-                  <!-- Downlines to sub-commanders from the VERY ends of the bus -->
-                  <path d="M200 100 V200" />
-                  <path d="M800 100 V200" />
+                  <!-- Horizontal bus (ends align with sub-commander tile centers) -->
+                  <path d="M250 100 H750" />
+                  <!-- Downlines to sub-commanders from bus ends -->
+                  <path d="M250 100 V200" />
+                  <path d="M750 100 V200" />
                   <!-- Junction nodes -->
                   <circle cx="500" cy="100" r="6" />
-                  <circle cx="200" cy="100" r="6" />
-                  <circle cx="800" cy="100" r="6" />
+                  <circle cx="250" cy="100" r="6" />
+                  <circle cx="750" cy="100" r="6" />
                 </svg>
               </div>
 
