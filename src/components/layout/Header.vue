@@ -12,7 +12,8 @@
       </div>
 
       <div class="title clipped-x-large-forward">
-        <img class="logo" :src="branding.headerLogo" />
+        <!-- UPDATED: pulls from header.branding.headerLogo (config) with fallbacks -->
+        <img class="logo" :src="headerLogo" />
         <div class="title-container">
           <div id="title-first-line" class="title-row">
             <span id="title-header">{{ branding.networkTitle }}</span>
@@ -29,10 +30,6 @@
       <!-- DETAILS (right-aligned, with vertical separator like OG header) -->
       <div v-if="showCampaignPanel" class="planet-location-container">
         <div class="location-info" aria-label="Current AO details">
-          <!-- 2x2 stacked tiles + AO column spanning both rows:
-               [ SYSTEM | PLANET | AO ]
-               [ YEAR   | STATUS | AO ]
-          -->
           <div class="meta-grid">
             <div class="meta-tile">
               <h4>SYSTEM</h4>
@@ -168,7 +165,7 @@ function detectActiveCampaign() {
         id: folder || "unknown",
         system: "—",
         planet: "—",
-        ao: "—",
+        ao: "—"
       };
 
     if (!campaign.status) campaign.status = "active";
@@ -184,7 +181,7 @@ const defaultNewsItems = [
   "ONI ADVISORY: OPSEC reminders in effect. Avoid publishing mission details outside TACNET.",
   "SITREP: Patrol activity increased near contested sectors. Proceed with caution.",
   "SYSTEM NOTICE: Training rotations updated. Check your squad channel for timings.",
-  "BREAKING: Marine promoted after surviving three drops and one briefing.",
+  "BREAKING: Marine promoted after surviving three drops and one briefing."
 ];
 
 export default {
@@ -204,7 +201,7 @@ export default {
     tickerSeparatorPad: { type: Number, default: 10 },
 
     tickerPxPerSecond: { type: Number, default: 45 },
-    sequenceRefreshMs: { type: Number, default: 45000 },
+    sequenceRefreshMs: { type: Number, default: 45000 }
   },
   data() {
     return {
@@ -218,7 +215,7 @@ export default {
 
       _sequenceTimer: null,
       _resizeTimer: null,
-      _lastPick: -1,
+      _lastPick: -1
     };
   },
   computed: {
@@ -235,8 +232,23 @@ export default {
       return {
         system: c.system || this.header?.system || "—",
         planet: c.planet || this.header?.planet || "—",
-        ao: c.ao || c.AO || this.header?.AO || "—",
+        ao: c.ao || c.AO || this.header?.AO || "—"
       };
+    },
+
+    // NEW: prefer header.branding.headerLogo from unit-config.json, fallback to previous keys
+    headerLogo() {
+      const cfg = getConfig() || {};
+      const fromHeader = cfg.header?.branding?.headerLogo;
+      const fromBranding = cfg.branding?.headerLogo;
+      const fromIcon = cfg.icon;
+
+      return (
+        fromHeader ||
+        fromBranding ||
+        fromIcon ||
+        "/faction-logos/FUD_UNSC_Logo.png"
+      );
     },
 
     branding() {
@@ -269,7 +281,7 @@ export default {
         .map((x) => (typeof x === "string" ? x : String(x?.text || x || "")))
         .map((s) => s.trim())
         .filter(Boolean);
-    },
+    }
   },
   created() {
     const active = detectActiveCampaign();
@@ -312,7 +324,7 @@ export default {
     },
     tickerSeparatorPad() {
       this.startTicker();
-    },
+    }
   },
   methods: {
     readAuth() {
@@ -351,7 +363,7 @@ export default {
       this.buildNewSequence();
       this._sequenceTimer = setInterval(
         () => this.buildNewSequence(),
-        Math.max(5000, Number(this.sequenceRefreshMs) || 45000),
+        Math.max(5000, Number(this.sequenceRefreshMs) || 45000)
       );
     },
     stopTicker() {
@@ -409,8 +421,8 @@ export default {
       let idx = Math.floor(Math.random() * n);
       if (idx === avoid) idx = (idx + 1 + Math.floor(Math.random() * (n - 1))) % n;
       return idx;
-    },
-  },
+    }
+  }
 };
 </script>
 
