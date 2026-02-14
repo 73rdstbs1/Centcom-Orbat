@@ -420,8 +420,8 @@ header {
 
 /* ✅ NEW: force the in-page logo to render as a square (no squish) */
 .logo {
-  height: 100px;
-  width: 100px;                 /* preserve aspect ratio */
+  height: 120px;
+  width: 120px;                 /* preserve aspect ratio */
   aspect-ratio: 1 / 1;         /* keep a square box */
   object-fit: contain;         /* no squish */
   object-position: center;
