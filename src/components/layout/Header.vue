@@ -12,8 +12,7 @@
       </div>
 
       <div class="title clipped-x-large-forward">
-        <!-- UPDATED: pulls from header.branding.headerLogo (config) with fallbacks -->
-        <img class="logo" :src="headerLogo" />
+        <img class="logo" :src="headerLogo" alt="Unit logo" />
         <div class="title-container">
           <div id="title-first-line" class="title-row">
             <span id="title-header">{{ branding.networkTitle }}</span>
@@ -80,21 +79,6 @@
 </template>
 
 <script>
-/**
- * ACTIVE CAMPAIGN (content-driven)
- * Folder model:
- *   src/campaigns/<campaignFolder>/
- *     campaign.json
- *     operations/<op>.md
- *
- * Rule:
- * - Find FIRST operation file where the 2nd NON-EMPTY line includes "start" (case-insensitive)
- * - Load that campaign's campaign.json
- *
- * Notes:
- * - Vite globs MUST be literal strings.
- * - eager+raw avoids runtime chunk fetching (_chunkError 404).
- */
 import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
@@ -187,7 +171,7 @@ const defaultNewsItems = [
 export default {
   inject: ["activeCampaignStore"],
   props: {
-    planetPath: { type: String, required: true }, // kept for compatibility; no longer rendered
+    planetPath: { type: String, required: true },
     header: { type: Object, required: true },
     authOffsetX: { type: Number, default: 330 },
     authOffsetY: { type: Number, default: 10 },
@@ -236,17 +220,12 @@ export default {
       };
     },
 
-    // NEW: prefer header.branding.headerLogo from unit-config.json, fallback to previous keys
     headerLogo() {
       const cfg = getConfig() || {};
-      const fromHeader = cfg.header?.branding?.headerLogo;
-      const fromBranding = cfg.branding?.headerLogo;
-      const fromIcon = cfg.icon;
-
       return (
-        fromHeader ||
-        fromBranding ||
-        fromIcon ||
+        cfg.header?.branding?.headerLogo ||
+        cfg.branding?.headerLogo ||
+        cfg.icon ||
         "/faction-logos/FUD_UNSC_Logo.png"
       );
     },
@@ -437,6 +416,16 @@ export default {
 /* Header spans top edge: no rounding */
 header {
   border-radius: 0 !important;
+}
+
+/* ✅ NEW: force the in-page logo to render as a square (no squish) */
+.logo {
+  width: 44px;          /* tweak size here */
+  height: 44px;         /* same as width => perfect square */
+  aspect-ratio: 1 / 1;  /* modern browsers */
+  object-fit: contain;  /* keep full logo visible */
+  object-position: center;
+  display: block;
 }
 
 /* Keep details on the far right + vertical divider */
