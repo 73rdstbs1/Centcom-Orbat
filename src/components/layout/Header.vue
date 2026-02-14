@@ -420,10 +420,10 @@ header {
 
 /* ✅ NEW: force the in-page logo to render as a square (no squish) */
 .logo {
-  width: 44px;          /* tweak size here */
-  height: 44px;         /* same as width => perfect square */
-  aspect-ratio: 1 / 1;  /* modern browsers */
-  object-fit: contain;  /* keep full logo visible */
+  height: clamp(56px, calc(var(--app-header-height, 72px) - 18px), 84px);
+  width: auto;                 /* preserve aspect ratio */
+  aspect-ratio: 1 / 1;         /* keep a square box */
+  object-fit: contain;         /* no squish */
   object-position: center;
   display: block;
 }
