@@ -140,7 +140,10 @@
       "opordTitle": "OPORD 001",
       "opordUrl": "https://example.com/opord-001",
       "opordSummary": "Recon enemy lines, identify supply routes, capture map intel.",
-      "file": "operations/001.md"
+      "file": "operations/001.md",
+
+      "commandersRef": "operation_test_name__001",
+      "hallOfFameRef": "operation_test_name__001"
     }
   ]
 }
