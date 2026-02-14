@@ -10,33 +10,25 @@
       "5) (optional) ui.* (login/boot/labels text) + terminal.feedPool (terminal flavor text)"
     ]
   },
-
   "_example_values": {
     "csv_url_format": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<TAB_GID>&single=true&output=csv",
     "asset_paths": "Put images/videos in /public then reference them like '/logo.png' or '/video/background.webm'"
   },
-
   "unit": {
     "_help": "Shown in header + page titles + various UI areas.",
     "name": "UNIT NAME HERE",
     "tagline": "Short tagline / motto / classification label"
   },
-
   "defaultTitle": "UNIT ORBAT |",
   "_help_defaultTitle": "Document title prefix. Example result: 'UNIT ORBAT | Roster' (depends on route/view).",
-
   "icon": "/faction-logos/FUD_UNSC_Logo.png",
   "_help_icon": "Browser tab favicon + some UI/logo spots. Place file in /public/brand/ then reference with leading '/'.",
-
   "animate": true,
   "_help_animate": "Enable/disable UI animations.",
-
   "initialSlug": "000",
   "_help_initialSlug": "Default selection when opening roster (commonly the root element slug). Keep as a string.",
-
   "planetPath": "/backgrounds/orbit.webm",
   "_help_planetPath": "Background video (or image) used on the landing/login/boot screen (depending on your build). Put in /public/backgrounds/.",
-
   "header": {
     "_help": "Top header/banner fields. Change these to match your unit theme/lore.",
     "planet": "LOCATION / THEATRE",
@@ -45,16 +37,19 @@
     "AO": "AREA OF OPERATIONS",
     "status": "STATUS (e.g., ACTIVE / DEPLOYED / TRAINING)",
     "subheaderTitle": "SUBHEADER TITLE (e.g., UNIT DESIGNATION)",
-    "subheaderSubtitle": "SUBHEADER SUBTITLE (e.g., CLASSIFICATION)"
-  },
+    "subheaderSubtitle": "SUBHEADER SUBHEADER (e.g., CLASSIFICATION)",
 
+    "branding": {
+      "_help": "Optional header-specific branding. Assets should be placed under /public and referenced from site root.",
+      "headerLogo": "/faction-logos/UNSC_CENTCOM_LOGO.png"
+    }
+  },
   "sheets": {
     "_help": "Publish each sheet tab to CSV and paste URLs here. These must be publicly accessible CSV endpoints.",
     "membersCsvUrl": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<GID_MEMBERS>&single=true&output=csv",
     "refDataCsvUrl": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<GID_REF_DATA>&single=true&output=csv",
     "opsCsvUrl": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<GID_OPS>&single=true&output=csv"
   },
-
   "deployment": {
     "_help": "Netlify + asset path settings.",
     "execUrl": "/.netlify/functions/gas",
@@ -63,7 +58,6 @@
     "rankIconExt": "png",
     "_help_rankIcons": "Rank icons are resolved like `${rankIconBase}/${rankCode}.${rankIconExt}`. Put icons in /public/ranks/."
   },
-
   "ui": {
     "_help": "Optional UI text overrides. If your build doesn’t use some of these, they’ll be safely ignored.",
     "labels": {
@@ -75,7 +69,6 @@
       "status": "STATUS",
       "logout": "LOG OUT"
     },
-
     "login": {
       "_help": "Login overlay text (if enabled in your build).",
       "title": "SECURE ACCESS TERMINAL",
@@ -83,7 +76,6 @@
       "hint": "Hint text shown below inputs (optional).",
       "footer": "Unauthorized access prohibited."
     },
-
     "boot": {
       "_help": "Boot/handshake screen copy (if enabled in your build).",
       "title": "INITIALIZING ORBAT INTERFACE",
@@ -95,7 +87,6 @@
       "footer": "Ready."
     }
   },
-
   "terminal": {
     "_help": "Terminal ‘flavor text’ pool used for scrolling/random feed lines. Keep it generic so any unit can reuse.",
     "feedPool": [
@@ -108,7 +99,6 @@
       "LOG: SESSION STARTED"
     ]
   },
-
   "pilotSpecialInfo": {
     "_help": "Optional mapping for custom per-person badges/notes keyed by member ID/slug (only if your build supports it).",
     "example_member_id": {
