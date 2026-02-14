@@ -25,7 +25,7 @@
   "defaultTitle": "UNIT ORBAT |",
   "_help_defaultTitle": "Document title prefix. Example result: 'UNIT ORBAT | Roster' (depends on route/view).",
 
-  "icon": "/faction-logos/UNSC_CENTCOM_LOGO.png",
+  "icon": "/faction-logos/FUD_UNSC_Logo.png",
   "_help_icon": "Browser tab favicon + some UI/logo spots. Place file in /public/brand/ then reference with leading '/'.",
 
   "animate": true,
