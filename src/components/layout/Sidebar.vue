@@ -19,7 +19,7 @@
 
         <router-link class="clipped-bottom-right" to="/commanders" @click.native="playBrowse">
           <img src="/icons/Hall_of_Commanders_Icon.png" />
-          <span>Commanders</span>
+          <span>Hall of Command</span>
         </router-link>
 
         <router-link class="clipped-bottom-right" to="/backend-roster" @click.native="playBrowse">
