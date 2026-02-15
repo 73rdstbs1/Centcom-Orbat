@@ -170,11 +170,12 @@ export default {
   overflow: visible;
   text-overflow: unset;
 
-  /* key changes */
-  white-space: normal;        /* allow multi-line */
-  word-break: break-word;     /* break long single words if needed */
-  overflow-wrap: anywhere;    /* last-resort to avoid clipping */
-  line-height: 1.05;          /* slightly tighter so multi-line fits */
+  white-space: normal;      /* allow multi-line */
+  word-break: normal;       /* do NOT break inside words */
+  overflow-wrap: normal;    /* wrap only at normal break points (spaces) */
+  hyphens: none;            /* prevent auto hyphenation */
+
+  line-height: 1.05;
 }
 
 /* Active indicator bar (if present) */
