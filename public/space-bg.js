@@ -18,8 +18,8 @@
   const MIN_STARS = 220;
   const MAX_STARS = 1400;
 
-  const BASE_SPEED = 22;        // px/sec baseline
-  const SPEED_VARIANCE = 38;    // px/sec extra based on depth
+  const BASE_SPEED = 15;        // px/sec baseline
+  const SPEED_VARIANCE = 25;    // px/sec extra based on depth
   const DRIFT_Y = 2.2;          // subtle vertical drift to avoid banding
   const WRAP_BAND = 0.35;       // respawn stars in [w, w*(1+WRAP_BAND)]
 
