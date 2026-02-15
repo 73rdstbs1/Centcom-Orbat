@@ -18,12 +18,12 @@
         </router-link>
 
         <router-link class="clipped-bottom-right" to="/commanders" @click.native="playBrowse">
-          <img src="/icons/portrait.svg" />
+          <img src="/icons/Hall_of_Commanders_Icon.png" />
           <span>Commanders</span>
         </router-link>
 
         <router-link class="clipped-bottom-right" to="/backend-roster" @click.native="playBrowse">
-          <img src="/icons/protocol.svg" />
+          <img src="/icons/Roster.png" />
           <span>Backend Roster</span>
         </router-link>
 
