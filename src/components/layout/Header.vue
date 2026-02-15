@@ -3,7 +3,7 @@
     <header>
       <!-- LEFT: Brand -->
       <div class="title clipped-x-large-forward">
-        <img class="logo" :src="branding.headerLogo" alt="CENTCOM Logo" />
+        <img class="logo" :src="logoSrc" alt="CENTCOM Logo" />
         <div class="title-container">
           <div class="title-row">
             <span id="title-header">UNSC CENTRAL COMMAND</span>
@@ -231,11 +231,27 @@ export default {
     };
   },
   computed: {
-    branding() {
-      return getConfig().branding || {};
+    appConfig() {
+      return getConfig() || {};
     },
+
+    // ✅ Fix for broken logo:
+    // - Prefer branding.headerLogo if present
+    // - Fall back to config.icon (your unit-config.json "icon": "/faction-logos/...")
+    // - Finally fall back to a known placeholder path
+    logoSrc() {
+      const cfg = this.appConfig || {};
+      const branding = cfg.branding || {};
+      return (
+        branding.headerLogo ||
+        branding.logo ||
+        cfg.icon ||
+        "/faction-logos/FUD_UNSC_Logo.png"
+      );
+    },
+
     authLogoutLabel() {
-      return getConfig().ui?.auth?.logoutLabel || "Logout";
+      return this.appConfig.ui?.auth?.logoutLabel || "Logout";
     },
 
     isStaff() {
@@ -423,7 +439,6 @@ export default {
 </script>
 
 <style scoped>
-/* Wrapper lets ticker sit below header without changing/overlapping header internals */
 .header-wrap {
   width: 100%;
   display: flex;
@@ -540,10 +555,9 @@ header > * {
 }
 
 .rhombus {
-  opacity: 0.0; /* effectively removed */
+  opacity: 0; /* removed */
 }
 
-/* Right cluster: pushes everything to far-right */
 .right-cluster {
   margin-left: auto;
   display: flex;
@@ -552,7 +566,6 @@ header > * {
   min-width: 0;
 }
 
-/* Auth indicator pill (now FLOW layout on right) */
 .auth-indicator {
   display: inline-flex;
   align-items: center;
@@ -608,13 +621,11 @@ header > * {
   border-color: rgba(170, 255, 210, 0.9);
 }
 
-/* Details on far right + vertical divider */
 .planet-location-container {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-
   padding-left: 16px;
   padding-right: 8px;
   border-left: 1px solid rgba(170, 220, 255, 0.22);
@@ -626,7 +637,6 @@ header > * {
   max-width: min(1120px, 58vw);
 }
 
-/* 2x2 stacked tiles + AO spanning both rows */
 .meta-grid {
   display: grid;
   grid-template-columns: max-content max-content minmax(220px, 420px);
@@ -666,7 +676,6 @@ header > * {
   text-overflow: ellipsis;
 }
 
-/* News Ticker (continuous loop) */
 .news-ticker {
   height: 32px;
   display: grid;
