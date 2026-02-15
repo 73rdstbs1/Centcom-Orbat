@@ -167,9 +167,14 @@ export default {
 /* Text: prevent clipping */
 #sidebar :deep(a span){
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: unset;
+
+  /* key changes */
+  white-space: normal;        /* allow multi-line */
+  word-break: break-word;     /* break long single words if needed */
+  overflow-wrap: anywhere;    /* last-resort to avoid clipping */
+  line-height: 1.05;          /* slightly tighter so multi-line fits */
 }
 
 /* Active indicator bar (if present) */
