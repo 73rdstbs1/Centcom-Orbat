@@ -2252,3 +2252,36 @@ div.markdown .file-marker.end::after {
 }
 
 .o-side__content > *{ position: relative; z-index: 1; }
+
+/* =========================================================
+   Space background canvas (replaces Vanta)
+   - The canvas is injected in index.html as <canvas id="space-bg"></canvas>
+   - This keeps the starfield behind the entire app.
+   ========================================================= */
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  /* Ensure background shows through transparent panels */
+  background: #000;
+  overflow-x: hidden;
+}
+
+/* Fullscreen starfield canvas behind everything */
+#space-bg {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
+}
+
+/* App content above canvas */
+#app {
+  position: relative;
+  z-index: 1;
+}
