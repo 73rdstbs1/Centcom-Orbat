@@ -15,11 +15,10 @@
         <img class="logo" :src="headerLogo" alt="Unit logo" />
         <div class="title-container">
           <div id="title-first-line" class="title-row">
-            <span id="title-header">{{ titleHeaderText }}</span>
+            <span id="title-header">UNSC CENTRAL COMMAND</span>
           </div>
           <div class="title-row">
-            <span id="subtitle-header">{{ header.subheaderTitle }}</span>
-            <span id="subtitle-subheader">// {{ header.subheaderSubtitle }}</span>
+            <span id="subtitle-header">CENTCOM</span>
           </div>
         </div>
       </div>
@@ -88,6 +87,7 @@ const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { as:
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
 }
+
 function firstNonEmptyLines(mdRaw, max = 30) {
   const out = [];
   for (const line of splitLines(mdRaw)) {
@@ -98,16 +98,19 @@ function firstNonEmptyLines(mdRaw, max = 30) {
   }
   return out;
 }
+
 function hasStartOnLine2(mdRaw) {
   const ls = firstNonEmptyLines(mdRaw);
   const line2 = String(ls[1] || "").trim().toLowerCase();
   return line2.includes("start");
 }
+
 function campaignFolderFromOpPath(opPath) {
   const parts = String(opPath || "").split("/campaigns/");
   if (parts.length < 2) return null;
   return parts[1].split("/")[0] || null;
 }
+
 function resolveCampaignJsonPath(folder) {
   if (!folder) return null;
 
@@ -118,8 +121,10 @@ function resolveCampaignJsonPath(folder) {
     const f = String(path).split("/campaigns/")[1]?.split("/")[0];
     if (f && f.toLowerCase() === String(folder).toLowerCase()) return path;
   }
+
   return null;
 }
+
 function loadCampaignJsonByPath(jsonPath) {
   if (!jsonPath) return null;
   try {
@@ -128,6 +133,7 @@ function loadCampaignJsonByPath(jsonPath) {
     return null;
   }
 }
+
 function detectActiveCampaign() {
   const ops = Object.entries(OPERATION_MD).sort(([a], [b]) => a.localeCompare(b));
 
@@ -148,6 +154,7 @@ function detectActiveCampaign() {
     if (!campaign.status) campaign.status = "active";
     return campaign;
   }
+
   return null;
 }
 
@@ -160,33 +167,11 @@ const defaultNewsItems = [
   "BREAKING: Marine promoted after surviving three drops and one briefing.",
 ];
 
-function deriveAbbrev(cfg) {
-  const explicit = String(cfg?.branding?.networkTitle || "").trim();
-  if (explicit) return explicit;
-
-  const unitName = String(cfg?.unit?.name || "").trim().toLowerCase();
-  if (unitName === "unsc central command") return "CENTCOM";
-
-  // Safe generic fallback: take first letters of words (max 8)
-  if (unitName) {
-    const letters = unitName
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 8);
-    if (letters) return letters;
-  }
-
-  return "CENTCOM";
-}
-
 export default {
   inject: ["activeCampaignStore"],
   props: {
-    planetPath: { type: String, required: true },
-    header: { type: Object, required: true },
+    planetPath: { type: String, required: true }, // kept for compatibility
+    header: { type: Object, required: true }, // kept for compatibility
     authOffsetX: { type: Number, default: 330 },
     authOffsetY: { type: Number, default: 10 },
 
@@ -228,25 +213,20 @@ export default {
       if (!c) return null;
 
       return {
-        system: c.system || this.header?.system || "—",
-        planet: c.planet || this.header?.planet || "—",
-        ao: c.ao || c.AO || this.header?.AO || "—",
+        system: c.system || "—",
+        planet: c.planet || "—",
+        ao: c.ao || c.AO || "—",
       };
     },
 
     headerLogo() {
       const cfg = getConfig() || {};
-      return cfg.header?.branding?.headerLogo || cfg.branding?.headerLogo || cfg.icon || "/faction-logos/FUD_UNSC_Logo.png";
-    },
-
-    branding() {
-      return getConfig().branding || {};
-    },
-
-    titleHeaderText() {
-      const cfg = getConfig() || {};
-      const abbrev = deriveAbbrev(cfg);
-      return `${abbrev} // ORBAT`;
+      return (
+        cfg.header?.branding?.headerLogo ||
+        cfg.branding?.headerLogo ||
+        cfg.icon ||
+        "/faction-logos/FUD_UNSC_Logo.png"
+      );
     },
 
     authLogoutLabel() {
@@ -434,17 +414,26 @@ header {
   border-radius: 0 !important;
 }
 
-/* ✅ Ensure left title area can shrink instead of forcing overflow */
+/* ✅ Force logo to remain 120x120 and never stretch */
+.logo {
+  width: 120px;
+  height: 120px;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+/* Make left title area able to shrink cleanly */
 .title {
   min-width: 0;
 }
 .title-container {
   min-width: 0;
 }
-
-/* ✅ Keep title on one line and ellipsize if it ever gets too long */
 #title-first-line,
-#title-header {
+#title-header,
+#subtitle-header {
   display: block;
   min-width: 0;
   white-space: nowrap;
@@ -465,7 +454,6 @@ header .planet-location-container {
   border-left: 1px solid rgba(170, 220, 255, 0.22);
 }
 
-/* Panel can grow leftward if content is long */
 .location-info {
   min-width: 0;
   width: max-content;
@@ -473,7 +461,6 @@ header .planet-location-container {
   direction: ltr;
 }
 
-/* 2x2 stacked tiles + AO spanning both rows, right-aligned */
 .meta-grid {
   display: grid;
   grid-template-columns: max-content max-content minmax(220px, 420px);
@@ -521,7 +508,7 @@ header {
   border-radius: 0px;
   border: 1px solid rgba(170, 220, 255, 0.22);
   background: linear-gradient(180deg, rgba(8, 14, 20, 0.9), rgba(3, 6, 10, 0.94));
-  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.1),
+  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.10),
     0 0 110px rgba(0, 0, 0, 0.55);
   overflow: hidden;
 }
@@ -556,7 +543,7 @@ header::after {
   0%,
   100% {
     transform: translate3d(0, 0, 0);
-    opacity: 0.7;
+    opacity: 0.70;
   }
   12% {
     transform: translate3d(-1px, 1px, 0);
@@ -568,7 +555,7 @@ header::after {
   }
   42% {
     transform: translate3d(0, 2px, 0);
-    opacity: 0.9;
+    opacity: 0.90;
   }
   70% {
     transform: translate3d(2px, 0, 0);
