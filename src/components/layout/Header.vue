@@ -246,7 +246,7 @@ export default {
         branding.headerLogo ||
         branding.logo ||
         cfg.icon ||
-        "/faction-logos/FUD_UNSC_Logo.png"
+        "/faction-logos/UNSC_CENTCOM_Logo.png"
       );
     },
 
