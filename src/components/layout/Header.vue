@@ -1,31 +1,32 @@
-<!-- FILE: src/components/layout/Header.vue -->
 <template>
-  <div class="header-wrap" :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }">
+  <div class="header-wrap">
     <header>
+      <!-- LEFT: Brand -->
       <div class="title clipped-x-large-forward">
-        <img class="logo" :src="branding.headerLogo" alt="CENTCOM logo" />
+        <img class="logo" :src="branding.headerLogo" alt="CENTCOM Logo" />
         <div class="title-container">
-          <div id="title-first-line" class="title-row">
+          <div class="title-row">
             <span id="title-header">UNSC CENTRAL COMMAND</span>
           </div>
           <div class="title-row">
             <span id="subtitle-header">CENTCOM</span>
-            <span id="subtitle-subheader">// ORBAT</span>
           </div>
         </div>
       </div>
 
-      <div class="rhombus"></div>
+      <div class="rhombus" aria-hidden="true"></div>
 
-      <!-- RIGHT SIDE: logout + details -->
-      <div class="header-right">
-        <!-- Auth Indicator (right-aligned) -->
-        <div class="auth-indicator auth-indicator--right" v-if="isLoggedIn">
+      <!-- RIGHT: Auth + Details -->
+      <div class="right-cluster">
+        <!-- Auth Indicator (FULL element moved right) -->
+        <div class="auth-indicator" v-if="isLoggedIn">
           <div class="auth-line">
             <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
             <span v-if="displayName" class="auth-name">· {{ displayName }}</span>
           </div>
-          <button class="auth-logout" type="button" @click="onLogout">{{ authLogoutLabel }}</button>
+          <button class="auth-logout" type="button" @click="onLogout">
+            {{ authLogoutLabel }}
+          </button>
         </div>
 
         <!-- DETAILS (right-aligned, with vertical separator like OG header) -->
@@ -75,7 +76,6 @@
           class="news-track"
           :key="tickerKey"
           :style="{ '--ticker-duration': tickerDuration + 's' }"
-          ref="track"
         >
           <span class="news-seq" ref="seq">{{ tickerSequence }}</span>
           <span class="news-seq" aria-hidden="true">{{ tickerSequence }}</span>
@@ -97,15 +97,23 @@
  * - Find FIRST operation file where the 2nd NON-EMPTY line includes "start" (case-insensitive)
  * - Load that campaign's campaign.json
  *
- * Notes:
- * - Vite globs MUST be literal strings.
- * - eager+raw avoids runtime chunk fetching (_chunkError 404).
+ * Vite 6 note:
+ * - Use query: '?raw', import: 'default' (replaces deprecated `as: 'raw'`)
  */
 import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { as: "raw", eager: true });
-const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { as: "raw", eager: true });
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+
+const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
 
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
@@ -191,12 +199,10 @@ const defaultNewsItems = [
 ];
 
 export default {
+  name: "Header",
   inject: ["activeCampaignStore"],
   props: {
-    planetPath: { type: String, required: true }, // kept for compatibility; no longer rendered
     header: { type: Object, required: true },
-    authOffsetX: { type: Number, default: 330 },
-    authOffsetY: { type: Number, default: 10 },
 
     newsEnabled: { type: Boolean, default: true },
     newsItems: { type: Array, default: () => defaultNewsItems },
@@ -225,23 +231,6 @@ export default {
     };
   },
   computed: {
-    activeCampaign() {
-      return this.activeCampaignStore?.activeCampaign || null;
-    },
-    showCampaignPanel() {
-      return !!this.activeCampaign;
-    },
-    campaignHeader() {
-      const c = this.activeCampaign;
-      if (!c) return null;
-
-      return {
-        system: c.system || this.header?.system || "—",
-        planet: c.planet || this.header?.planet || "—",
-        ao: c.ao || c.AO || this.header?.AO || "—",
-      };
-    },
-
     branding() {
       return getConfig().branding || {};
     },
@@ -249,11 +238,11 @@ export default {
       return getConfig().ui?.auth?.logoutLabel || "Logout";
     },
 
-    isLoggedIn() {
-      return this.role === "member" || this.isStaff;
-    },
     isStaff() {
       return isAdmin();
+    },
+    isLoggedIn() {
+      return this.role === "member" || this.isStaff;
     },
     authVariant() {
       return this.isStaff ? "staff" : "member";
@@ -264,6 +253,23 @@ export default {
     displayName() {
       if (!this.isStaff) return "";
       return (this.staffUser && this.staffUser.displayName) || "";
+    },
+
+    activeCampaign() {
+      return this.activeCampaignStore?.activeCampaign || null;
+    },
+    showCampaignPanel() {
+      return Boolean(this.activeCampaign);
+    },
+    campaignHeader() {
+      const c = this.activeCampaign;
+      if (!c) return null;
+
+      return {
+        system: c.system || this.header?.system || "—",
+        planet: c.planet || this.header?.planet || "—",
+        ao: c.ao || c.AO || this.header?.AO || "—",
+      };
     },
 
     normalizedNewsItems() {
@@ -389,10 +395,9 @@ export default {
       this._lastPick = last;
 
       const sequenceSep = effectiveSep || sep;
-      const seq = picks.join(sequenceSep) + sequenceSep;
-
-      this.tickerSequence = seq;
+      this.tickerSequence = picks.join(sequenceSep) + sequenceSep;
       this.tickerKey += 1;
+
       this.$nextTick(() => this.recalcTickerDuration());
     },
 
@@ -425,94 +430,21 @@ export default {
   flex-direction: column;
 }
 
-/* Header spans top edge: no rounding */
-header {
-  border-radius: 0 !important;
-}
-
-/* RIGHT CLUSTER: logout + details; let it push to far right */
-.header-right{
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  min-width: 0;
-}
-
-/* Logout button (terminal pill, subtle green for auth) */
-/* Keep details on the far right + vertical divider */
-header .planet-location-container {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-
-  padding-left: 16px;
-  border-left: 1px solid rgba(170, 220, 255, 0.22);
-}
-
-/* Panel can grow leftward if content is long */
-.location-info {
-  min-width: 0;
-  width: max-content;
-  max-width: min(1120px, 58vw);
-}
-
-/* 2x2 stacked tiles + AO spanning both rows, right-aligned */
-.meta-grid {
-  display: grid;
-  grid-template-columns: max-content max-content minmax(220px, 420px);
-  grid-template-rows: auto auto;
-  gap: 10px 14px;
-  justify-content: end;
-  align-items: end;
-}
-
-.meta-tile {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-  align-content: start;
-}
-
-.meta-tile--ao {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-}
-
-.meta-tile h4 {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.78rem;
-  margin: 0;
-}
-
-.subtitle {
-  display: block;
-  font-size: 0.95rem;
-  letter-spacing: 0.10em;
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* =========================
-   UNSC TERMINAL HEADER THEME
-   ========================= */
 header {
   position: relative;
-  border-radius: 0px;
+  border-radius: 0 !important;
   border: 1px solid rgba(170, 220, 255, 0.22);
   background: linear-gradient(180deg, rgba(8, 14, 20, 0.9), rgba(3, 6, 10, 0.94));
-  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.10),
+  box-shadow:
+    0 0 0 1px rgba(170, 220, 255, 0.06) inset,
+    0 0 26px rgba(120, 180, 255, 0.10),
     0 0 110px rgba(0, 0, 0, 0.55);
   overflow: hidden;
 
-  /* keep existing header layout intact */
   display: flex;
   align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
 }
 
 header::before {
@@ -531,6 +463,7 @@ header::before {
   opacity: 0.22;
   z-index: 0;
 }
+
 header::after {
   content: "";
   position: absolute;
@@ -541,64 +474,107 @@ header::after {
   animation: headerFlicker 3.1s infinite;
   z-index: 0;
 }
+
 @keyframes headerFlicker {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-    opacity: 0.70;
-  }
-  12% {
-    transform: translate3d(-1px, 1px, 0);
-    opacity: 0.86;
-  }
-  25% {
-    transform: translate3d(1px, -1px, 0);
-    opacity: 0.68;
-  }
-  42% {
-    transform: translate3d(0, 2px, 0);
-    opacity: 0.90;
-  }
-  70% {
-    transform: translate3d(2px, 0, 0);
-    opacity: 0.76;
-  }
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.70; }
+  12% { transform: translate3d(-1px, 1px, 0); opacity: 0.86; }
+  25% { transform: translate3d(1px, -1px, 0); opacity: 0.68; }
+  42% { transform: translate3d(0, 2px, 0); opacity: 0.90; }
+  70% { transform: translate3d(2px, 0, 0); opacity: 0.76; }
 }
+
 header > * {
   position: relative;
   z-index: 1;
 }
 
-.rhombus {
-  opacity: 0.18;
+.logo {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(170, 220, 255, 0.16);
+  background: rgba(0, 0, 0, 0.18);
 }
 
-/* Auth indicator pill (position via CSS variables) */
-.auth-indicator{
+.title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.title-container {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.title-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+#title-header {
+  font-family: "Titillium Web", sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(230, 251, 255, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#subtitle-header {
+  font-family: "Titillium Web", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(190, 230, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rhombus {
+  opacity: 0.0; /* effectively removed */
+}
+
+/* Right cluster: pushes everything to far-right */
+.right-cluster {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Auth indicator pill (now FLOW layout on right) */
+.auth-indicator {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid rgba(170,255,210,.35);
+  border: 1px solid rgba(170, 255, 210, 0.35);
   border-radius: 999px;
-  background: rgba(0,0,0,.35);
-  color: rgba(170,255,210,.92);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(170, 255, 210, 0.92);
   font-family: "Titillium Web", sans-serif;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   line-height: 1;
-  z-index: 2;
+  flex: 0 0 auto;
 }
 
-.auth-indicator--right{
-  margin-left: auto;
-}
-
-.auth-line { display: inline-flex; align-items: center; gap: 6px; } {
+.auth-line {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
+
 .auth-role {
   font-weight: 800;
   font-size: 12px;
@@ -606,27 +582,91 @@ header > * {
   border-radius: 999px;
   border: 1px solid rgba(170, 255, 210, 0.35);
 }
-.auth-role[data-variant="member"] {
-  opacity: 0.9;
-}
+
 .auth-role[data-variant="staff"] {
   border-color: rgba(30, 144, 255, 0.75);
 }
+
 .auth-name {
   font-size: 12px;
   opacity: 0.9;
 }
 
-/* Logo stays 120x120, no stretching */
-.logo {
-  width: 120px;
-  height: 120px;
-  object-fit: contain;
+.auth-logout {
+  background: transparent;
+  border: 1px solid rgba(170, 255, 210, 0.35);
+  border-radius: 999px;
+  padding: 2px 10px;
+  color: rgba(170, 255, 210, 0.92);
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-/* =========================
-   News Ticker (continuous loop)
-   ========================= */
+.auth-logout:hover {
+  border-color: rgba(170, 255, 210, 0.9);
+}
+
+/* Details on far right + vertical divider */
+.planet-location-container {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  padding-left: 16px;
+  padding-right: 8px;
+  border-left: 1px solid rgba(170, 220, 255, 0.22);
+}
+
+.location-info {
+  min-width: 0;
+  width: max-content;
+  max-width: min(1120px, 58vw);
+}
+
+/* 2x2 stacked tiles + AO spanning both rows */
+.meta-grid {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(220px, 420px);
+  grid-template-rows: auto auto;
+  gap: 8px 12px;
+  justify-content: end;
+  align-items: end;
+}
+
+.meta-tile {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.meta-tile--ao {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+
+.meta-tile h4 {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  color: rgba(190, 230, 255, 0.85);
+}
+
+.subtitle {
+  display: block;
+  font-size: 0.95rem;
+  letter-spacing: 0.10em;
+  line-height: 1.15;
+  color: rgba(226, 243, 255, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* News Ticker (continuous loop) */
 .news-ticker {
   height: 32px;
   display: grid;
@@ -637,7 +677,9 @@ header > * {
   border: 1px solid rgba(170, 220, 255, 0.14);
   border-top: none;
   background: linear-gradient(180deg, rgba(8, 14, 20, 0.75), rgba(3, 6, 10, 0.88));
-  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(170, 220, 255, 0.06) inset,
+    0 0 26px rgba(120, 180, 255, 0.08);
 }
 
 .news-label {
@@ -679,26 +721,33 @@ header > * {
 }
 
 @keyframes tickerLoop {
-  0% {
-    transform: translate3d(0, 0, 0);
-  }
-  100% {
-    transform: translate3d(-50%, 0, 0);
-  }
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
 }
 
 @media (max-width: 980px) {
-  .header-right{
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  min-width: 0;
-}
-  header .planet-location-container {
+  header {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  .right-cluster {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  .planet-location-container {
     border-left: none;
     padding-left: 0;
+  }
+  .location-info {
+    max-width: 100%;
+  }
+  .meta-grid {
+    grid-template-columns: 1fr;
+  }
+  .meta-tile--ao {
+    grid-column: auto;
+    grid-row: auto;
   }
 }
 </style>
