@@ -1,60 +1,69 @@
-<!-- /src/components/layout/Header.vue -->
+<!-- FILE: src/components/layout/Header.vue -->
 <template>
   <div class="header-wrap" :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }">
     <header>
-      <div class="title clipped-x-large-forward">
-        <img class="logo" :src="headerLogo" alt="Unit logo" />
+      <!-- Auth Indicator (left cluster: role + name only) -->
+      <div class="auth-indicator" v-if="isLoggedIn">
+        <div class="auth-line">
+          <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
+          <span v-if="displayName" class="auth-name">· {{ displayName }}</span>
+        </div>
+      </div>
 
+      <div class="title clipped-x-large-forward">
+        <img class="logo" :src="branding.headerLogo" alt="CENTCOM logo" />
         <div class="title-container">
           <div id="title-first-line" class="title-row">
             <span id="title-header">UNSC CENTRAL COMMAND</span>
           </div>
-
-          <!-- Subtitle row now also hosts the auth indicator inline -->
-          <div class="title-row title-row--sub">
+          <div class="title-row">
             <span id="subtitle-header">CENTCOM</span>
-
-            <!-- Auth Indicator (inline next to CENTCOM) -->
-            <div class="auth-indicator" v-if="isLoggedIn">
-              <div class="auth-line">
-                <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
-                <span v-if="displayName" class="auth-name">· {{ displayName }}</span>
-              </div>
-              <button class="auth-logout" @click="onLogout">{{ authLogoutLabel }}</button>
-            </div>
+            <span id="subtitle-subheader">// ORBAT</span>
           </div>
         </div>
       </div>
 
       <div class="rhombus"></div>
 
-      <!-- DETAILS (right-aligned, with vertical separator like OG header) -->
-      <div v-if="showCampaignPanel" class="planet-location-container">
-        <div class="location-info" aria-label="Current AO details">
-          <div class="meta-grid">
-            <div class="meta-tile">
-              <h4>SYSTEM</h4>
-              <span class="subtitle">{{ campaignHeader?.system }}</span>
-            </div>
+      <!-- RIGHT SIDE: logout + details -->
+      <div class="header-right">
+        <!-- Member/Staff logout button (right-aligned, themed) -->
+        <button v-if="isLoggedIn" class="logout-button" type="button" @click="onLogout">
+          {{ authLogoutLabel }}
+        </button>
 
-            <div class="meta-tile">
-              <h4>PLANET</h4>
-              <span class="subtitle">{{ campaignHeader?.planet }}</span>
-            </div>
+        <!-- DETAILS (right-aligned, with vertical separator like OG header) -->
+        <div v-if="showCampaignPanel" class="planet-location-container">
+          <div class="location-info" aria-label="Current AO details">
+            <!-- 2x2 stacked tiles + AO column spanning both rows:
+                 [ SYSTEM | PLANET | AO ]
+                 [ YEAR   | STATUS | AO ]
+            -->
+            <div class="meta-grid">
+              <div class="meta-tile">
+                <h4>SYSTEM</h4>
+                <span class="subtitle">{{ campaignHeader?.system }}</span>
+              </div>
 
-            <div class="meta-tile meta-tile--ao">
-              <h4>AO</h4>
-              <span class="subtitle">{{ campaignHeader?.ao }}</span>
-            </div>
+              <div class="meta-tile">
+                <h4>PLANET</h4>
+                <span class="subtitle">{{ campaignHeader?.planet }}</span>
+              </div>
 
-            <div class="meta-tile">
-              <h4>YEAR</h4>
-              <span class="subtitle">TBD</span>
-            </div>
+              <div class="meta-tile meta-tile--ao">
+                <h4>AO</h4>
+                <span class="subtitle">{{ campaignHeader?.ao }}</span>
+              </div>
 
-            <div class="meta-tile">
-              <h4>STATUS</h4>
-              <span class="subtitle">TBD</span>
+              <div class="meta-tile">
+                <h4>YEAR</h4>
+                <span class="subtitle">TBD</span>
+              </div>
+
+              <div class="meta-tile">
+                <h4>STATUS</h4>
+                <span class="subtitle">TBD</span>
+              </div>
             </div>
           </div>
         </div>
@@ -66,7 +75,12 @@
       <div class="news-label">BROADCAST</div>
 
       <div class="news-viewport">
-        <div class="news-track" :key="tickerKey" :style="{ '--ticker-duration': tickerDuration + 's' }" ref="track">
+        <div
+          class="news-track"
+          :key="tickerKey"
+          :style="{ '--ticker-duration': tickerDuration + 's' }"
+          ref="track"
+        >
           <span class="news-seq" ref="seq">{{ tickerSequence }}</span>
           <span class="news-seq" aria-hidden="true">{{ tickerSequence }}</span>
         </div>
@@ -76,6 +90,21 @@
 </template>
 
 <script>
+/**
+ * ACTIVE CAMPAIGN (content-driven)
+ * Folder model:
+ *   src/campaigns/<campaignFolder>/
+ *     campaign.json
+ *     operations/<op>.md
+ *
+ * Rule:
+ * - Find FIRST operation file where the 2nd NON-EMPTY line includes "start" (case-insensitive)
+ * - Load that campaign's campaign.json
+ *
+ * Notes:
+ * - Vite globs MUST be literal strings.
+ * - eager+raw avoids runtime chunk fetching (_chunkError 404).
+ */
 import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
@@ -85,6 +114,7 @@ const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { as:
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
 }
+
 function firstNonEmptyLines(mdRaw, max = 30) {
   const out = [];
   for (const line of splitLines(mdRaw)) {
@@ -95,16 +125,19 @@ function firstNonEmptyLines(mdRaw, max = 30) {
   }
   return out;
 }
+
 function hasStartOnLine2(mdRaw) {
   const ls = firstNonEmptyLines(mdRaw);
   const line2 = String(ls[1] || "").trim().toLowerCase();
   return line2.includes("start");
 }
+
 function campaignFolderFromOpPath(opPath) {
   const parts = String(opPath || "").split("/campaigns/");
   if (parts.length < 2) return null;
   return parts[1].split("/")[0] || null;
 }
+
 function resolveCampaignJsonPath(folder) {
   if (!folder) return null;
 
@@ -115,8 +148,10 @@ function resolveCampaignJsonPath(folder) {
     const f = String(path).split("/campaigns/")[1]?.split("/")[0];
     if (f && f.toLowerCase() === String(folder).toLowerCase()) return path;
   }
+
   return null;
 }
+
 function loadCampaignJsonByPath(jsonPath) {
   if (!jsonPath) return null;
   try {
@@ -125,6 +160,7 @@ function loadCampaignJsonByPath(jsonPath) {
     return null;
   }
 }
+
 function detectActiveCampaign() {
   const ops = Object.entries(OPERATION_MD).sort(([a], [b]) => a.localeCompare(b));
 
@@ -145,6 +181,7 @@ function detectActiveCampaign() {
     if (!campaign.status) campaign.status = "active";
     return campaign;
   }
+
   return null;
 }
 
@@ -160,7 +197,7 @@ const defaultNewsItems = [
 export default {
   inject: ["activeCampaignStore"],
   props: {
-    planetPath: { type: String, required: true },
+    planetPath: { type: String, required: true }, // kept for compatibility; no longer rendered
     header: { type: Object, required: true },
     authOffsetX: { type: Number, default: 330 },
     authOffsetY: { type: Number, default: 10 },
@@ -203,22 +240,15 @@ export default {
       if (!c) return null;
 
       return {
-        system: c.system || "—",
-        planet: c.planet || "—",
-        ao: c.ao || c.AO || "—",
+        system: c.system || this.header?.system || "—",
+        planet: c.planet || this.header?.planet || "—",
+        ao: c.ao || c.AO || this.header?.AO || "—",
       };
     },
 
-    headerLogo() {
-      const cfg = getConfig() || {};
-      return (
-        cfg.header?.branding?.headerLogo ||
-        cfg.branding?.headerLogo ||
-        cfg.icon ||
-        "/faction-logos/FUD_UNSC_Logo.png"
-      );
+    branding() {
+      return getConfig().branding || {};
     },
-
     authLogoutLabel() {
       return getConfig().ui?.auth?.logoutLabel || "Logout";
     },
@@ -392,123 +422,66 @@ export default {
 </script>
 
 <style scoped>
+/* Wrapper lets ticker sit below header without changing/overlapping header internals */
 .header-wrap {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
+/* Header spans top edge: no rounding */
 header {
   border-radius: 0 !important;
 }
 
-/* Force logo 120x120 and never stretch */
-.logo {
-  width: 120px;
-  height: 120px;
-  aspect-ratio: 1 / 1;
-  object-fit: contain;
-  object-position: center;
-  display: block;
-}
-
-.title {
-  min-width: 0;
-}
-.title-container {
-  min-width: 0;
-}
-#title-first-line,
-#title-header,
-#subtitle-header {
-  display: block;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Subtitle row: keep CENTCOM + auth pill aligned nicely */
-.title-row--sub {
-  display: flex;
+/* RIGHT CLUSTER: logout + details; let it push to far right */
+.header-right {
+  margin-left: auto;
+  display: inline-flex;
   align-items: center;
   gap: 12px;
-  min-width: 0;
+  padding-right: 12px;
 }
 
-/* Auth indicator is now inline (not absolute) */
-.auth-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border: 1px solid rgba(170, 255, 210, 0.35);
+/* Logout button (terminal pill, subtle green for auth) */
+.logout-button {
+  border: 1px solid rgba(170, 255, 210, 0.32);
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.35);
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.28);
   color: rgba(170, 255, 210, 0.92);
   font-family: "Titillium Web", sans-serif;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  cursor: pointer;
   line-height: 1;
   white-space: nowrap;
-  flex: 0 0 auto;
 }
-.auth-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.auth-role {
-  font-weight: 800;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(170, 255, 210, 0.35);
-}
-.auth-role[data-variant="member"] {
-  opacity: 0.9;
-}
-.auth-role[data-variant="staff"] {
-  border-color: rgba(30, 144, 255, 0.75);
-}
-.auth-name {
-  font-size: 12px;
-  opacity: 0.9;
-}
-.auth-logout {
-  background: transparent;
-  border: 1px solid rgba(170, 255, 210, 0.35);
-  border-radius: 999px;
-  padding: 2px 10px;
-  color: rgba(170, 255, 210, 0.92);
-  cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.auth-logout:hover {
-  border-color: rgba(170, 255, 210, 0.9);
+.logout-button:hover {
+  border-color: rgba(170, 255, 210, 0.72);
+  box-shadow: 0 0 0 2px rgba(170, 255, 210, 0.12);
 }
 
-/* Details panel (right aligned + divider) */
+/* Keep details on the far right + vertical divider */
 header .planet-location-container {
-  margin-left: auto !important;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+
   padding-left: 16px;
-  padding-right: 12px;
   border-left: 1px solid rgba(170, 220, 255, 0.22);
 }
 
+/* Panel can grow leftward if content is long */
 .location-info {
   min-width: 0;
   width: max-content;
   max-width: min(1120px, 58vw);
-  direction: ltr;
 }
 
+/* 2x2 stacked tiles + AO spanning both rows, right-aligned */
 .meta-grid {
   display: grid;
   grid-template-columns: max-content max-content minmax(220px, 420px);
@@ -517,22 +490,26 @@ header .planet-location-container {
   justify-content: end;
   align-items: end;
 }
+
 .meta-tile {
   min-width: 0;
   display: grid;
   gap: 4px;
   align-content: start;
 }
+
 .meta-tile--ao {
   grid-column: 3;
   grid-row: 1 / span 2;
 }
+
 .meta-tile h4 {
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: 0.78rem;
   margin: 0;
 }
+
 .subtitle {
   display: block;
   font-size: 0.95rem;
@@ -543,15 +520,21 @@ header .planet-location-container {
   text-overflow: ellipsis;
 }
 
-/* UNSC terminal header theme (unchanged) */
+/* =========================
+   UNSC TERMINAL HEADER THEME
+   ========================= */
 header {
   position: relative;
   border-radius: 0px;
   border: 1px solid rgba(170, 220, 255, 0.22);
   background: linear-gradient(180deg, rgba(8, 14, 20, 0.9), rgba(3, 6, 10, 0.94));
-  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.1),
+  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.10),
     0 0 110px rgba(0, 0, 0, 0.55);
   overflow: hidden;
+
+  /* keep existing header layout intact */
+  display: flex;
+  align-items: center;
 }
 
 header::before {
@@ -584,7 +567,7 @@ header::after {
   0%,
   100% {
     transform: translate3d(0, 0, 0);
-    opacity: 0.7;
+    opacity: 0.70;
   }
   12% {
     transform: translate3d(-1px, 1px, 0);
@@ -596,7 +579,7 @@ header::after {
   }
   42% {
     transform: translate3d(0, 2px, 0);
-    opacity: 0.9;
+    opacity: 0.90;
   }
   70% {
     transform: translate3d(2px, 0, 0);
@@ -612,7 +595,58 @@ header > * {
   opacity: 0.18;
 }
 
-/* News ticker (unchanged) */
+/* Auth indicator pill (position via CSS variables) */
+.auth-indicator {
+  position: absolute;
+  left: var(--auth-x, 315px);
+  top: var(--auth-y, 10px);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(170, 255, 210, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(170, 255, 210, 0.92);
+  font-family: "Titillium Web", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1;
+  z-index: 2;
+}
+.auth-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.auth-role {
+  font-weight: 800;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(170, 255, 210, 0.35);
+}
+.auth-role[data-variant="member"] {
+  opacity: 0.9;
+}
+.auth-role[data-variant="staff"] {
+  border-color: rgba(30, 144, 255, 0.75);
+}
+.auth-name {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Logo stays 120x120, no stretching */
+.logo {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+}
+
+/* =========================
+   News Ticker (continuous loop)
+   ========================= */
 .news-ticker {
   height: 32px;
   display: grid;
@@ -625,6 +659,7 @@ header > * {
   background: linear-gradient(180deg, rgba(8, 14, 20, 0.75), rgba(3, 6, 10, 0.88));
   box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.08);
 }
+
 .news-label {
   font-family: "Titillium Web", sans-serif;
   font-size: 11px;
@@ -637,11 +672,13 @@ header > * {
   padding: 3px 10px;
   white-space: nowrap;
 }
+
 .news-viewport {
   overflow: hidden;
   width: 100%;
   mask-image: linear-gradient(to right, transparent 0%, black 7%, black 93%, transparent 100%);
 }
+
 .news-track {
   --ticker-duration: 28s;
   display: inline-flex;
@@ -650,6 +687,7 @@ header > * {
   will-change: transform;
   animation: tickerLoop var(--ticker-duration) linear infinite;
 }
+
 .news-seq {
   font-family: "Titillium Web", sans-serif;
   font-size: 12px;
@@ -659,12 +697,24 @@ header > * {
   text-shadow: 0 0 14px rgba(120, 180, 255, 0.10);
   padding-right: 48px;
 }
+
 @keyframes tickerLoop {
   0% {
     transform: translate3d(0, 0, 0);
   }
   100% {
     transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@media (max-width: 980px) {
+  .header-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  header .planet-location-container {
+    border-left: none;
+    padding-left: 0;
   }
 }
 </style>
