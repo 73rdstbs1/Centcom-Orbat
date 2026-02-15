@@ -701,21 +701,38 @@ export default {
   width: 100%;
   min-height: 38px;
   border-radius: 10px;
-  border: 1px solid rgba(90, 220, 255, 0.18);
-  background: rgba(0, 0, 0, 0.22);
-  color: var(--text-pilot-value, #d6f1ff);
+  border: 1px solid rgba(90, 220, 255, 0.22);
+  background: linear-gradient(180deg, rgba(8, 14, 20, 0.78), rgba(0, 0, 0, 0.28));
+  color: var(--text-location, #e6fbff);
   padding: 10px 12px;
   outline: none;
+  color-scheme: dark;
 }
 
 .term-input::placeholder {
-  color: rgba(214, 241, 255, 0.5);
+  color: rgba(214, 241, 255, 0.58);
+}
+
+.term-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 38px;
+
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='rgba(214,241,255,0.85)' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
 }
 
 .term-input:focus,
 .term-select:focus {
-  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.14);
-  border-color: rgba(90, 220, 255, 0.28);
+  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.18);
+  border-color: rgba(90, 220, 255, 0.34);
+}
+
+:deep(select.term-select option) {
+  background: rgba(5, 15, 22, 0.98);
+  color: rgba(230, 251, 255, 0.92);
 }
 
 /* Tile grid */
