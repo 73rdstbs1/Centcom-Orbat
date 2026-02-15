@@ -1,6 +1,6 @@
-// background.js - starfield (DPR-safe) + hardened persistence
+// background.js - starfield (DPR-safe) + hardened persistence + anti-row self-heal
 (() => {
-  const STORAGE_KEY = "space_bg_stars_v2";
+  const STORAGE_KEY = "space_bg_stars_v3";
   const SAVE_INTERVAL_MS = 2000;
 
   const canvas = document.getElementById("space-bg");
@@ -27,6 +27,30 @@
     if (n < 0) return 0;
     if (n > 1) return 1;
     return n;
+  }
+
+  // small deterministic hash -> [0..1)
+  function hash01(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    // >>> 0 to uint32
+    return ((h >>> 0) / 4294967296);
+  }
+
+  // Jitter a restored ratio so even identical stored ratios never align into rows.
+  // jitterAmount is in "ratio space" (0..1), so 0.002 = 0.2% of the height.
+  function jitterRatio(r, seedStr, jitterAmount = 0.002) {
+    const base = clamp01(r);
+    const seed = hash01(seedStr);
+    // centered jitter in [-jitterAmount/2, +jitterAmount/2]
+    const j = (seed - 0.5) * jitterAmount;
+    const out = base == null ? seed : base + j;
+    // wrap instead of clamp so distribution stays uniform
+    const wrapped = ((out % 1) + 1) % 1;
+    return wrapped;
   }
 
   function resize() {
@@ -57,6 +81,7 @@
       for (const s of stars) {
         if (typeof s.xRatio === "number" && Number.isFinite(s.xRatio)) s.x = s.xRatio * viewW;
         if (typeof s.yRatio === "number" && Number.isFinite(s.yRatio)) s.y = s.yRatio * viewH;
+
         // If somehow invalid, randomize safely
         if (!Number.isFinite(s.x)) s.x = Math.random() * viewW;
         if (!Number.isFinite(s.y)) s.y = Math.random() * viewH;
@@ -72,6 +97,7 @@
   // -------------------------
   function saveStarsToStorage() {
     try {
+      // If dimensions are bad, do NOT save (prevents line-corruption)
       if (viewW < 50 || viewH < 50) return;
 
       const payload = stars
@@ -82,12 +108,12 @@
 
           return {
             layerIndex: s.layerIndex,
+            // store ratios only; absolute px rebuilt on load
             xRatio: xr,
             yRatio: yr,
             size: s.size,
             speed: s.speed,
             color: s.color,
-            twinkle: s.twinkle,
           };
         })
         .filter(Boolean);
@@ -111,6 +137,39 @@
     }
   }
 
+  function clearStorage() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+  }
+
+  // -------------------------
+  // Detect "row collapse" (too many y values sharing the same few buckets)
+  // -------------------------
+  function looksLikeRows(starList) {
+    if (!Array.isArray(starList) || starList.length < 50) return false;
+
+    // Bucket yRatio into 200 buckets. If lots of stars pile into very few buckets, it's rows.
+    const buckets = new Map();
+    let valid = 0;
+
+    for (const s of starList) {
+      const yr = clamp01(s?.yRatio);
+      if (yr == null) continue;
+      valid++;
+      const b = Math.floor(yr * 200);
+      buckets.set(b, (buckets.get(b) || 0) + 1);
+    }
+
+    if (valid < 50) return true;
+
+    const counts = Array.from(buckets.values()).sort((a, b) => b - a);
+    const top5 = counts.slice(0, 5).reduce((sum, x) => sum + x, 0);
+
+    // If the top 5 buckets contain >= 35% of stars, it's very likely collapsed rows.
+    return top5 / valid >= 0.35;
+  }
+
   // -------------------------
   // Build / restore star list
   // -------------------------
@@ -118,42 +177,49 @@
     stars.length = 0;
 
     const stored = loadStarsFromStorage();
-    if (stored && stored.length > 0) {
-      const storedCounts = [0, 0, 0];
-      stored.forEach((s) => {
-        if (s.layerIndex != null && s.layerIndex >= 0 && s.layerIndex < storedCounts.length) {
-          storedCounts[s.layerIndex]++;
-        }
-      });
 
-      const mismatch = storedCounts.some((c, idx) => {
-        const target = starLayers[idx] ? starLayers[idx].count : 0;
-        return Math.abs(c - target) > Math.max(50, Math.round(target * 0.6));
-      });
+    // If storage looks "row collapsed", discard it immediately.
+    if (stored && looksLikeRows(stored)) {
+      clearStorage();
+    }
 
-      if (!mismatch && viewW > 0 && viewH > 0) {
-        for (const s of stored) {
-          const xr = clamp01(s.xRatio);
-          const yr = clamp01(s.yRatio);
+    const stored2 = loadStarsFromStorage();
 
-          const x = xr == null ? Math.random() * viewW : xr * viewW;
-          const y = yr == null ? Math.random() * viewH : yr * viewH;
+    if (stored2 && stored2.length > 0 && viewW > 0 && viewH > 0) {
+      // Restore with deterministic jitter so identical ratios never align.
+      for (let i = 0; i < stored2.length; i++) {
+        const s = stored2[i];
+        const layerIndex = Number.isFinite(s.layerIndex) ? s.layerIndex : 0;
 
-          stars.push({
-            x,
-            y,
-            size: s.size ?? 1.25,
-            speed: s.speed ?? 0.05,
-            color: s.color ?? "rgba(255,255,255,0.8)",
-            twinkle: s.twinkle ?? Math.random() * 0.5,
-            layerIndex: s.layerIndex ?? 0,
-            xRatio: xr == null ? x / viewW : xr,
-            yRatio: yr == null ? y / viewH : yr,
-          });
-        }
-        return;
+        const xr0 = clamp01(s.xRatio);
+        const yr0 = clamp01(s.yRatio);
+
+        // jitter differently per star + per axis (seed includes index)
+        const xr = jitterRatio(xr0 ?? Math.random(), `x:${layerIndex}:${i}`, 0.0015);
+        const yr = jitterRatio(yr0 ?? Math.random(), `y:${layerIndex}:${i}`, 0.0030);
+
+        const x = xr * viewW;
+        const y = yr * viewH;
+
+        stars.push({
+          x,
+          y,
+          size: s.size ?? 1.25,
+          speed: s.speed ?? 0.05,
+          color: s.color ?? "rgba(255,255,255,0.8)",
+          layerIndex,
+          xRatio: xr,
+          yRatio: yr,
+        });
       }
-      // else: fall through to regenerate
+
+      // If AFTER jitter it still looks row-ish, nuke storage and regenerate.
+      if (looksLikeRows(stars.map((s) => ({ yRatio: s.yRatio })))) {
+        clearStorage();
+        return initStars();
+      }
+
+      return;
     }
 
     // Generate fresh
@@ -168,7 +234,6 @@
           size: layer.size,
           speed: layer.speed,
           color: layer.color,
-          twinkle: Math.random() * 0.5,
           layerIndex,
           xRatio: viewW ? x / viewW : Math.random(),
           yRatio: viewH ? y / viewH : Math.random(),
@@ -195,13 +260,18 @@
       star.x -= star.speed * timeFactor;
 
       if (star.x < 0) {
+        // wrap with a new y so distribution stays noisy
         star.x = viewW + Math.random() * 4;
         star.y = Math.random() * viewH;
       }
 
       // Keep ratios stable + safe
-      star.xRatio = clamp01(star.x / viewW) ?? Math.random();
-      star.yRatio = clamp01(star.y / viewH) ?? Math.random();
+      const xr = clamp01(star.x / viewW);
+      const yr = clamp01(star.y / viewH);
+
+      // If anything goes weird, randomize the ratio instead of letting it collapse
+      star.xRatio = xr == null ? Math.random() : xr;
+      star.yRatio = yr == null ? Math.random() : yr;
     }
   }
 
@@ -227,18 +297,17 @@
   const saveTimer = setInterval(saveStarsToStorage, SAVE_INTERVAL_MS);
 
   window.addEventListener("beforeunload", () => {
-    try {
-      saveStarsToStorage();
-    } catch {}
-    try {
-      clearInterval(saveTimer);
-    } catch {}
+    try { saveStarsToStorage(); } catch {}
+    try { clearInterval(saveTimer); } catch {}
   });
 
   // Debug API
   window.SpaceBg = {
     save: saveStarsToStorage,
-    load: () => initStars(),
-    clearStorage: () => localStorage.removeItem(STORAGE_KEY),
+    reload: () => initStars(),
+    clearStorage: () => {
+      clearStorage();
+      initStars();
+    },
   };
 })();
