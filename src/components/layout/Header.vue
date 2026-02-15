@@ -2,14 +2,6 @@
 <template>
   <div class="header-wrap" :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }">
     <header>
-      <!-- Auth Indicator (left cluster: role + name only) -->
-      <div class="auth-indicator" v-if="isLoggedIn">
-        <div class="auth-line">
-          <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
-          <span v-if="displayName" class="auth-name">· {{ displayName }}</span>
-        </div>
-      </div>
-
       <div class="title clipped-x-large-forward">
         <img class="logo" :src="branding.headerLogo" alt="CENTCOM logo" />
         <div class="title-container">
@@ -27,10 +19,14 @@
 
       <!-- RIGHT SIDE: logout + details -->
       <div class="header-right">
-        <!-- Member/Staff logout button (right-aligned, themed) -->
-        <button v-if="isLoggedIn" class="logout-button" type="button" @click="onLogout">
-          {{ authLogoutLabel }}
-        </button>
+        <!-- Auth Indicator (right-aligned) -->
+        <div class="auth-indicator auth-indicator--right" v-if="isLoggedIn">
+          <div class="auth-line">
+            <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
+            <span v-if="displayName" class="auth-name">· {{ displayName }}</span>
+          </div>
+          <button class="auth-logout" type="button" @click="onLogout">{{ authLogoutLabel }}</button>
+        </div>
 
         <!-- DETAILS (right-aligned, with vertical separator like OG header) -->
         <div v-if="showCampaignPanel" class="planet-location-container">
@@ -435,34 +431,16 @@ header {
 }
 
 /* RIGHT CLUSTER: logout + details; let it push to far right */
-.header-right {
+.header-right{
   margin-left: auto;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
-  padding-right: 12px;
+  min-width: 0;
 }
 
 /* Logout button (terminal pill, subtle green for auth) */
-.logout-button {
-  border: 1px solid rgba(170, 255, 210, 0.32);
-  border-radius: 999px;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.28);
-  color: rgba(170, 255, 210, 0.92);
-  font-family: "Titillium Web", sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-  line-height: 1;
-  white-space: nowrap;
-}
-.logout-button:hover {
-  border-color: rgba(170, 255, 210, 0.72);
-  box-shadow: 0 0 0 2px rgba(170, 255, 210, 0.12);
-}
-
 /* Keep details on the far right + vertical divider */
 header .planet-location-container {
   flex: 0 0 auto;
@@ -596,25 +574,27 @@ header > * {
 }
 
 /* Auth indicator pill (position via CSS variables) */
-.auth-indicator {
-  position: absolute;
-  left: var(--auth-x, 315px);
-  top: var(--auth-y, 10px);
+.auth-indicator{
   display: inline-flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid rgba(170, 255, 210, 0.35);
+  border: 1px solid rgba(170,255,210,.35);
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.35);
-  color: rgba(170, 255, 210, 0.92);
+  background: rgba(0,0,0,.35);
+  color: rgba(170,255,210,.92);
   font-family: "Titillium Web", sans-serif;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   line-height: 1;
   z-index: 2;
 }
-.auth-line {
+
+.auth-indicator--right{
+  margin-left: auto;
+}
+
+.auth-line { display: inline-flex; align-items: center; gap: 6px; } {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -708,10 +688,14 @@ header > * {
 }
 
 @media (max-width: 980px) {
-  .header-right {
-    width: 100%;
-    justify-content: flex-end;
-  }
+  .header-right{
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
   header .planet-location-container {
     border-left: none;
     padding-left: 0;
