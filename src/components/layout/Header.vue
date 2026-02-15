@@ -1,11 +1,22 @@
+<!-- FILE: src/components/layout/Header.vue -->
 <template>
-  <div class="header-wrap">
+  <div class="header-wrap" :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }">
     <header>
-      <!-- LEFT: Brand -->
+      <!-- Auth Indicator (right-aligned) -->
+      <div class="auth-indicator auth-indicator--right" v-if="isLoggedIn">
+        <div class="auth-line">
+          <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
+          <span v-if="displayName" class="auth-name">· {{ displayName }}</span>
+        </div>
+        <button class="auth-logout" @click="onLogout">{{ authLogoutLabel }}</button>
+      </div>
+
+      <!-- Title block -->
       <div class="title clipped-x-large-forward">
-        <img class="logo" :src="logoSrc" alt="CENTCOM Logo" />
+        <!-- HARD-CODED LOGO -->
+        <img class="logo" src="/faction-logos/UNSC_CENTCOM_LOGO.png" alt="UNSC CENTCOM" />
         <div class="title-container">
-          <div class="title-row">
+          <div id="title-first-line" class="title-row">
             <span id="title-header">UNSC CENTRAL COMMAND</span>
           </div>
           <div class="title-row">
@@ -14,53 +25,40 @@
         </div>
       </div>
 
-      <div class="rhombus" aria-hidden="true"></div>
+      <!-- Removed the floating square/rhombus -->
+      <!-- <div class="rhombus"></div> -->
 
-      <!-- RIGHT: Auth + Details -->
-      <div class="right-cluster">
-        <!-- Auth Indicator (FULL element moved right) -->
-        <div class="auth-indicator" v-if="isLoggedIn">
-          <div class="auth-line">
-            <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
-            <span v-if="displayName" class="auth-name">· {{ displayName }}</span>
-          </div>
-          <button class="auth-logout" type="button" @click="onLogout">
-            {{ authLogoutLabel }}
-          </button>
-        </div>
+      <!-- DETAILS (right-aligned, with vertical separator like OG header) -->
+      <div v-if="showCampaignPanel" class="planet-location-container">
+        <div class="location-info" aria-label="Current AO details">
+          <!-- 2x2 stacked tiles + AO column spanning both rows:
+               [ SYSTEM | PLANET | AO ]
+               [ YEAR   | STATUS | AO ]
+          -->
+          <div class="meta-grid">
+            <div class="meta-tile">
+              <h4>SYSTEM</h4>
+              <span class="subtitle">{{ campaignHeader?.system }}</span>
+            </div>
 
-        <!-- DETAILS (right-aligned, with vertical separator like OG header) -->
-        <div v-if="showCampaignPanel" class="planet-location-container">
-          <div class="location-info" aria-label="Current AO details">
-            <!-- 2x2 stacked tiles + AO column spanning both rows:
-                 [ SYSTEM | PLANET | AO ]
-                 [ YEAR   | STATUS | AO ]
-            -->
-            <div class="meta-grid">
-              <div class="meta-tile">
-                <h4>SYSTEM</h4>
-                <span class="subtitle">{{ campaignHeader?.system }}</span>
-              </div>
+            <div class="meta-tile">
+              <h4>PLANET</h4>
+              <span class="subtitle">{{ campaignHeader?.planet }}</span>
+            </div>
 
-              <div class="meta-tile">
-                <h4>PLANET</h4>
-                <span class="subtitle">{{ campaignHeader?.planet }}</span>
-              </div>
+            <div class="meta-tile meta-tile--ao">
+              <h4>AO</h4>
+              <span class="subtitle">{{ campaignHeader?.ao }}</span>
+            </div>
 
-              <div class="meta-tile meta-tile--ao">
-                <h4>AO</h4>
-                <span class="subtitle">{{ campaignHeader?.ao }}</span>
-              </div>
+            <div class="meta-tile">
+              <h4>YEAR</h4>
+              <span class="subtitle">TBD</span>
+            </div>
 
-              <div class="meta-tile">
-                <h4>YEAR</h4>
-                <span class="subtitle">TBD</span>
-              </div>
-
-              <div class="meta-tile">
-                <h4>STATUS</h4>
-                <span class="subtitle">TBD</span>
-              </div>
+            <div class="meta-tile">
+              <h4>STATUS</h4>
+              <span class="subtitle">TBD</span>
             </div>
           </div>
         </div>
@@ -76,6 +74,7 @@
           class="news-track"
           :key="tickerKey"
           :style="{ '--ticker-duration': tickerDuration + 's' }"
+          ref="track"
         >
           <span class="news-seq" ref="seq">{{ tickerSequence }}</span>
           <span class="news-seq" aria-hidden="true">{{ tickerSequence }}</span>
@@ -97,23 +96,15 @@
  * - Find FIRST operation file where the 2nd NON-EMPTY line includes "start" (case-insensitive)
  * - Load that campaign's campaign.json
  *
- * Vite 6 note:
- * - Use query: '?raw', import: 'default' (replaces deprecated `as: 'raw'`)
+ * Notes:
+ * - Vite globs MUST be literal strings.
+ * - eager+raw avoids runtime chunk fetching (_chunkError 404).
  */
 import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
-  query: "?raw",
-  import: "default",
-  eager: true,
-});
-
-const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", {
-  query: "?raw",
-  import: "default",
-  eager: true,
-});
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { eager: true, as: "raw" });
+const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { eager: true, as: "raw" });
 
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
@@ -202,7 +193,10 @@ export default {
   name: "Header",
   inject: ["activeCampaignStore"],
   props: {
+    planetPath: { type: String, required: true }, // kept for compatibility
     header: { type: Object, required: true },
+    authOffsetX: { type: Number, default: 330 },
+    authOffsetY: { type: Number, default: 10 },
 
     newsEnabled: { type: Boolean, default: true },
     newsItems: { type: Array, default: () => defaultNewsItems },
@@ -231,51 +225,11 @@ export default {
     };
   },
   computed: {
-    appConfig() {
-      return getConfig() || {};
-    },
-
-    // ✅ Fix for broken logo:
-    // - Prefer branding.headerLogo if present
-    // - Fall back to config.icon (your unit-config.json "icon": "/faction-logos/...")
-    // - Finally fall back to a known placeholder path
-    logoSrc() {
-      const cfg = this.appConfig || {};
-      const branding = cfg.branding || {};
-      return (
-        branding.headerLogo ||
-        branding.logo ||
-        cfg.icon ||
-        "/faction-logos/UNSC_CENTCOM_Logo.png"
-      );
-    },
-
-    authLogoutLabel() {
-      return this.appConfig.ui?.auth?.logoutLabel || "Logout";
-    },
-
-    isStaff() {
-      return isAdmin();
-    },
-    isLoggedIn() {
-      return this.role === "member" || this.isStaff;
-    },
-    authVariant() {
-      return this.isStaff ? "staff" : "member";
-    },
-    authLabel() {
-      return this.isStaff ? "Staff" : "Member";
-    },
-    displayName() {
-      if (!this.isStaff) return "";
-      return (this.staffUser && this.staffUser.displayName) || "";
-    },
-
     activeCampaign() {
       return this.activeCampaignStore?.activeCampaign || null;
     },
     showCampaignPanel() {
-      return Boolean(this.activeCampaign);
+      return !!this.activeCampaign;
     },
     campaignHeader() {
       const c = this.activeCampaign;
@@ -286,6 +240,30 @@ export default {
         planet: c.planet || this.header?.planet || "—",
         ao: c.ao || c.AO || this.header?.AO || "—",
       };
+    },
+
+    branding() {
+      return getConfig().branding || {};
+    },
+    authLogoutLabel() {
+      return getConfig().ui?.auth?.logoutLabel || "Logout";
+    },
+
+    isLoggedIn() {
+      return this.role === "member" || this.isStaff;
+    },
+    isStaff() {
+      return isAdmin();
+    },
+    authVariant() {
+      return this.isStaff ? "staff" : "member";
+    },
+    authLabel() {
+      return this.isStaff ? "Staff" : "Member";
+    },
+    displayName() {
+      if (!this.isStaff) return "";
+      return (this.staffUser && this.staffUser.displayName) || "";
     },
 
     normalizedNewsItems() {
@@ -411,9 +389,10 @@ export default {
       this._lastPick = last;
 
       const sequenceSep = effectiveSep || sep;
-      this.tickerSequence = picks.join(sequenceSep) + sequenceSep;
-      this.tickerKey += 1;
+      const seq = picks.join(sequenceSep) + sequenceSep;
 
+      this.tickerSequence = seq;
+      this.tickerKey += 1;
       this.$nextTick(() => this.recalcTickerDuration());
     },
 
@@ -439,27 +418,98 @@ export default {
 </script>
 
 <style scoped>
+/* Wrapper lets ticker sit below header without changing/overlapping header internals */
 .header-wrap {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
+/* Header spans top edge: no rounding */
 header {
-  position: relative;
   border-radius: 0 !important;
-  border: 1px solid rgba(170, 220, 255, 0.22);
-  background: linear-gradient(180deg, rgba(8, 14, 20, 0.9), rgba(3, 6, 10, 0.94));
-  box-shadow:
-    0 0 0 1px rgba(170, 220, 255, 0.06) inset,
-    0 0 26px rgba(120, 180, 255, 0.10),
-    0 0 110px rgba(0, 0, 0, 0.55);
-  overflow: hidden;
+}
 
+/* Hard-sized logo (square, non-stretched, fills header area nicely) */
+.logo {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Keep details on the far right + vertical divider */
+header .planet-location-container {
+  margin-left: auto !important;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 12px;
+  justify-content: flex-end;
+
+  padding-left: 16px;
+  padding-right: 12px;
+  border-left: 1px solid rgba(170, 220, 255, 0.22);
+}
+
+/* Panel can grow leftward if content is long */
+.location-info {
+  min-width: 0;
+  width: max-content;
+  max-width: min(1120px, 58vw);
+  direction: ltr;
+}
+
+/* 2x2 stacked tiles + AO spanning both rows, right-aligned */
+.meta-grid {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(220px, 420px);
+  grid-template-rows: auto auto;
+  gap: 10px 14px;
+  justify-content: end;
+  align-items: end;
+}
+
+.meta-tile {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.meta-tile--ao {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+
+.meta-tile h4 {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.subtitle {
+  display: block;
+  font-size: 0.95rem;
+  letter-spacing: 0.10em;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* =========================
+   UNSC TERMINAL HEADER THEME
+   ========================= */
+
+header {
+  position: relative;
+  border-radius: 0px;
+  border: 1px solid rgba(170, 220, 255, 0.22);
+  background: linear-gradient(180deg, rgba(8, 14, 20, 0.9), rgba(3, 6, 10, 0.94));
+  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.1),
+    0 0 110px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
 }
 
 header::before {
@@ -478,7 +528,6 @@ header::before {
   opacity: 0.22;
   z-index: 0;
 }
-
 header::after {
   content: "";
   position: absolute;
@@ -489,83 +538,35 @@ header::after {
   animation: headerFlicker 3.1s infinite;
   z-index: 0;
 }
-
 @keyframes headerFlicker {
-  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.70; }
-  12% { transform: translate3d(-1px, 1px, 0); opacity: 0.86; }
-  25% { transform: translate3d(1px, -1px, 0); opacity: 0.68; }
-  42% { transform: translate3d(0, 2px, 0); opacity: 0.90; }
-  70% { transform: translate3d(2px, 0, 0); opacity: 0.76; }
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.7;
+  }
+  12% {
+    transform: translate3d(-1px, 1px, 0);
+    opacity: 0.86;
+  }
+  25% {
+    transform: translate3d(1px, -1px, 0);
+    opacity: 0.68;
+  }
+  42% {
+    transform: translate3d(0, 2px, 0);
+    opacity: 0.9;
+  }
+  70% {
+    transform: translate3d(2px, 0, 0);
+    opacity: 0.76;
+  }
 }
-
 header > * {
   position: relative;
   z-index: 1;
 }
 
-.logo {
-  width: 120px;
-  height: 120px;
-  object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid rgba(170, 220, 255, 0.16);
-  background: rgba(0, 0, 0, 0.18);
-}
-
-.title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.title-container {
-  min-width: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.title-row {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  min-width: 0;
-}
-
-#title-header {
-  font-family: "Titillium Web", sans-serif;
-  font-size: 16px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(230, 251, 255, 0.95);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#subtitle-header {
-  font-family: "Titillium Web", sans-serif;
-  font-size: 12px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(190, 230, 255, 0.85);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.rhombus {
-  opacity: 0; /* removed */
-}
-
-.right-cluster {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
+/* Auth indicator: right side, themed */
 .auth-indicator {
   display: inline-flex;
   align-items: center;
@@ -579,7 +580,13 @@ header > * {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   line-height: 1;
-  flex: 0 0 auto;
+  z-index: 2;
+}
+
+.auth-indicator--right {
+  position: absolute;
+  right: 16px;
+  top: 10px;
 }
 
 .auth-line {
@@ -596,6 +603,9 @@ header > * {
   border: 1px solid rgba(170, 255, 210, 0.35);
 }
 
+.auth-role[data-variant="member"] {
+  opacity: 0.9;
+}
 .auth-role[data-variant="staff"] {
   border-color: rgba(30, 144, 255, 0.75);
 }
@@ -616,66 +626,13 @@ header > * {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-
 .auth-logout:hover {
   border-color: rgba(170, 255, 210, 0.9);
 }
 
-.planet-location-container {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-left: 16px;
-  padding-right: 8px;
-  border-left: 1px solid rgba(170, 220, 255, 0.22);
-}
-
-.location-info {
-  min-width: 0;
-  width: max-content;
-  max-width: min(1120px, 58vw);
-}
-
-.meta-grid {
-  display: grid;
-  grid-template-columns: max-content max-content minmax(220px, 420px);
-  grid-template-rows: auto auto;
-  gap: 8px 12px;
-  justify-content: end;
-  align-items: end;
-}
-
-.meta-tile {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.meta-tile--ao {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-}
-
-.meta-tile h4 {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.78rem;
-  color: rgba(190, 230, 255, 0.85);
-}
-
-.subtitle {
-  display: block;
-  font-size: 0.95rem;
-  letter-spacing: 0.10em;
-  line-height: 1.15;
-  color: rgba(226, 243, 255, 0.92);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
+/* =========================
+   News Ticker (continuous loop)
+   ========================= */
 .news-ticker {
   height: 32px;
   display: grid;
@@ -686,9 +643,7 @@ header > * {
   border: 1px solid rgba(170, 220, 255, 0.14);
   border-top: none;
   background: linear-gradient(180deg, rgba(8, 14, 20, 0.75), rgba(3, 6, 10, 0.88));
-  box-shadow:
-    0 0 0 1px rgba(170, 220, 255, 0.06) inset,
-    0 0 26px rgba(120, 180, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.08);
 }
 
 .news-label {
@@ -722,41 +677,19 @@ header > * {
 .news-seq {
   font-family: "Titillium Web", sans-serif;
   font-size: 12px;
-  letter-spacing: 0.10em;
+  letter-spacing: 0.1em;
   color: rgba(226, 243, 255, 0.92);
   text-transform: uppercase;
-  text-shadow: 0 0 14px rgba(120, 180, 255, 0.10);
+  text-shadow: 0 0 14px rgba(120, 180, 255, 0.1);
   padding-right: 48px;
 }
 
 @keyframes tickerLoop {
-  0% { transform: translate3d(0, 0, 0); }
-  100% { transform: translate3d(-50%, 0, 0); }
-}
-
-@media (max-width: 980px) {
-  header {
-    flex-wrap: wrap;
-    justify-content: space-between;
+  0% {
+    transform: translate3d(0, 0, 0);
   }
-  .right-cluster {
-    width: 100%;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-  }
-  .planet-location-container {
-    border-left: none;
-    padding-left: 0;
-  }
-  .location-info {
-    max-width: 100%;
-  }
-  .meta-grid {
-    grid-template-columns: 1fr;
-  }
-  .meta-tile--ao {
-    grid-column: auto;
-    grid-row: auto;
+  100% {
+    transform: translate3d(-50%, 0, 0);
   }
 }
 </style>
