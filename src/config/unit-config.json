@@ -16,7 +16,7 @@
   },
   "unit": {
     "_help": "Shown in header + page titles + various UI areas.",
-    "name": "UNIT NAME HERE",
+    "name": "CENTCOM",
     "tagline": "Short tagline / motto / classification label"
   },
   "defaultTitle": "UNIT ORBAT |",
@@ -35,9 +35,9 @@
     "year": "YEAR / ERA",
     "system": "REGION / COMMAND",
     "AO": "AREA OF OPERATIONS",
-    "status": "STATUS (e.g., ACTIVE / DEPLOYED / TRAINING)",
-    "subheaderTitle": "SUBHEADER TITLE (e.g., UNIT DESIGNATION)",
-    "subheaderSubtitle": "SUBHEADER SUBHEADER (e.g., CLASSIFICATION)",
+    "status": "STATUS",
+    "subheaderTitle": "CENTCOM",
+    "subheaderSubtitle": "ORBAT",
 
     "branding": {
       "_help": "Optional header-specific branding. Assets should be placed under /public and referenced from site root.",
