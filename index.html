@@ -11,6 +11,9 @@
     <!-- New background canvas (must exist before the background script runs) -->
     <canvas id="space-bg"></canvas>
 
+    <!-- NEW: Background overlay image layer (above stars, below app) -->
+    <div id="bg-overlay-image" aria-hidden="true"></div>
+
     <div id="app"></div>
 
     <!-- ✅ Deployment-only globals (namespaced; point to Netlify proxy to avoid CORS) -->
@@ -25,5 +28,41 @@
 
     <!-- Your app -->
     <script type="module" src="/src/main.js"></script>
+
+    <!-- NEW: Minimal inline styles for layering (you can move these into base.css if preferred) -->
+    <style>
+      /* Ensure the canvas sits behind everything */
+      #space-bg {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        z-index: -2;
+        pointer-events: none;
+      }
+
+      /* Campaigns.png overlay layer */
+      #bg-overlay-image {
+        position: fixed;
+        inset: 0;
+        z-index: -1; /* above canvas, below app */
+        pointer-events: none;
+
+        background-image: url("/icons/Campaigns.png");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: min(1100px, 70vw);
+
+        opacity: 0.3;
+        filter: saturate(1.05) contrast(1.05);
+      }
+
+      /* Make sure the app is above both layers */
+      #app {
+        position: relative;
+        z-index: 0;
+      }
+    </style>
   </body>
 </html>
