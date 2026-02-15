@@ -13,7 +13,7 @@
       >
 
         <router-link class="clipped-bottom-right" to="/campaigns" @click.native="playBrowse">
-          <img src="/icons/campaigns.png" />
+          <img src="/icons/Campaigns.png" />
           <span>Campaigns</span>
         </router-link>
 
