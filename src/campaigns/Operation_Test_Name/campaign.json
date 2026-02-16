@@ -1,148 +1,104 @@
 {
-  "id": "operation_test_name",
+  "_help": {
+    "what_is_this": "CENTCOM campaign template (name-based). Units are matched by name against the Google Sheet roster CSV.",
+    "how_unit_matching_works": [
+      "Every unit reference in this file is a unitName string.",
+      "The app should normalize names (trim, collapse spaces, lowercase) before matching.",
+      "If a unit is renamed in the sheet, update it here too."
+    ],
+    "how_backend_linking_works": [
+      "Each unit name becomes a Backend Roster filter link (e.g. /backend-roster?unit=77th%20Air%20Wing).",
+      "BackendRosterView should read query.unit and filter the roster table by unit name."
+    ]
+  },
+
+  "id": "Operation_Test_Name",
+  "_help_id": "Unique campaign key. Good to match folder name.",
   "name": "Operation: Test Name",
   "status": "active",
+
   "system": "Epsilon Eridani",
   "planet": "Reach",
   "ao": "Viery Territory",
+
   "theatre": "CENTCOM / REACH AO",
   "startDate": "2026-01-10",
-  "endDate": "2026-02-16",
+  "endDate": "2026-02-05",
   "location": "Reach / Viery Territory",
-  "overview": "POC campaign overview. Replace this with a short, high-level summary of the campaign\u2019s purpose and arc.",
+
+  "overview": "TEMPLATE: Replace with 1–3 sentences describing the campaign’s purpose and arc.",
+
   "assets": {
-    "defaultPortrait": "/icons/pilot.svg",
-    "defaultUnitPatch": "/icons/protocol.svg",
-    "fallbackPortraits": [
-      "/assets/portraits/portrait-placeholder.png"
-    ],
-    "fallbackPatches": [
-      "/assets/patches/patch-placeholder.png"
-    ]
+    "defaultPortrait": "/assets/portraits/portrait-placeholder.png",
+    "defaultUnitPatch": "/assets/patches/patch-placeholder.png",
+    "fallbackPortraits": ["/assets/portraits/portrait-placeholder.png"],
+    "fallbackPatches": ["/assets/patches/patch-placeholder.png"]
   },
-  "commandRoster": {
-    "title": "Command Element",
-    "notes": "POC command element. Provide portrait/patch or rely on fallbacks.",
+
+  "command": {
+    "_help": "Command tile info. Only uses names + portraits. UnitName should match roster sheet unit names.",
     "commander": {
-      "id": "cmd_atlas",
-      "callsign": "ATLAS",
       "name": "CPT John Doe",
-      "role": "Task Force Commander",
-      "representsUnitId": "tf_atlas_hq",
-      "portrait": "",
-      "portraitFallbacks": [
-        "/faction-logos/UNSC_CENTCOM_LOGO.png"
-      ],
-      "awards": []
+      "unitName": "Task Force Atlas",
+      "portrait": "/assets/portraits/atlas.png",
+      "role": "Task Force Commander"
     },
     "subCommanders": [
       {
-        "id": "sub_odyssey",
-        "callsign": "ODYSSEY",
         "name": "MAJ Jane Roe",
-        "role": "Task Unit Commander",
-        "representsUnitId": "tu_odyssey",
-        "portrait": "",
-        "portraitFallbacks": [
-          "/assets/portraits/odyssey.png"
-        ],
-        "awards": []
+        "unitName": "Task Unit Odyssey",
+        "portrait": "/assets/portraits/odyssey.png",
+        "role": "Task Unit Commander"
       },
       {
-        "id": "sub_vanguard",
-        "callsign": "VANGUARD",
         "name": "CWO Alex Smith",
-        "role": "Task Unit Commander",
-        "representsUnitId": "tu_vanguard",
-        "portrait": "",
-        "portraitFallbacks": [
-          "/assets/portraits/vanguard.png"
-        ],
-        "awards": []
+        "unitName": "Task Unit Vanguard",
+        "portrait": "/assets/portraits/vanguard.png",
+        "role": "Task Unit Commander"
       }
     ]
   },
-  "roster": {
-    "title": "Participating Units",
-    "notes": "These are the units attending this campaign. Each unit can link to Backend Roster later via backendUnitSlug.",
-    "units": [
-      {
-        "id": "1st_marines",
-        "name": "1st Marines",
-        "type": "Infantry",
-        "backendUnitSlug": "1st_marines",
-        "patch": "",
-        "patchFallbacks": [
-          "/assets/patches/1st-marines.png"
-        ],
-        "assignedTo": "tu_odyssey",
-        "notes": ""
-      },
-      {
-        "id": "77th_air",
-        "name": "77th Air Wing",
-        "type": "Aviation",
-        "backendUnitSlug": "77th_air",
-        "patch": "",
-        "patchFallbacks": [
-          "/assets/patches/77th-air.png"
-        ],
-        "assignedTo": "tu_vanguard",
-        "notes": ""
-      }
-    ]
-  },
-  "orgChart": {
-    "taskForceName": "CENTCOM Task Force Atlas",
-    "taskForceHQ": {
-      "id": "tf_atlas_hq",
-      "name": "Task Force HQ",
-      "commanderId": "cmd_atlas",
-      "patch": "",
-      "patchFallbacks": [
-        "/assets/patches/tf-atlas.png"
+
+  "taskForces": [
+    {
+      "_help": "Each task force becomes a section in the campaign view. Units listed here must match the sheet unit names.",
+      "name": "Task Force Atlas",
+      "hq": "TF Atlas HQ",
+      "commanderName": "CPT John Doe",
+      "patch": "/assets/patches/tf-atlas.png",
+      "units": [
+        "1st Marines",
+        "77th Air Wing"
       ]
     },
-    "taskUnits": [
-      {
-        "id": "tu_odyssey",
-        "name": "Task Unit Odyssey",
-        "commanderId": "sub_odyssey",
-        "patch": "",
-        "patchFallbacks": [
-          "/assets/patches/tu-odyssey.png"
-        ],
-        "unitIds": [
-          "1st_marines"
-        ]
-      },
-      {
-        "id": "tu_vanguard",
-        "name": "Task Unit Vanguard",
-        "commanderId": "sub_vanguard",
-        "patch": "",
-        "patchFallbacks": [
-          "/assets/patches/tu-vanguard.png"
-        ],
-        "unitIds": [
-          "77th_air"
-        ]
-      }
-    ]
-  },
+    {
+      "_help": "Optional additional task force example.",
+      "name": "Task Unit Odyssey",
+      "hq": "Odyssey HQ",
+      "commanderName": "MAJ Jane Roe",
+      "patch": "/assets/patches/tu-odyssey.png",
+      "units": [
+        "1st Marines"
+      ]
+    }
+  ],
+
   "operationsIndex": [
     {
+      "_help": "Each operation is shown in the campaign operations table.",
       "id": "001",
       "title": "Recon in Force",
       "date": "2026-01-10",
       "status": "active",
+
       "opordTitle": "OPORD 001",
       "opordUrl": "https://example.com/opord-001",
-      "opordSummary": "Recon enemy lines, identify supply routes, capture map intel.",
+      "opordSummary": "TEMPLATE: Short OPORD summary.",
+
       "file": "operations/001.md",
 
-      "commandersRef": "operation_test_name__001",
-      "hallOfFameRef": "operation_test_name__001"
+      "commandersRef": "operation_template_name__001",
+      "hallOfFameRef": "operation_template_name__001"
     }
   ]
 }
