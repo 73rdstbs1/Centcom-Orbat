@@ -7,13 +7,12 @@
   "ao": "Viery Territory",
   "theatre": "CENTCOM / REACH AO",
   "startDate": "2026-01-10",
-  "endDate": "",
-  "quarter": "2026 Q1",
+  "endDate": "2026-02-16",
   "location": "Reach / Viery Territory",
   "overview": "POC campaign overview. Replace this with a short, high-level summary of the campaign\u2019s purpose and arc.",
   "assets": {
-    "defaultPortrait": "/assets/portraits/portrait-placeholder.png",
-    "defaultUnitPatch": "/assets/patches/patch-placeholder.png",
+    "defaultPortrait": "/icons/pilot.svg",
+    "defaultUnitPatch": "/icons/protocol.svg",
     "fallbackPortraits": [
       "/assets/portraits/portrait-placeholder.png"
     ],
@@ -32,7 +31,7 @@
       "representsUnitId": "tf_atlas_hq",
       "portrait": "",
       "portraitFallbacks": [
-        "/assets/portraits/atlas.png"
+        "/faction-logos/UNSC_CENTCOM_LOGO.png"
       ],
       "awards": []
     },
