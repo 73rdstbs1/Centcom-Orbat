@@ -1,0 +1,309 @@
+{
+  "_help": {
+    "what_is_this": "Template campaign.json for CENTCOM campaigns. Copy this file, rename fields, and keep IDs consistent.",
+    "folder_layout": [
+      "src/campaigns/<campaignFolder>/campaign.json",
+      "src/campaigns/<campaignFolder>/operations/<op>.md"
+    ],
+    "active_campaign_rule": [
+      "Header finds FIRST operation .md where the 2nd NON-EMPTY line contains 'start' (case-insensitive).",
+      "That campaign becomes the active campaign."
+    ],
+    "id_rules": [
+      "IDs must be unique within the campaign.",
+      "Commander IDs are referenced by orgChart.taskForceHQ.commanderId and orgChart.taskUnits[].commanderId.",
+      "Unit IDs are referenced by orgChart.taskUnits[].unitIds[] and roster.units[].id.",
+      "roster.units[].assignedTo should match a task unit id (orgChart.taskUnits[].id)."
+    ],
+    "assets_rules": [
+      "All images should live in /public and be referenced as '/path/to/file.png'.",
+      "portrait and patch can be blank; portraitFallbacks/patchFallbacks will be used instead.",
+      "defaultPortrait/defaultUnitPatch are the final fallbacks."
+    ],
+    "operations_rules": [
+      "operationsIndex is the primary operation list (CampaignLogView reads this).",
+      "Each operation should have a matching operations/<id>.md file if you want per-op metadata overrides or narrative text.",
+      "commandersRef and hallOfFameRef are the swappable keys used to link to Commanders & Hall of Fame pages."
+    ]
+  },
+
+  "id": "operation_template_name",
+  "_help_id": "Unique campaign ID. Also good to use as folder name. Example: 'operation_atlas_2026_q1'.",
+
+  "name": "Operation: Template Name",
+  "_help_name": "Campaign display name shown across UI.",
+
+  "status": "active",
+  "_help_status": "active | completed | training | deployed | archived (lowercase recommended).",
+
+  "system": "Epsilon Eridani",
+  "planet": "Reach",
+  "ao": "Viery Territory",
+  "_help_location_fields": "These drive the header 'SYSTEM / PLANET / AO' tiles and are searchable in CampaignLogView.",
+
+  "theatre": "CENTCOM / REACH AO",
+  "_help_theatre": "Optional descriptor used in some views / future expansion.",
+
+  "startDate": "2026-01-10",
+  "endDate": "",
+  "_help_dates": "Use ISO format 'YYYY-MM-DD'. Leave endDate blank for ongoing.",
+
+  "quarter": "2026 Q1",
+  "_help_quarter": "Free text. Used for quick sorting/filter context.",
+
+  "location": "Reach / Viery Territory",
+  "_help_location": "Human-friendly string shown in the campaign record.",
+
+  "overview": "TEMPLATE: Replace this with a short, high-level summary of the campaign’s purpose and arc.",
+  "_help_overview": "1–3 sentences. Shown on the campaign card and in modal.",
+
+  "assets": {
+    "_help": {
+      "what_is_this": "Centralized defaults for portraits/patches used across command roster + unit roster.",
+      "how_fallbacks_work": [
+        "For a commander/unit, use portrait/patch if set.",
+        "If blank, try portraitFallbacks/patchFallbacks in-order.",
+        "If still none load, use assets.defaultPortrait/assets.defaultUnitPatch."
+      ]
+    },
+    "defaultPortrait": "/assets/portraits/portrait-placeholder.png",
+    "defaultUnitPatch": "/assets/patches/patch-placeholder.png",
+    "fallbackPortraits": [
+      "/assets/portraits/portrait-placeholder.png"
+    ],
+    "fallbackPatches": [
+      "/assets/patches/patch-placeholder.png"
+    ]
+  },
+
+  "commandRoster": {
+    "_help": {
+      "what_is_this": "Leadership for this campaign. These entries should link to org chart units via representsUnitId.",
+      "required_fields": [
+        "id (unique)",
+        "callsign (short)",
+        "name (rank + name)",
+        "role (display role)",
+        "representsUnitId (links to orgChart taskForceHQ/taskUnits ids)"
+      ],
+      "swappable_hall_linking": [
+        "commandersRef/hallOfFameRef are per-operation links in operationsIndex (not here).",
+        "The Hall pages can use the campaignId + opId + ref to render the right segment."
+      ]
+    },
+    "title": "Command Element",
+    "notes": "TEMPLATE: Provide portrait or leave blank and rely on fallbacks.",
+
+    "commander": {
+      "_help": "Primary campaign commander (Task Force Commander).",
+      "id": "cmd_template",
+      "callsign": "ATLAS",
+      "name": "CPT John Doe",
+      "role": "Task Force Commander",
+
+      "representsUnitId": "tf_template_hq",
+      "_help_representsUnitId": "Should match orgChart.taskForceHQ.id (or another org node the commander represents).",
+
+      "portrait": "",
+      "portraitFallbacks": [
+        "/assets/portraits/atlas.png"
+      ],
+      "awards": [
+        {
+          "_help": "Optional: used if/when you show commander awards directly.",
+          "id": "award_example",
+          "title": "Example Ribbon",
+          "image": "/assets/awards/example.png",
+          "date": "2026-01-10",
+          "notes": "Optional notes."
+        }
+      ]
+    },
+
+    "subCommanders": [
+      {
+        "_help": "Sub-commander representing a Task Unit (or major attached element).",
+        "id": "sub_taskunit_one",
+        "callsign": "ODYSSEY",
+        "name": "MAJ Jane Roe",
+        "role": "Task Unit Commander",
+
+        "representsUnitId": "tu_taskunit_one",
+        "_help_representsUnitId": "Must match one of orgChart.taskUnits[].id.",
+
+        "portrait": "",
+        "portraitFallbacks": [
+          "/assets/portraits/odyssey.png"
+        ],
+        "awards": []
+      },
+      {
+        "_help": "Second sub-commander example.",
+        "id": "sub_taskunit_two",
+        "callsign": "VANGUARD",
+        "name": "CWO Alex Smith",
+        "role": "Task Unit Commander",
+
+        "representsUnitId": "tu_taskunit_two",
+        "portrait": "",
+        "portraitFallbacks": [
+          "/assets/portraits/vanguard.png"
+        ],
+        "awards": []
+      }
+    ]
+  },
+
+  "roster": {
+    "_help": {
+      "what_is_this": "The units attending this campaign (the real operational roster).",
+      "backendUnitSlug": "If present, CampaignLogView links to /backend-roster?unit=<slug>.",
+      "assignedTo": "Should match orgChart.taskUnits[].id so the org chart can list participating units correctly."
+    },
+    "title": "Participating Units",
+    "notes": "TEMPLATE: Add each attending unit here. assignedTo wires it into the org chart.",
+
+    "units": [
+      {
+        "_help": "Example infantry unit attached to Task Unit One.",
+        "id": "1st_marines",
+        "name": "1st Marines",
+        "type": "Infantry",
+        "backendUnitSlug": "1st_marines",
+
+        "patch": "",
+        "patchFallbacks": [
+          "/assets/patches/1st-marines.png"
+        ],
+
+        "assignedTo": "tu_taskunit_one",
+        "_help_assignedTo": "Must match an orgChart.taskUnits[].id.",
+
+        "notes": ""
+      },
+      {
+        "_help": "Example aviation unit attached to Task Unit Two.",
+        "id": "77th_air",
+        "name": "77th Air Wing",
+        "type": "Aviation",
+        "backendUnitSlug": "77th_air",
+
+        "patch": "",
+        "patchFallbacks": [
+          "/assets/patches/77th-air.png"
+        ],
+
+        "assignedTo": "tu_taskunit_two",
+        "notes": ""
+      }
+    ]
+  },
+
+  "orgChart": {
+    "_help": {
+      "what_is_this": "Force org chart shown in Campaign details modal.",
+      "how_to_wire": [
+        "taskForceHQ.id should match commandRoster.commander.representsUnitId",
+        "taskForceHQ.commanderId should match commandRoster.commander.id",
+        "taskUnits[].id should match each subCommander.representsUnitId",
+        "taskUnits[].commanderId should match each subCommander.id",
+        "taskUnits[].unitIds[] should list roster.units[].id values for units under that task unit"
+      ]
+    },
+
+    "taskForceName": "CENTCOM Task Force Template",
+
+    "taskForceHQ": {
+      "_help": "Root org node.",
+      "id": "tf_template_hq",
+      "name": "Task Force HQ",
+      "commanderId": "cmd_template",
+
+      "patch": "",
+      "patchFallbacks": [
+        "/assets/patches/tf-template.png"
+      ]
+    },
+
+    "taskUnits": [
+      {
+        "_help": "Task Unit One example node.",
+        "id": "tu_taskunit_one",
+        "name": "Task Unit Odyssey",
+        "commanderId": "sub_taskunit_one",
+
+        "hqName": "Odyssey HQ",
+        "_help_hqName": "Optional override. If missing, UI shows '<Task Unit Name> HQ'.",
+
+        "patch": "",
+        "patchFallbacks": [
+          "/assets/patches/tu-odyssey.png"
+        ],
+
+        "unitIds": [
+          "1st_marines"
+        ]
+      },
+      {
+        "_help": "Task Unit Two example node.",
+        "id": "tu_taskunit_two",
+        "name": "Task Unit Vanguard",
+        "commanderId": "sub_taskunit_two",
+
+        "hqName": "Vanguard HQ",
+
+        "patch": "",
+        "patchFallbacks": [
+          "/assets/patches/tu-vanguard.png"
+        ],
+
+        "unitIds": [
+          "77th_air"
+        ]
+      }
+    ]
+  },
+
+  "operationsIndex": [
+    {
+      "_help": {
+        "what_is_this": "Operation row displayed under OPERATIONS in the modal.",
+        "file": "Relative to the campaign folder. Example: 'operations/001.md'.",
+        "opordUrl": "If present, renders a clickable link in the modal.",
+        "commandersRef": "Swappable key used by Hall of Commanders view to choose the right segment for this operation.",
+        "hallOfFameRef": "Swappable key used by Hall of Fame view to choose the right segment for this operation."
+      },
+
+      "id": "001",
+      "title": "Recon in Force",
+      "date": "2026-01-10",
+      "status": "active",
+
+      "opordTitle": "OPORD 001",
+      "opordUrl": "https://example.com/opord-001",
+      "opordSummary": "TEMPLATE: Short OPORD summary.",
+
+      "file": "operations/001.md",
+
+      "commandersRef": "operation_template_name__001",
+      "hallOfFameRef": "operation_template_name__001"
+    },
+
+    {
+      "_help": "Second operation example.",
+      "id": "002",
+      "title": "Hold the Line",
+      "date": "2026-01-17",
+      "status": "pending",
+
+      "opordTitle": "OPORD 002",
+      "opordUrl": "",
+      "opordSummary": "TEMPLATE: If no OPORD yet, leave opordUrl blank.",
+
+      "file": "operations/002.md",
+
+      "commandersRef": "operation_template_name__002",
+      "hallOfFameRef": "operation_template_name__002"
+    }
+  ]
+}
