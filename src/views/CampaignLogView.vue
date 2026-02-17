@@ -268,10 +268,6 @@
                     {{ op.summary || op.opordSummary }}
                   </div>
                 </div>
-                  <span v-else class="muted">—</span>
-                  <div v-if="op.opordSummary" class="opord-summary">
-                    {{ op.opordSummary }}
-                  </div>
                 </div>
               </div>
 
