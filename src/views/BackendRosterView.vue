@@ -46,7 +46,8 @@
         <div v-if="loading" class="muted">Loading roster…</div>
         <div v-else-if="error" class="muted">{{ error }}</div>
 
-        <div v-else class="roster-groups">
+        <div v-else class="roster-scroll">
+        <div class="roster-groups">
           <article
             v-for="g in filteredGroups"
             :key="g.key"
@@ -81,6 +82,7 @@
             No matching records.
           </div>
         </div>
+      </div>
       </div>
     </section>
   </div>
@@ -460,6 +462,8 @@ export default {
   flex-direction: column;
   min-height: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;}
 
 .filters{
@@ -519,13 +523,18 @@ export default {
 .muted{ color: rgba(214,241,255,0.7); opacity: 0.95; }
 
 .roster-groups{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.roster-scroll{
   flex: 1;
   min-height: 0;
   overflow: auto;
-  display: grid;
-  gap: 18px;            /* more breathing room between unit blocks */
-  padding-bottom: 18px;  /* prevent last block clipping at scroll end */
+  padding: 0 6px 18px 0;
 }
+
 
 .unit-group{
   border-radius: 14px;
