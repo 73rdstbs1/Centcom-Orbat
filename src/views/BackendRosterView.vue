@@ -350,6 +350,7 @@ export default {
 
 <style scoped>
 
+
 /* Theming aligns with CampaignLogView terminal aesthetic */
 
 #backendRoster{
@@ -662,5 +663,104 @@ export default {
   .row{ grid-template-columns: 1fr; }
   .unit-title{ white-space: normal; }
 }
+
+
+
+/* =========================
+   SCROLL + LAYOUT FIX
+   - Keep header + filters fixed inside the window.
+   - Only the unit list area scrolls.
+   - Preserve terminal window background without blocking scroll.
+   ========================= */
+
+/* Ensure the view fills the router container */
+#backendRoster{
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+
+  /* Router container already starts under header; add a little extra to clear ticker */
+  padding: 24px 24px 24px 24px;
+  padding-top: calc(24px + var(--app-ticker-height, 32px));
+  height: 100%;
+  display: flex;
+}
+
+/* Make the window fill available height */
+.terminal-shell{
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+
+  /* Window background lives here (no extra overlay elements that can block scroll) */
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(150, 240, 255, 0.08), 0 12px 40px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 600px at 10% 0%, rgba(90, 220, 255, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, rgba(90, 220, 255, 0.06), transparent 55%),
+    linear-gradient(180deg, rgba(5, 15, 22, 0.92), rgba(3, 10, 16, 0.94));
+  position: relative;
+}
+
+/* Keep scanlines/overlay behind content */
+.terminal-shell::before,
+.terminal-shell::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:0;
+}
+.terminal-shell::before{
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 100% 28px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px) 0 0 / 28px 100%;
+  opacity: 0.22;
+}
+.terminal-shell::after{
+  background: linear-gradient(transparent 60%, rgba(0, 0, 0, 0.22));
+  opacity: 0.55;
+}
+
+/* Ensure all direct content is above overlays */
+.terminal-shell > *{
+  position: relative;
+  z-index: 1;
+}
+
+/* Body is a flex column so the roster list can take remaining height */
+.terminal-body{
+  position: relative;
+  z-index: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden; /* prevents window from scrolling */
+}
+
+/* The scrollable area: ONLY the unit list */
+.roster-groups{
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 6px; /* room for scrollbar */
+  display: grid;
+  gap: 18px; /* more space between unit sections */
+}
+
+/* Keep unit cards fully visible; avoid internal clipping */
+.unit-group{
+  overflow: visible;
+}
+
 
 </style>
