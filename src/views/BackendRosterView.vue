@@ -1,4 +1,3 @@
-<!-- FILE: src/views/BackendRosterView.vue -->
 <template>
   <div id="backendRoster">
     <section class="section-container terminal-shell">
@@ -43,47 +42,50 @@
           </div>
         </div>
 
-        <div v-if="loading" class="muted">Loading roster…</div>
-        <div v-else-if="error" class="muted">{{ error }}</div>
-
-        <div v-else class="roster-groups">
-          <article
-            v-for="g in filteredGroups"
-            :key="g.key"
-            class="unit-group"
-          >
-            <header class="unit-header">
-              <div class="unit-name">
-                <span class="unit-title">{{ g.label }}</span>
-                <span v-if="g.type" class="unit-type-pill" :data-type="g.type">{{ g.type }}</span>
+        <div class="roster-scroll">
+          <div v-if="loading" class="muted">Loading roster…</div>
+          <div v-else-if="error" class="muted">{{ error }}</div>
+        
+          <div v-else class="roster-groups">
+            <article
+              v-for="g in filteredGroups"
+              :key="g.key"
+              class="unit-group"
+            >
+              <header class="unit-header">
+                <div class="unit-name">
+                  <span class="unit-title">{{ g.label }}</span>
+                  <span v-if="g.type" class="unit-type-pill" :data-type="g.type">{{ g.type }}</span>
+                </div>
+                <div class="unit-count muted">{{ g.members.length }} member{{ g.members.length === 1 ? "" : "s" }}</div>
+              </header>
+        
+              <div class="roster-table">
+                <div class="row head">
+                  <div>NAME</div>
+                  <div>RANK / POSITION</div>
+                  <div>AWARDS</div>
+                  <div>DETAILS</div>
+                </div>
+        
+                <div v-for="(m, idx) in g.members" :key="m._key || idx" class="row">
+                  <div class="cell name">{{ m.name || "—" }}</div>
+                  <div class="cell rank">{{ m.rank || "—" }}</div>
+                  <div class="cell awards">{{ m.awards || "—" }}</div>
+                  <div class="cell details">{{ m.details || "—" }}</div>
+                </div>
               </div>
-              <div class="unit-count muted">{{ g.members.length }} member{{ g.members.length === 1 ? "" : "s" }}</div>
-            </header>
-
-            <div class="roster-table">
-              <div class="row head">
-                <div>NAME</div>
-                <div>RANK / POSITION</div>
-                <div>AWARDS</div>
-                <div>DETAILS</div>
-              </div>
-
-              <div v-for="(m, idx) in g.members" :key="m._key || idx" class="row">
-                <div class="cell name">{{ m.name || "—" }}</div>
-                <div class="cell rank">{{ m.rank || "—" }}</div>
-                <div class="cell awards">{{ m.awards || "—" }}</div>
-                <div class="cell details">{{ m.details || "—" }}</div>
-              </div>
+            </article>
+        
+            <div v-if="!filteredGroups.length" class="muted">
+              No matching records.
             </div>
-          </article>
-
-          <div v-if="!filteredGroups.length" class="muted">
-            No matching records.
           </div>
-        </div>
+      </div>
       </div>
     </section>
   </div>
+
 </template>
 
 <script>
@@ -349,46 +351,38 @@ export default {
 </script>
 
 <style scoped>
-
 /* Theming aligns with CampaignLogView terminal aesthetic */
 
 #backendRoster{
-  flex: 1;
-  min-width: 0;
+  /* Fixed viewport panel: respects header + ticker + sidebar */
+  position: fixed;
+  top: calc(var(--app-header-height, 96px) + var(--app-ticker-height, 32px) + 16px);
+  left: calc(var(--app-sidebar-width, 90px) + 16px);
+  right: 16px;
+  bottom: 16px;
+
   box-sizing: border-box;
-
-  /* router-view-container is already offset by header height.
-     Add extra spacing for the news ticker below the header. */
-  padding: calc(24px + var(--app-ticker-height, 32px)) 24px 24px 24px;
-
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-
-  display: flex;
-  flex-direction: column;
+  min-width: 0;
+  color: var(--text-pilot-value, #d6f1ff);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 \.terminal-shell{
   width: 100%;
-  flex: 1;
+  height: 100%;
   min-height: 0;
 
-  max-width: none;
-  margin: 0;
-
   border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.14);
-  box-shadow: 0 0 0 1px rgba(150,240,255,0.08), 0 12px 40px rgba(0,0,0,0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(150, 240, 255, 0.08), 0 12px 40px rgba(0, 0, 0, 0.55);
   overflow: hidden;
+  background:
+    radial-gradient(1200px 600px at 10% 0%, rgba(90, 220, 255, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, rgba(90, 220, 255, 0.06), transparent 55%),
+    linear-gradient(180deg, rgba(5, 15, 22, 0.92), rgba(3, 10, 16, 0.94));
+  position: relative;
 
   display: flex;
   flex-direction: column;
-
-  background:
-    radial-gradient(1200px 600px at 10% 0%, rgba(90,220,255,0.08), transparent 60%),
-    radial-gradient(900px 500px at 90% 0%, rgba(90,220,255,0.06), transparent 55%),
-    linear-gradient(180deg, rgba(5,15,22,0.92), rgba(3,10,16,0.94));
-  position: relative;
 }
 .terminal-shell::before,
 .terminal-shell::after{
@@ -462,13 +456,10 @@ export default {
   position: relative;
   z-index: 1;
   padding: 16px;
-
+  min-height: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  flex: 1 1 auto;
-  min-height: 0; /* critical so the scroll child can shrink */
-  overflow: hidden; /* keep header + filters fixed */
 }
 
 .filters{
@@ -663,4 +654,18 @@ export default {
   .unit-title{ white-space: normal; }
 }
 
+
+
+/* Scroll only the unit list (not the header + filters) */
+.roster-scroll{
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+/* Increase spacing between unit subsections */
+.roster-group{
+  margin-bottom: 18px;
+}
 </style>
