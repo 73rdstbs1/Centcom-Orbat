@@ -353,18 +353,14 @@ export default {
 /* Theming aligns with CampaignLogView terminal aesthetic */
 
 #backendRoster{
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
+  /* Fill the available viewport below the app header + ticker, and keep the window fixed.
+     Only the roster list scrolls (see .roster-groups). */
   box-sizing: border-box;
-
-  /* Router view container already accounts for header height.
-     Add ONLY the ticker height so this view clears the broadcast strip,
-     while keeping the window fixed and letting only the roster list scroll. */
+  height: calc(100vh - var(--app-header-height, 95px) - var(--app-ticker-height, 32px));
   padding: 24px;
-  padding-top: calc(24px + var(--app-news-ticker-height, 32px));
-  height: 100%;
   overflow: hidden;
+  color: var(--text-pilot-value, #d6f1ff);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
 }
 .terminal-shell{
   width: 100%;
@@ -384,8 +380,6 @@ export default {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  flex: 1;
-  max-height: 100%;
 }
 .terminal-shell::before,
 .terminal-shell::after{
@@ -455,12 +449,18 @@ export default {
 }
 .stamp.subtle{ opacity: 0.7; }
 
-.terminal-body{ position: relative; z-index: 1; padding: 16px; 
+.terminal-body{
+  position: relative;
+  z-index: 1;
+  padding: 16px;
+
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;}
+  gap: 14px;
+  flex: 1 1 auto;
+  min-height: 0; /* critical so the scroll child can shrink */
+  overflow: hidden; /* keep header + filters fixed */
+}
 
 .filters{
   display: grid;
@@ -519,19 +519,19 @@ export default {
 .muted{ color: rgba(214,241,255,0.7); opacity: 0.95; }
 
 .roster-groups{
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   display: grid;
-  gap: 24px;            /* more breathing room between unit blocks */
-  padding-bottom: 36px;  /* prevent last block clipping at scroll end */
+  gap: 18px; /* extra separation between unit sections */
+  padding-right: 4px; /* breathing room for scrollbar */
 }
 
 .unit-group{
   border-radius: 14px;
-  overflow: hidden;
+  overflow: hidden; /* keep rounded corners; content size is auto */
   border: 1px solid rgba(255,255,255,0.12);
-  overflow: hidden;
+  overflow: hidden; /* keep rounded corners; content size is auto */
   background:
     linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.28)),
     radial-gradient(900px 260px at 20% 0%, rgba(90,220,255,0.05), transparent 60%);
