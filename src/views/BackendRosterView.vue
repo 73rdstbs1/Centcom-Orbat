@@ -356,15 +356,14 @@ export default {
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
-  padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
+  padding: 24px;
   color: var(--text-pilot-value, #d6f1ff);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  height: 100%;
+  /* Make the window fixed-height and keep scrolling inside the unit list */
+  height: 100vh;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;}
-
+}
 .terminal-shell{
   width: 100%;
   max-width: none;
@@ -382,8 +381,9 @@ export default {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  flex: 1;}
-
+  flex: 1;
+  max-height: 100%;
+}
 .terminal-shell::before,
 .terminal-shell::after{
   content:"";
