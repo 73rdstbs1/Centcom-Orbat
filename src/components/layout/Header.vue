@@ -60,12 +60,12 @@
 
             <div class="meta-tile">
               <h4>YEAR</h4>
-              <span class="subtitle">{{ campaignHeader?.year }}</span>
+              <span class="subtitle">TBD</span>
             </div>
 
             <div class="meta-tile">
               <h4>STATUS</h4>
-              <span class="subtitle">{{ campaignHeader?.opStatus }}</span>
+              <span class="subtitle">TBD</span>
             </div>
           </div>
         </div>
@@ -93,32 +93,54 @@
 
 <script>
 /**
- * ACTIVE CAMPAIGN (content-driven)
- * Folder model:
- *   src/campaigns/<campaignFolder>/
- *     campaign.json
- *     operations/<op>.md
+ * /src/components/layout/Header.vue
  *
- * Rule:
- * - Find FIRST operation file where the 2nd NON-EMPTY line includes "start" (case-insensitive)
- * - Load that campaign's campaign.json
+ * Header responsibilities:
+ * - Shows auth indicator + logout
+ * - Shows global CENTCOM status pill (from RefData CSV)
+ * - Shows active campaign details on the right
+ *
+ * Active campaign detection (Operations CSV):
+ * - Fetch the Operations CSV (Google Sheets published CSV)
+ * - Find FIRST row where STATUS == "Active" (case-insensitive)
+ * - Read CAMPAIGN NAME from that row
+ * - Load matching campaign.json from src/campaigns (by campaign.name / id / folder)
  *
  * Notes:
- * - Vite globs MUST be literal strings.
- * - eager+raw avoids runtime chunk fetching (_chunkError 404).
+ * - Vite 6 prefers import.meta.glob({ query:'?raw', import:'default' }) for raw text.
  */
 import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { query: "?raw", import: "default", eager: true });
+/** campaign.json files bundled at build-time */
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
 
-function safeText(x) {
-  return String(x == null ? "" : x);
+function safeJson(raw) {
+  try {
+    return JSON.parse(String(raw || ""));
+  } catch {
+    return null;
+  }
 }
 
-/** Basic CSV parser (handles quotes + commas). */
+function norm(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function splitLines(text) {
+  return String(text || "").replace(/\r\n/g, "\n").split("\n");
+}
+
+/**
+ * Minimal CSV parser (handles quotes + commas).
+ * Returns an array of rows, each row array of strings.
+ */
 function parseCsv(raw) {
-  const text = safeText(raw).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const text = String(raw || "");
   const rows = [];
   let row = [];
   let cur = "";
@@ -161,127 +183,136 @@ function parseCsv(raw) {
       continue;
     }
 
+    if (ch === "\r") continue;
+
     cur += ch;
   }
 
   row.push(cur);
   rows.push(row);
 
-  // drop trailing empty row
-  while (rows.length && rows[rows.length - 1].every((c) => safeText(c).trim() === "")) rows.pop();
-  return rows;
+  return rows
+    .map((r) => r.map((c) => String(c ?? "").trim()))
+    .filter((r) => r.some((c) => c.length));
 }
 
-function normalizeKey(k) {
-  return safeText(k).trim().toUpperCase();
+function folderFromCampaignPath(path) {
+  const parts = String(path || "").split("/campaigns/");
+  if (parts.length < 2) return "";
+  return parts[1].split("/")[0] || "";
 }
 
-function rowsToObjects(rows) {
-  if (!rows || !rows.length) return [];
-  const header = rows[0].map((h) => normalizeKey(h));
+function buildCampaignIndex() {
   const out = [];
-
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i] || [];
-    if (r.every((c) => safeText(c).trim() === "")) continue;
-    const obj = {};
-    for (let j = 0; j < header.length; j++) obj[header[j]] = safeText(r[j] ?? "").trim();
-    out.push(obj);
+  for (const [path, raw] of Object.entries(CAMPAIGN_JSON)) {
+    const json = safeJson(raw);
+    if (!json) continue;
+    out.push({
+      path,
+      folder: folderFromCampaignPath(path),
+      json,
+    });
   }
-
   return out;
 }
 
-function campaignFolderFromPath(path) {
-  const parts = safeText(path).split("/campaigns/");
-  if (parts.length < 2) return null;
-  return parts[1].split("/")[0] || null;
-}
-
-function loadCampaignJsonByPath(jsonPath) {
-  if (!jsonPath) return null;
-  try {
-    return JSON.parse(CAMPAIGN_JSON[jsonPath]);
-  } catch {
-    return null;
-  }
-}
+const _campaignIndex = buildCampaignIndex();
 
 function findCampaignByName(campaignName) {
-  const target = safeText(campaignName).trim().toLowerCase();
+  const target = norm(campaignName);
   if (!target) return null;
 
-  for (const path of Object.keys(CAMPAIGN_JSON)) {
-    const folder = campaignFolderFromPath(path);
-    const json = loadCampaignJsonByPath(path);
-    if (!json) continue;
+  // match by json.name first
+  let hit =
+    _campaignIndex.find((c) => norm(c.json?.name) === target) ||
+    _campaignIndex.find((c) => norm(c.json?.id) === target) ||
+    _campaignIndex.find((c) => norm(c.folder) === target);
 
-    const candidates = [
-      json.name,
-      json.id,
-      folder,
-      safeText(json.name).replace(/^operation:\s*/i, ""), // common prefix
-    ]
-      .map((s) => safeText(s).trim().toLowerCase())
-      .filter(Boolean);
+  // soft match (contains)
+  if (!hit) {
+    hit = _campaignIndex.find((c) => norm(c.json?.name).includes(target) || target.includes(norm(c.json?.name)));
+  }
 
-    if (candidates.includes(target)) return json;
+  return hit ? hit.json : null;
+}
+
+async function fetchText(url) {
+  const u = String(url || "").trim();
+  if (!u) return "";
+  const res = await fetch(u, { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.text();
+}
+
+/**
+ * Pull the active campaign name from Operations CSV then map to campaign.json.
+ *
+ * Expected columns (case-insensitive):
+ * - CAMPAIGN NAME
+ * - STATUS
+ */
+async function detectActiveCampaignFromOperationsCsv(opsCsvUrl) {
+  const raw = await fetchText(opsCsvUrl);
+  const rows = parseCsv(raw);
+  if (rows.length < 2) return null;
+
+  const header = rows[0].map((h) => norm(h));
+  const idxCampaign = header.findIndex((h) => h === "campaign name" || h === "campaign");
+  const idxStatus = header.findIndex((h) => h === "status");
+
+  if (idxCampaign < 0 || idxStatus < 0) return null;
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const status = norm(row[idxStatus]);
+    if (status !== "active") continue;
+
+    const campaignName = row[idxCampaign] || "";
+    const campaign = findCampaignByName(campaignName);
+
+    // If we can't map to a json, still return minimal details to keep UI stable.
+    return (
+      campaign || {
+        id: norm(campaignName) || "active_campaign",
+        name: campaignName || "Active Campaign",
+        status: "active",
+        system: "—",
+        planet: "—",
+        ao: "—",
+      }
+    );
   }
 
   return null;
 }
 
-/**
- * ACTIVE CAMPAIGN:
- * - Pull Operations CSV (Google Sheets published CSV)
- * - Find first row where STATUS == "Active"
- * - Read CAMPAIGN NAME from that row
- * - Load matching src/campaigns/**/campaign.json (by name/id/folder)
- */
-async function detectActiveCampaignFromOperationsCsv(opsCsvUrl) {
-  const url = safeText(opsCsvUrl).trim();
-  if (!url) return null;
+/** Header status comes from RefData sheet, column header "Header details:" */
+function extractHeaderDetailsStatusFromRefData(csvText) {
+  const lines = splitLines(csvText);
+  const cleaned = lines.map((l) => String(l || "").trim()).filter(Boolean);
+  if (!cleaned.length) return "";
 
-  // cache-bust to avoid stale sheet caches
-  const sep = url.includes("?") ? "&" : "?";
-  const busted = `${url}${sep}t=${Date.now()}`;
-
-  let raw = "";
-  try {
-    const res = await fetch(busted, { cache: "no-store" });
-    raw = await res.text();
-  } catch {
-    return null;
+  // This CSV may be "key,value" or a wider sheet. We'll look for the cell "Header details:" then read next non-empty cell below it.
+  const rows = parseCsv(csvText);
+  const flat = [];
+  for (let r = 0; r < rows.length; r++) {
+    for (let c = 0; c < rows[r].length; c++) {
+      flat.push({ r, c, v: rows[r][c] });
+    }
   }
 
-  const rows = parseCsv(raw);
-  const items = rowsToObjects(rows);
+  const keyCell = flat.find((x) => norm(x.v) === "header details:" || norm(x.v) === "header details");
+  if (!keyCell) return "";
 
-  const active = items.find((r) => normalizeKey(r["STATUS"]) === "ACTIVE");
-  if (!active) return null;
+  // look directly below first, otherwise any cell in next row
+  const below = rows[keyCell.r + 1] || [];
+  const direct = below[keyCell.c];
+  if (direct && String(direct).trim()) return String(direct).trim();
 
-  const campaignName =
-    active["CAMPAIGN NAME"] ||
-    active["CAMPAIGN_NAME"] ||
-    active["CAMPAIGN"] ||
-    active["CAMPAIGNNAME"] ||
-    "";
-
-  const campaign = findCampaignByName(campaignName) || {
-    id: safeText(campaignName || "unknown").trim() || "unknown",
-    name: safeText(campaignName || "Unknown Campaign").trim() || "Unknown Campaign",
-    system: "—",
-    planet: "—",
-    ao: "—",
-    status: "active",
-  };
-
-  // attach active operation info for header use
-  const opTitle = active["OPERATIONS"] || active["OPERATION"] || active["OP"] || "";
-  const opStatus = active["STATUS"] || "Active";
-  const opDate = active["DATE"] || "";
-  return { ...campaign, _activeOperation: { title: opTitle, status: opStatus, date: opDate } };
+  const any = below.find((v) => String(v || "").trim());
+  return any ? String(any).trim() : "";
 }
+
 const defaultNewsItems = [
   "TACTICAL UPDATE: Slipspace comms stable across local AO. Maintain emission control.",
   "FLEETCOM: UNSC logistics convoy rerouted. Expect delayed resupply window.",
@@ -292,10 +323,9 @@ const defaultNewsItems = [
 ];
 
 export default {
-  name: "Header",
   inject: ["activeCampaignStore"],
   props: {
-    planetPath: { type: String, required: true }, // kept for compatibility
+    planetPath: { type: String, required: true }, // kept for compatibility; no longer rendered
     header: { type: Object, required: true },
     authOffsetX: { type: Number, default: 330 },
     authOffsetY: { type: Number, default: 10 },
@@ -317,10 +347,7 @@ export default {
       staffUser: null,
       unsub: null,
 
-      // Header status from RefData CSV
-      headerStatusRaw: "",
-      headerStatusVariant: "active",
-      headerStatusLabel: "",
+      headerStatus: "",
 
       tickerKey: 0,
       tickerSequence: "",
@@ -330,7 +357,7 @@ export default {
       _resizeTimer: null,
       _lastPick: -1,
 
-      _statusTimer: null,
+      _pollTimer: null,
     };
   },
   computed: {
@@ -344,18 +371,10 @@ export default {
       const c = this.activeCampaign;
       if (!c) return null;
 
-      const opStatus = c._activeOperation?.status ? String(c._activeOperation.status).toUpperCase() : "—";
-      const year =
-        (c.startDate && String(c.startDate).slice(0, 4)) ||
-        (c.quarter && String(c.quarter).slice(0, 4)) ||
-        "—";
-
       return {
         system: c.system || this.header?.system || "—",
         planet: c.planet || this.header?.planet || "—",
         ao: c.ao || c.AO || this.header?.AO || "—",
-        year,
-        opStatus,
       };
     },
 
@@ -364,6 +383,21 @@ export default {
     },
     authLogoutLabel() {
       return getConfig().ui?.auth?.logoutLabel || "Logout";
+    },
+
+    statusVariant() {
+      const v = norm(this.headerStatus);
+      if (v === "active") return "active";
+      if (v === "training") return "training";
+      if (v === "rearming" || v === "rest") return "rearming";
+      return "unknown";
+    },
+    statusLabel() {
+      const v = norm(this.headerStatus);
+      if (v === "active") return "ACTIVE";
+      if (v === "training") return "TRAINING";
+      if (v === "rearming" || v === "rest") return "REARMING";
+      return this.headerStatus ? String(this.headerStatus).toUpperCase() : "STATUS";
     },
 
     isLoggedIn() {
@@ -392,17 +426,21 @@ export default {
     },
   },
   created() {
-    // Active campaign is driven by the Operations CSV (Google Sheet).
-    // Fallback: if CSV is missing/unreachable, we leave the panel hidden.
-    this.refreshActiveCampaignFromOps();
-
-// Pull current status from RefData CSV (optional)
-    this.loadHeaderStatusFromRefData();
-    this._statusTimer = setInterval(() => this.loadHeaderStatusFromRefData(), 60000);
-
     this.readAuth();
     this.unsub = authSubscribe(() => this.readAuth());
     window.addEventListener("storage", this.onStorage);
+
+    // Header status (RefData)
+    this.refreshHeaderStatus();
+
+    // Active campaign details (Operations CSV -> campaign.json)
+    this.refreshActiveCampaign();
+
+    // Light polling so header stays up to date without reload
+    this._pollTimer = setInterval(() => {
+      this.refreshHeaderStatus();
+      this.refreshActiveCampaign();
+    }, 60_000);
 
     this.startTicker();
     window.addEventListener("resize", this.onResize);
@@ -415,8 +453,8 @@ export default {
     window.removeEventListener("storage", this.onStorage);
     window.removeEventListener("resize", this.onResize);
     this.stopTicker();
-    if (this._statusTimer) clearInterval(this._statusTimer);
-    this._statusTimer = null;
+    if (this._pollTimer) clearInterval(this._pollTimer);
+    this._pollTimer = null;
   },
   watch: {
     newsEnabled() {
@@ -442,123 +480,6 @@ export default {
     },
   },
   methods: {
-    async refreshActiveCampaignFromOps() {
-      try {
-        const opsUrl = getConfig()?.sheets?.operationsCsvUrl || getConfig()?.sheets?.campaignOperationsCsvUrl || "";
-        const active = await detectActiveCampaignFromOperationsCsv(opsUrl);
-        if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = active;
-      } catch {
-        if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = null;
-      }
-    },
-
-
-    async loadHeaderStatusFromRefData() {
-      // Reads getConfig().sheets.refDataCsvUrl and pulls the cell under column 'Header details:'
-      // Expected sheet format:
-      //   Header details:,<other columns...>
-      //   Active|Training|Rearming,...
-      try {
-        const url = getConfig()?.sheets?.refDataCsvUrl;
-        if (!url) return;
-
-        const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) return;
-        const csv = await res.text();
-
-        const rows = this.parseCsv(csv);
-        if (!rows.length) return;
-
-        const headers = (rows[0] || []).map((h) => String(h || "").trim());
-        const idx = headers.findIndex((h) => h.toLowerCase() === "header details:".toLowerCase());
-        if (idx < 0) return;
-
-        // Take first non-empty value under the header
-        let value = "";
-        for (let r = 1; r < rows.length; r++) {
-          const cell = rows[r] && rows[r][idx] != null ? String(rows[r][idx]) : "";
-          const v = cell.trim();
-          if (v) {
-            value = v;
-            break;
-          }
-        }
-        if (!value) return;
-
-        const normalized = value.trim().toLowerCase();
-        this.headerStatusRaw = value;
-
-        if (normalized === "training") {
-          this.headerStatusVariant = "training";
-          this.headerStatusLabel = "TRAINING";
-        } else if (normalized === "rearming" || normalized === "rest" || normalized === "rearm") {
-          this.headerStatusVariant = "rearming";
-          this.headerStatusLabel = "REARMING";
-        } else {
-          // default to active
-          this.headerStatusVariant = "active";
-          this.headerStatusLabel = "ACTIVE";
-        }
-      } catch {
-        // Silent fail: header can run without sheets.
-      }
-    },
-
-    parseCsv(raw) {
-      // Minimal CSV parser that handles quoted fields and commas.
-      const text = String(raw || "").replace(/\r\n/g, "\n");
-      const rows = [];
-      let row = [];
-      let cur = "";
-      let inQuotes = false;
-
-      for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        const next = text[i + 1];
-
-        if (inQuotes) {
-          if (ch === '"' && next === '"') {
-            cur += '"';
-            i++;
-          } else if (ch === '"') {
-            inQuotes = false;
-          } else {
-            cur += ch;
-          }
-          continue;
-        }
-
-        if (ch === '"') {
-          inQuotes = true;
-          continue;
-        }
-
-        if (ch === ",") {
-          row.push(cur);
-          cur = "";
-          continue;
-        }
-
-        if (ch === "\n") {
-          row.push(cur);
-          rows.push(row);
-          row = [];
-          cur = "";
-          continue;
-        }
-
-        cur += ch;
-      }
-
-      // Flush last cell
-      row.push(cur);
-      rows.push(row);
-
-      // Trim trailing empty rows
-      while (rows.length && rows[rows.length - 1].every((c) => !String(c || "").trim())) rows.pop();
-      return rows;
-    },
-
     readAuth() {
       this.role = sessionStorage.getItem("authRole") || null;
       this.staffUser = adminUser();
@@ -579,6 +500,37 @@ export default {
       this.readAuth();
       if (this.$router?.currentRoute?.value?.path !== "/status") {
         this.$router.push("/status");
+      }
+    },
+
+    async refreshHeaderStatus() {
+      const refCsvUrl = getConfig().sheets?.refDataCsvUrl;
+      if (!refCsvUrl) return;
+
+      try {
+        const raw = await fetchText(refCsvUrl);
+        const v = extractHeaderDetailsStatusFromRefData(raw);
+        if (v) this.headerStatus = v;
+      } catch {
+        // ignore network errors; keep last known state
+      }
+    },
+
+    async refreshActiveCampaign() {
+      const cfg = getConfig();
+      const opsCsvUrl =
+        cfg?.sheets?.operationsCsvUrl ||
+        cfg?.sheets?.operationsPageCsvUrl ||
+        cfg?.sheets?.opsCsvUrl ||
+        "";
+
+      if (!opsCsvUrl) return;
+
+      try {
+        const active = await detectActiveCampaignFromOperationsCsv(opsCsvUrl);
+        if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = active;
+      } catch {
+        // ignore; keep existing store value
       }
     },
 
@@ -816,8 +768,8 @@ header > * {
   transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 20px;
+  gap: 10px;
+  padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid rgba(170,220,255,0.20);
   background: rgba(0,0,0,0.28);
@@ -828,7 +780,7 @@ header > * {
 
 .current-status-kicker{
   font-family: "Titillium Web", sans-serif;
-  font-size: 12px;
+  font-size: 10px;
   letter-spacing: 0.20em;
   text-transform: uppercase;
   color: rgba(214,241,255,0.70);
@@ -837,12 +789,12 @@ header > * {
 .current-status-pill{
   display: inline-flex;
   align-items: center;
-  padding: 8px 16px;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid rgba(90,220,255,0.22);
   background: rgba(0,0,0,0.18);
   color: rgba(230,251,255,0.92);
-  font-size: 12px;
+  font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
@@ -877,7 +829,7 @@ header > * {
 .auth-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   padding: 8px 10px;
   border: 1px solid rgba(170, 255, 210, 0.35);
   border-radius: 999px;
@@ -945,7 +897,7 @@ header > * {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   padding: 0 12px;
   border: 1px solid rgba(170, 220, 255, 0.14);
   border-top: none;
