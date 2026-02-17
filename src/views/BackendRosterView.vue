@@ -349,6 +349,7 @@ export default {
 </script>
 
 <style scoped>
+
 /* Theming aligns with CampaignLogView terminal aesthetic */
 
 #backendRoster{
@@ -358,7 +359,11 @@ export default {
   padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
   color: var(--text-pilot-value, #d6f1ff);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
+
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;}
 
 .terminal-shell{
   width: 100%;
@@ -373,7 +378,11 @@ export default {
     radial-gradient(900px 500px at 90% 0%, rgba(90,220,255,0.06), transparent 55%),
     linear-gradient(180deg, rgba(5,15,22,0.92), rgba(3,10,16,0.94));
   position: relative;
-}
+
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;}
 
 .terminal-shell::before,
 .terminal-shell::after{
@@ -443,7 +452,12 @@ export default {
 }
 .stamp.subtle{ opacity: 0.7; }
 
-.terminal-body{ position: relative; z-index: 1; padding: 16px; }
+.terminal-body{ position: relative; z-index: 1; padding: 16px; 
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;}
 
 .filters{
   display: grid;
@@ -501,7 +515,9 @@ export default {
 
 .muted{ color: rgba(214,241,255,0.7); opacity: 0.95; }
 
-.roster-groups{ display: grid; gap: 12px; }
+.roster-groups{ display: grid; gap: 12px; 
+  overflow: auto;
+  min-height: 0;}
 
 .unit-group{
   border-radius: 14px;
@@ -628,4 +644,5 @@ export default {
   .row{ grid-template-columns: 1fr; }
   .unit-title{ white-space: normal; }
 }
+
 </style>
