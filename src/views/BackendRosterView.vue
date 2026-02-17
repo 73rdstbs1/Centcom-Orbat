@@ -353,33 +353,42 @@ export default {
 /* Theming aligns with CampaignLogView terminal aesthetic */
 
 #backendRoster{
-  /* Fill the available viewport below the app header + ticker, and keep the window fixed.
-     Only the roster list scrolls (see .roster-groups). */
+  flex: 1;
+  min-width: 0;
   box-sizing: border-box;
-  height: calc(100vh - var(--app-header-height, 95px) - var(--app-ticker-height, 32px));
-  padding: 24px;
-  overflow: hidden;
-  color: var(--text-pilot-value, #d6f1ff);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
-}
-.terminal-shell{
-  width: 100%;
+
+  /* router-view-container is already offset by header height.
+     Add extra spacing for the news ticker below the header. */
+  padding: calc(24px + var(--app-ticker-height, 32px)) 24px 24px 24px;
+
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+}
+\.terminal-shell{
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+
   max-width: none;
   margin: 0;
+
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,0.14);
   box-shadow: 0 0 0 1px rgba(150,240,255,0.08), 0 12px 40px rgba(0,0,0,0.55);
   overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
   background:
     radial-gradient(1200px 600px at 10% 0%, rgba(90,220,255,0.08), transparent 60%),
     radial-gradient(900px 500px at 90% 0%, rgba(90,220,255,0.06), transparent 55%),
     linear-gradient(180deg, rgba(5,15,22,0.92), rgba(3,10,16,0.94));
   position: relative;
-
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
 }
 .terminal-shell::before,
 .terminal-shell::after{
