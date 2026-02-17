@@ -432,8 +432,8 @@ header {
 
 /* Hard-sized logo (square, non-stretched, fills header area nicely) */
 .logo {
-  width: 100px;
-  height: 100px;
+  width: 90px;
+  height: 90px;
   object-fit: contain;
   display: block;
 }
