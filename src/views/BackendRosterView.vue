@@ -360,16 +360,18 @@ export default {
   /* Router view container already accounts for header height,
      so keep this view fully fixed and let only the roster list scroll. */
   /* Add extra top offset for the news ticker under the header */
-  padding: calc(24px + var(--app-news-ticker-height, 32px)) 24px 24px 24px;
+  padding: calc(var(--app-header-height, 72px) + var(--app-ticker-height, 32px) + 24px) 24px 24px 24px;
   height: 100%;
   overflow: hidden;
 
   color: var(--text-pilot-value, #d6f1ff);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  display: flex;
+  flex-direction: column;
 }
 .terminal-shell{
   width: 100%;
-  height: 100%;
+  height: auto;
   max-width: none;
   margin: 0;
   border-radius: 14px;
@@ -386,8 +388,7 @@ export default {
   flex-direction: column;
   min-height: 0;
   flex: 1;
-  max-height: 100%;
-}
+  }
 .terminal-shell::before,
 .terminal-shell::after{
   content:"";
