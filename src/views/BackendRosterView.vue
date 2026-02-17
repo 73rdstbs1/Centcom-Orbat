@@ -515,9 +515,11 @@ export default {
 
 .muted{ color: rgba(214,241,255,0.7); opacity: 0.95; }
 
-.roster-groups{ display: grid; gap: 12px; 
+.roster-groups{ display: grid; gap: 12px;
   overflow: auto;
-  min-height: 0;}
+  min-height: 0;
+  flex: 1;
+}
 
 .unit-group{
   border-radius: 14px;
