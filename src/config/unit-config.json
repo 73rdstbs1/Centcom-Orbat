@@ -47,7 +47,7 @@
   "sheets": {
     "_help": "Publish each sheet tab to CSV and paste URLs here. These must be publicly accessible CSV endpoints.",
     "membersCsvUrl": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<GID_MEMBERS>&single=true&output=csv",
-    "refDataCsvUrl": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<GID_REF_DATA>&single=true&output=csv",
+    "refDataCsvUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vS691z8wupMUF2SKCyhZnIgO46umjH7AzfZa9AJcooe8jcYOJEwkjE-nSN4NNz5XBJ5ojDY9GDrA4vp/pub?gid=592899262&single=true&output=csv",
     "opsCsvUrl": "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?gid=<GID_OPS>&single=true&output=csv"
   },
   "deployment": {
