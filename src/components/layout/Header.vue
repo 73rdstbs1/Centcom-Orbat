@@ -25,6 +25,13 @@
         </div>
       </div>
 
+
+
+      <!-- Current Status (from RefData CSV: column 'Header details:') -->
+      <div v-if="headerStatusLabel" class="current-status-bar" aria-label="Current status">
+        <span class="current-status-kicker">STATUS</span>
+        <span class="current-status-pill" :data-status="headerStatusVariant">{{ headerStatusLabel }}</span>
+      </div>
       <!-- Removed the floating square/rhombus -->
       <!-- <div class="rhombus"></div> -->
 
@@ -215,6 +222,11 @@ export default {
       staffUser: null,
       unsub: null,
 
+      // Header status from RefData CSV
+      headerStatusRaw: "",
+      headerStatusVariant: "active",
+      headerStatusLabel: "",
+
       tickerKey: 0,
       tickerSequence: "",
       tickerDuration: 28,
@@ -222,6 +234,8 @@ export default {
       _sequenceTimer: null,
       _resizeTimer: null,
       _lastPick: -1,
+
+      _statusTimer: null,
     };
   },
   computed: {
@@ -278,6 +292,10 @@ export default {
     const active = detectActiveCampaign();
     if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = active;
 
+    // Pull current status from RefData CSV (optional)
+    this.loadHeaderStatusFromRefData();
+    this._statusTimer = setInterval(() => this.loadHeaderStatusFromRefData(), 60000);
+
     this.readAuth();
     this.unsub = authSubscribe(() => this.readAuth());
     window.addEventListener("storage", this.onStorage);
@@ -293,6 +311,8 @@ export default {
     window.removeEventListener("storage", this.onStorage);
     window.removeEventListener("resize", this.onResize);
     this.stopTicker();
+    if (this._statusTimer) clearInterval(this._statusTimer);
+    this._statusTimer = null;
   },
   watch: {
     newsEnabled() {
@@ -318,6 +338,112 @@ export default {
     },
   },
   methods: {
+    async loadHeaderStatusFromRefData() {
+      // Reads getConfig().sheets.refDataCsvUrl and pulls the cell under column 'Header details:'
+      // Expected sheet format:
+      //   Header details:,<other columns...>
+      //   Active|Training|Rearming,...
+      try {
+        const url = getConfig()?.sheets?.refDataCsvUrl;
+        if (!url) return;
+
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) return;
+        const csv = await res.text();
+
+        const rows = this.parseCsv(csv);
+        if (!rows.length) return;
+
+        const headers = (rows[0] || []).map((h) => String(h || "").trim());
+        const idx = headers.findIndex((h) => h.toLowerCase() === "header details:".toLowerCase());
+        if (idx < 0) return;
+
+        // Take first non-empty value under the header
+        let value = "";
+        for (let r = 1; r < rows.length; r++) {
+          const cell = rows[r] && rows[r][idx] != null ? String(rows[r][idx]) : "";
+          const v = cell.trim();
+          if (v) {
+            value = v;
+            break;
+          }
+        }
+        if (!value) return;
+
+        const normalized = value.trim().toLowerCase();
+        this.headerStatusRaw = value;
+
+        if (normalized === "training") {
+          this.headerStatusVariant = "training";
+          this.headerStatusLabel = "TRAINING";
+        } else if (normalized === "rearming" || normalized === "rest" || normalized === "rearm") {
+          this.headerStatusVariant = "rearming";
+          this.headerStatusLabel = "REARMING";
+        } else {
+          // default to active
+          this.headerStatusVariant = "active";
+          this.headerStatusLabel = "ACTIVE";
+        }
+      } catch {
+        // Silent fail: header can run without sheets.
+      }
+    },
+
+    parseCsv(raw) {
+      // Minimal CSV parser that handles quoted fields and commas.
+      const text = String(raw || "").replace(/\r\n/g, "\n");
+      const rows = [];
+      let row = [];
+      let cur = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const next = text[i + 1];
+
+        if (inQuotes) {
+          if (ch === '"' && next === '"') {
+            cur += '"';
+            i++;
+          } else if (ch === '"') {
+            inQuotes = false;
+          } else {
+            cur += ch;
+          }
+          continue;
+        }
+
+        if (ch === '"') {
+          inQuotes = true;
+          continue;
+        }
+
+        if (ch === ",") {
+          row.push(cur);
+          cur = "";
+          continue;
+        }
+
+        if (ch === "\n") {
+          row.push(cur);
+          rows.push(row);
+          row = [];
+          cur = "";
+          continue;
+        }
+
+        cur += ch;
+      }
+
+      // Flush last cell
+      row.push(cur);
+      rows.push(row);
+
+      // Trim trailing empty rows
+      while (rows.length && rows[rows.length - 1].every((c) => !String(c || "").trim())) rows.pop();
+      return rows;
+    },
+
     readAuth() {
       this.role = sessionStorage.getItem("authRole") || null;
       this.staffUser = adminUser();
@@ -566,6 +692,72 @@ header > * {
   z-index: 1;
 }
 
+
+/* Current status bar (top-middle) */
+.current-status-bar{
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(170,220,255,0.20);
+  background: rgba(0,0,0,0.28);
+  box-shadow: 0 0 0 1px rgba(170,220,255,0.06) inset, 0 0 18px rgba(120,180,255,0.10);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.current-status-kicker{
+  font-family: "Titillium Web", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: rgba(214,241,255,0.70);
+}
+
+.current-status-pill{
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(90,220,255,0.22);
+  background: rgba(0,0,0,0.18);
+  color: rgba(230,251,255,0.92);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.current-status-pill[data-status="active"]{
+  border-color: rgba(120,255,170,0.45);
+  box-shadow: 0 0 18px rgba(120,255,170,0.16);
+  color: rgba(170,255,210,0.95);
+}
+
+.current-status-pill[data-status="training"]{
+  border-color: rgba(255,210,90,0.45);
+  box-shadow: 0 0 18px rgba(255,210,90,0.14);
+  color: rgba(255,235,170,0.95);
+}
+
+.current-status-pill[data-status="rearming"]{
+  border-color: rgba(255,90,90,0.45);
+  box-shadow: 0 0 18px rgba(255,90,90,0.14);
+  color: rgba(255,190,190,0.95);
+}
+
+@media (max-width: 980px){
+  .current-status-bar{
+    left: auto;
+    right: 12px;
+    transform: none;
+    top: 8px;
+  }
+}
 /* Auth indicator: right side, themed */
 .auth-indicator {
   display: inline-flex;
