@@ -208,7 +208,7 @@
                 <div>DATE</div>
                 <div>OPERATION</div>
                 <div>STATUS</div>
-                <div>OPORD</div>
+                <div>LINKS</div>
               </div>
 
               <div v-for="op in activeCampaign.operations" :key="op.id" class="ops-row">
@@ -247,9 +247,27 @@
                 </div>
 
                 <div>
-                  <a v-if="op.opordUrl" class="opord-link" :href="op.opordUrl" target="_blank" rel="noreferrer">
+                  <div class="op-links-cell">
+                  <template v-if="(op.links || []).length">
+                    <a
+                      v-for="(lnk, i) in op.links"
+                      :key="(lnk.url || '') + i"
+                      class="opord-link"
+                      :href="lnk.url"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {{ lnk.label || lnk.title || 'LINK' }}
+                    </a>
+                  </template>
+                  <a v-else-if="op.opordUrl" class="opord-link" :href="op.opordUrl" target="_blank" rel="noreferrer">
                     {{ op.opordTitle || "OPORD" }}
                   </a>
+                  <span v-else class="muted">—</span>
+                  <div v-if="op.summary || op.opordSummary" class="opord-summary">
+                    {{ op.summary || op.opordSummary }}
+                  </div>
+                </div>
                   <span v-else class="muted">—</span>
                   <div v-if="op.opordSummary" class="opord-summary">
                     {{ op.opordSummary }}
@@ -277,6 +295,33 @@
 </template>
 
 <script>
+import { getConfig } from "@/config/runtimeConfig";
+
+/**
+ * Content-driven campaign loader.
+ *
+ * Folder model:
+ *   src/campaigns/<campaignFolder>/
+ *     campaign.json
+ *     operations/<op>.md (optional legacy)
+ *
+ * Operations (NEW):
+ * - Prefer Google Sheets CSV (config: sheets.operationsCsvUrl)
+ *   Columns expected (case-insensitive):
+ *     CAMPAIGN NAME | OPERATIONS | OP LINKS | STATUS | SUMMARY | DATE (optional)
+ * - Rows are grouped by campaign: when CAMPAIGN NAME cell is non-empty, it becomes the current campaign group.
+ *   Subsequent rows belong to that campaign until the next CAMPAIGN NAME appears.
+ *
+ * Linking model:
+ * - OP LINKS cell can contain:
+ *     - a single URL
+ *     - multiple URLs separated by comma or whitespace
+ *     - optional label via "Label|https://..." (pipe-separated) per link
+ * - If a link cell can't be parsed into URLs, it is ignored.
+ *
+ * Legacy fallback (if no CSV configured or fetch fails):
+ * - campaign.json `operationsIndex[]` plus optional md overrides.
+ */
 const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { eager: true, as: "raw" });
 const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { eager: true, as: "raw" });
 
@@ -290,7 +335,16 @@ function safeJson(raw) {
 
 function normalizeStatus(s) {
   const v = String(s || "").trim().toLowerCase();
-  return v || "pending";
+  if (!v) return "pending";
+
+  // Normalize common inputs (Sheets might use "Partial-Success", etc.)
+  if (v === "partial success" || v === "partial-success" || v === "partial_success") return "partial-success";
+  if (v === "success") return "success";
+  if (v === "failure" || v === "failed") return "failure";
+  if (v === "active") return "active";
+  if (v === "training") return "training";
+  if (v === "rearming" || v === "rest") return "rearming";
+  return v;
 }
 
 function splitLines(text) {
@@ -339,6 +393,186 @@ function buildOpMdIndex() {
     const rel = String(path).split(`/src/campaigns/${folder}/`)[1] || "";
     out[`${folder}/${rel}`] = raw;
   }
+  return out;
+}
+
+/** Simple CSV parser (handles quotes). Returns array of rows (array of cells). */
+function parseCsv(text) {
+  const s = String(text || "");
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+
+    if (inQuotes) {
+      if (ch === '"') {
+        const next = s[i + 1];
+        if (next === '"') {
+          cell += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (ch === ",") {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if (ch === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    if (ch === "\r") continue;
+
+    cell += ch;
+  }
+
+  // flush
+  row.push(cell);
+  rows.push(row);
+
+  // trim empty trailing rows
+  return rows.filter((r) => r.some((c) => String(c || "").trim() !== ""));
+}
+
+function normKey(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function buildHeaderMap(headerRow) {
+  const map = {};
+  (headerRow || []).forEach((h, idx) => {
+    const k = normKey(h);
+    if (!k) return;
+    map[k] = idx;
+  });
+  return map;
+}
+
+function getCell(row, headerMap, key) {
+  const idx = headerMap[key];
+  if (idx === undefined) return "";
+  return String(row[idx] ?? "").trim();
+}
+
+function parseLinks(cell) {
+  const raw = String(cell || "").trim();
+  if (!raw) return [];
+
+  // Split on commas first, then on whitespace if still one chunk.
+  const parts = raw.includes(",") ? raw.split(",") : raw.split(/\s+/);
+  const out = [];
+
+  for (const p of parts) {
+    const t = String(p || "").trim();
+    if (!t) continue;
+
+    // Allow "LABEL|URL"
+    const pipeIdx = t.indexOf("|");
+    if (pipeIdx > 0) {
+      const label = t.slice(0, pipeIdx).trim();
+      const url = t.slice(pipeIdx + 1).trim();
+      if (/^https?:\/\//i.test(url)) out.push({ label: label || "LINK", url });
+      continue;
+    }
+
+    if (/^https?:\/\//i.test(t)) {
+      out.push({ label: "LINK", url: t });
+    }
+  }
+
+  // De-dupe by url
+  const seen = new Set();
+  return out.filter((x) => {
+    const u = x.url || "";
+    if (!u || seen.has(u)) return false;
+    seen.add(u);
+    return true;
+  });
+}
+
+/**
+ * Load operations grouped by campaign name from CSV.
+ * Returns map { [normalizedCampaignName]: operations[] }
+ */
+async function loadOperationsFromCsv(csvUrl) {
+  if (!csvUrl) return null;
+
+  const res = await fetch(csvUrl, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to fetch operations CSV (${res.status})`);
+  const text = await res.text();
+
+  const rows = parseCsv(text);
+  if (!rows.length) return null;
+
+  const headerMap = buildHeaderMap(rows[0]);
+  // Required keys
+  const kCampaign = headerMap["campaign name"] !== undefined ? "campaign name" : null;
+  const kOp = headerMap["operations"] !== undefined ? "operations" : null;
+  if (!kCampaign || !kOp) return null;
+
+  const kLinks = headerMap["op links"] !== undefined ? "op links" : null;
+  const kStatus = headerMap["status"] !== undefined ? "status" : null;
+  const kSummary = headerMap["summary"] !== undefined ? "summary" : null;
+  const kDate = headerMap["date"] !== undefined ? "date" : null;
+
+  const out = {};
+  let current = "";
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const campaignCell = getCell(row, headerMap, kCampaign);
+    if (campaignCell) current = campaignCell;
+
+    if (!current) continue;
+
+    const opTitle = getCell(row, headerMap, kOp);
+    if (!opTitle) continue;
+
+    const linksCell = kLinks ? getCell(row, headerMap, kLinks) : "";
+    const statusCell = kStatus ? getCell(row, headerMap, kStatus) : "";
+    const summaryCell = kSummary ? getCell(row, headerMap, kSummary) : "";
+    const dateCell = kDate ? getCell(row, headerMap, kDate) : "";
+
+    const key = normKey(current);
+    if (!out[key]) out[key] = [];
+
+    out[key].push({
+      id: `${key}__${r}`,
+      title: opTitle,
+      date: dateCell,
+      status: normalizeStatus(statusCell || "pending"),
+      summary: summaryCell,
+      links: parseLinks(linksCell),
+      // keep these for backwards compatibility with the view template
+      opordTitle: "",
+      opordUrl: "",
+      opordSummary: "",
+      commandersRef: "",
+      hallOfFameRef: "",
+      file: "",
+    });
+  }
+
   return out;
 }
 
@@ -392,6 +626,7 @@ export default {
       search: "",
       statusFilter: "",
       activeCampaign: null,
+      _opsCsvLoaded: false,
     };
   },
   computed: {
@@ -414,8 +649,7 @@ export default {
         const inOps = (c.operations || []).some((op) => {
           return (
             (op.title || "").toLowerCase().includes(q) ||
-            (op.opordTitle || "").toLowerCase().includes(q) ||
-            (op.opordSummary || "").toLowerCase().includes(q)
+            (op.summary || op.opordSummary || "").toLowerCase().includes(q)
           );
         });
 
@@ -423,8 +657,30 @@ export default {
       });
     },
   },
-  mounted() {
+  async mounted() {
     window.addEventListener("keydown", this.onKeydown);
+
+    // NEW: load operations from sheets and merge into campaigns
+    const csvUrl = getConfig()?.sheets?.operationsCsvUrl || "";
+    if (!csvUrl) return;
+
+    try {
+      const opsByCampaign = await loadOperationsFromCsv(csvUrl);
+      if (!opsByCampaign) return;
+
+      this.campaigns = (this.campaigns || []).map((c) => {
+        const key = normKey(c.name || c.id || "");
+        const ops = opsByCampaign[key];
+        if (!ops || !ops.length) return c;
+        return { ...c, operations: ops };
+      });
+
+      this._opsCsvLoaded = true;
+    } catch (e) {
+      // Silent fallback to campaign.json ops
+      // (You can surface this in UI later if you want)
+      this._opsCsvLoaded = false;
+    }
   },
   beforeUnmount() {
     window.removeEventListener("keydown", this.onKeydown);
@@ -453,14 +709,9 @@ export default {
       if (!campaign || !commanderId) return "—";
 
       const roster = campaign.commandRoster || {};
-      const all = [
-        roster.commander ? roster.commander : null,
-        ...(Array.isArray(roster.subCommanders) ? roster.subCommanders : []),
-      ].filter(Boolean);
+      const all = [roster.commander ? roster.commander : null, ...(Array.isArray(roster.subCommanders) ? roster.subCommanders : [])].filter(Boolean);
 
-      const found = all.find(
-        (x) => String(x.id || "").toLowerCase() === String(commanderId).toLowerCase(),
-      );
+      const found = all.find((x) => String(x.id || "").toLowerCase() === String(commanderId).toLowerCase());
       if (!found) return "—";
 
       const callsign = found.callsign ? `CALLSIGN ${found.callsign}` : "";
