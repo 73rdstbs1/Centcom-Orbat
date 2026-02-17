@@ -357,21 +357,18 @@ export default {
   min-width: 0;
   min-height: 0;
   box-sizing: border-box;
-  /* Router view container already accounts for header height,
-     so keep this view fully fixed and let only the roster list scroll. */
-  /* Add extra top offset for the news ticker under the header */
-  padding: calc(var(--app-header-height, 72px) + var(--app-ticker-height, 32px) + 24px) 24px 24px 24px;
+
+  /* Router view container already accounts for header height.
+     Add ONLY the ticker height so this view clears the broadcast strip,
+     while keeping the window fixed and letting only the roster list scroll. */
+  padding: 24px;
+  padding-top: calc(24px + var(--app-news-ticker-height, 32px));
   height: 100%;
   overflow: hidden;
-
-  color: var(--text-pilot-value, #d6f1ff);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  display: flex;
-  flex-direction: column;
 }
 .terminal-shell{
   width: 100%;
-  height: auto;
+  height: 100%;
   max-width: none;
   margin: 0;
   border-radius: 14px;
@@ -388,7 +385,8 @@ export default {
   flex-direction: column;
   min-height: 0;
   flex: 1;
-  }
+  max-height: 100%;
+}
 .terminal-shell::before,
 .terminal-shell::after{
   content:"";
@@ -525,12 +523,13 @@ export default {
   min-height: 0;
   overflow: auto;
   display: grid;
-  gap: 18px;            /* more breathing room between unit blocks */
-  padding-bottom: 18px;  /* prevent last block clipping at scroll end */
+  gap: 24px;            /* more breathing room between unit blocks */
+  padding-bottom: 36px;  /* prevent last block clipping at scroll end */
 }
 
 .unit-group{
   border-radius: 14px;
+  overflow: hidden;
   border: 1px solid rgba(255,255,255,0.12);
   overflow: hidden;
   background:
