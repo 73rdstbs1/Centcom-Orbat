@@ -60,12 +60,12 @@
 
             <div class="meta-tile">
               <h4>YEAR</h4>
-              <span class="subtitle">TBD</span>
+              <span class="subtitle">{{ campaignHeader?.year }}</span>
             </div>
 
             <div class="meta-tile">
               <h4>STATUS</h4>
-              <span class="subtitle">TBD</span>
+              <span class="subtitle">{{ campaignHeader?.opStatus }}</span>
             </div>
           </div>
         </div>
@@ -110,48 +110,92 @@
 import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { eager: true, as: "raw" });
-const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { eager: true, as: "raw" });
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { query: "?raw", import: "default", eager: true });
 
-function splitLines(text) {
-  return String(text || "").replace(/\r\n/g, "\n").split("\n");
+function safeText(x) {
+  return String(x == null ? "" : x);
 }
 
-function firstNonEmptyLines(mdRaw, max = 30) {
-  const out = [];
-  for (const line of splitLines(mdRaw)) {
-    const t = String(line || "").trim();
-    if (!t) continue;
-    out.push(t);
-    if (out.length >= max) break;
+/** Basic CSV parser (handles quotes + commas). */
+function parseCsv(raw) {
+  const text = safeText(raw).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const rows = [];
+  let row = [];
+  let cur = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inQuotes) {
+      if (ch === '"') {
+        const next = text[i + 1];
+        if (next === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (ch === ",") {
+      row.push(cur);
+      cur = "";
+      continue;
+    }
+
+    if (ch === "\n") {
+      row.push(cur);
+      rows.push(row);
+      row = [];
+      cur = "";
+      continue;
+    }
+
+    cur += ch;
   }
+
+  row.push(cur);
+  rows.push(row);
+
+  // drop trailing empty row
+  while (rows.length && rows[rows.length - 1].every((c) => safeText(c).trim() === "")) rows.pop();
+  return rows;
+}
+
+function normalizeKey(k) {
+  return safeText(k).trim().toUpperCase();
+}
+
+function rowsToObjects(rows) {
+  if (!rows || !rows.length) return [];
+  const header = rows[0].map((h) => normalizeKey(h));
+  const out = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i] || [];
+    if (r.every((c) => safeText(c).trim() === "")) continue;
+    const obj = {};
+    for (let j = 0; j < header.length; j++) obj[header[j]] = safeText(r[j] ?? "").trim();
+    out.push(obj);
+  }
+
   return out;
 }
 
-function hasStartOnLine2(mdRaw) {
-  const ls = firstNonEmptyLines(mdRaw);
-  const line2 = String(ls[1] || "").trim().toLowerCase();
-  return line2.includes("start");
-}
-
-function campaignFolderFromOpPath(opPath) {
-  const parts = String(opPath || "").split("/campaigns/");
+function campaignFolderFromPath(path) {
+  const parts = safeText(path).split("/campaigns/");
   if (parts.length < 2) return null;
   return parts[1].split("/")[0] || null;
-}
-
-function resolveCampaignJsonPath(folder) {
-  if (!folder) return null;
-
-  const exact = `/src/campaigns/${folder}/campaign.json`;
-  if (CAMPAIGN_JSON[exact]) return exact;
-
-  for (const path of Object.keys(CAMPAIGN_JSON)) {
-    const f = String(path).split("/campaigns/")[1]?.split("/")[0];
-    if (f && f.toLowerCase() === String(folder).toLowerCase()) return path;
-  }
-
-  return null;
 }
 
 function loadCampaignJsonByPath(jsonPath) {
@@ -163,30 +207,81 @@ function loadCampaignJsonByPath(jsonPath) {
   }
 }
 
-function detectActiveCampaign() {
-  const ops = Object.entries(OPERATION_MD).sort(([a], [b]) => a.localeCompare(b));
+function findCampaignByName(campaignName) {
+  const target = safeText(campaignName).trim().toLowerCase();
+  if (!target) return null;
 
-  for (const [path, mdRaw] of ops) {
-    if (!hasStartOnLine2(mdRaw)) continue;
+  for (const path of Object.keys(CAMPAIGN_JSON)) {
+    const folder = campaignFolderFromPath(path);
+    const json = loadCampaignJsonByPath(path);
+    if (!json) continue;
 
-    const folder = campaignFolderFromOpPath(path);
-    const jsonPath = resolveCampaignJsonPath(folder);
+    const candidates = [
+      json.name,
+      json.id,
+      folder,
+      safeText(json.name).replace(/^operation:\s*/i, ""), // common prefix
+    ]
+      .map((s) => safeText(s).trim().toLowerCase())
+      .filter(Boolean);
 
-    const campaign =
-      loadCampaignJsonByPath(jsonPath) || {
-        id: folder || "unknown",
-        system: "—",
-        planet: "—",
-        ao: "—",
-      };
-
-    if (!campaign.status) campaign.status = "active";
-    return campaign;
+    if (candidates.includes(target)) return json;
   }
 
   return null;
 }
 
+/**
+ * ACTIVE CAMPAIGN:
+ * - Pull Operations CSV (Google Sheets published CSV)
+ * - Find first row where STATUS == "Active"
+ * - Read CAMPAIGN NAME from that row
+ * - Load matching src/campaigns/**/campaign.json (by name/id/folder)
+ */
+async function detectActiveCampaignFromOperationsCsv(opsCsvUrl) {
+  const url = safeText(opsCsvUrl).trim();
+  if (!url) return null;
+
+  // cache-bust to avoid stale sheet caches
+  const sep = url.includes("?") ? "&" : "?";
+  const busted = `${url}${sep}t=${Date.now()}`;
+
+  let raw = "";
+  try {
+    const res = await fetch(busted, { cache: "no-store" });
+    raw = await res.text();
+  } catch {
+    return null;
+  }
+
+  const rows = parseCsv(raw);
+  const items = rowsToObjects(rows);
+
+  const active = items.find((r) => normalizeKey(r["STATUS"]) === "ACTIVE");
+  if (!active) return null;
+
+  const campaignName =
+    active["CAMPAIGN NAME"] ||
+    active["CAMPAIGN_NAME"] ||
+    active["CAMPAIGN"] ||
+    active["CAMPAIGNNAME"] ||
+    "";
+
+  const campaign = findCampaignByName(campaignName) || {
+    id: safeText(campaignName || "unknown").trim() || "unknown",
+    name: safeText(campaignName || "Unknown Campaign").trim() || "Unknown Campaign",
+    system: "—",
+    planet: "—",
+    ao: "—",
+    status: "active",
+  };
+
+  // attach active operation info for header use
+  const opTitle = active["OPERATIONS"] || active["OPERATION"] || active["OP"] || "";
+  const opStatus = active["STATUS"] || "Active";
+  const opDate = active["DATE"] || "";
+  return { ...campaign, _activeOperation: { title: opTitle, status: opStatus, date: opDate } };
+}
 const defaultNewsItems = [
   "TACTICAL UPDATE: Slipspace comms stable across local AO. Maintain emission control.",
   "FLEETCOM: UNSC logistics convoy rerouted. Expect delayed resupply window.",
@@ -249,10 +344,18 @@ export default {
       const c = this.activeCampaign;
       if (!c) return null;
 
+      const opStatus = c._activeOperation?.status ? String(c._activeOperation.status).toUpperCase() : "—";
+      const year =
+        (c.startDate && String(c.startDate).slice(0, 4)) ||
+        (c.quarter && String(c.quarter).slice(0, 4)) ||
+        "—";
+
       return {
         system: c.system || this.header?.system || "—",
         planet: c.planet || this.header?.planet || "—",
         ao: c.ao || c.AO || this.header?.AO || "—",
+        year,
+        opStatus,
       };
     },
 
@@ -289,10 +392,11 @@ export default {
     },
   },
   created() {
-    const active = detectActiveCampaign();
-    if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = active;
+    // Active campaign is driven by the Operations CSV (Google Sheet).
+    // Fallback: if CSV is missing/unreachable, we leave the panel hidden.
+    this.refreshActiveCampaignFromOps();
 
-    // Pull current status from RefData CSV (optional)
+// Pull current status from RefData CSV (optional)
     this.loadHeaderStatusFromRefData();
     this._statusTimer = setInterval(() => this.loadHeaderStatusFromRefData(), 60000);
 
@@ -338,6 +442,17 @@ export default {
     },
   },
   methods: {
+    async refreshActiveCampaignFromOps() {
+      try {
+        const opsUrl = getConfig()?.sheets?.operationsCsvUrl || getConfig()?.sheets?.campaignOperationsCsvUrl || "";
+        const active = await detectActiveCampaignFromOperationsCsv(opsUrl);
+        if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = active;
+      } catch {
+        if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = null;
+      }
+    },
+
+
     async loadHeaderStatusFromRefData() {
       // Reads getConfig().sheets.refDataCsvUrl and pulls the cell under column 'Header details:'
       // Expected sheet format:
@@ -701,8 +816,8 @@ header > * {
   transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: 14px;
+  padding: 14px 20px;
   border-radius: 999px;
   border: 1px solid rgba(170,220,255,0.20);
   background: rgba(0,0,0,0.28);
@@ -713,7 +828,7 @@ header > * {
 
 .current-status-kicker{
   font-family: "Titillium Web", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.20em;
   text-transform: uppercase;
   color: rgba(214,241,255,0.70);
@@ -722,12 +837,12 @@ header > * {
 .current-status-pill{
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 8px 16px;
   border-radius: 999px;
   border: 1px solid rgba(90,220,255,0.22);
   background: rgba(0,0,0,0.18);
   color: rgba(230,251,255,0.92);
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
@@ -762,7 +877,7 @@ header > * {
 .auth-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   padding: 8px 10px;
   border: 1px solid rgba(170, 255, 210, 0.35);
   border-radius: 999px;
@@ -830,7 +945,7 @@ header > * {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   padding: 0 12px;
   border: 1px solid rgba(170, 220, 255, 0.14);
   border-top: none;
