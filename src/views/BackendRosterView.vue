@@ -355,17 +355,20 @@ export default {
 #backendRoster{
   flex: 1;
   min-width: 0;
+  min-height: 0;
   box-sizing: border-box;
+  /* Router view container already accounts for header height,
+     so keep this view fully fixed and let only the roster list scroll. */
   padding: 24px;
+  height: 100%;
+  overflow: hidden;
+
   color: var(--text-pilot-value, #d6f1ff);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-
-  /* Make the window fixed-height and keep scrolling inside the unit list */
-  height: 100vh;
-  overflow: hidden;
 }
 .terminal-shell{
   width: 100%;
+  height: 100%;
   max-width: none;
   margin: 0;
   border-radius: 14px;
@@ -515,10 +518,13 @@ export default {
 
 .muted{ color: rgba(214,241,255,0.7); opacity: 0.95; }
 
-.roster-groups{ display: grid; gap: 12px;
-  overflow: auto;
-  min-height: 0;
+.roster-groups{
   flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: 18px;            /* more breathing room between unit blocks */
+  padding-bottom: 18px;  /* prevent last block clipping at scroll end */
 }
 
 .unit-group{
