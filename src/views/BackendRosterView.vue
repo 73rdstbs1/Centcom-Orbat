@@ -480,8 +480,8 @@ export default {
   min-height: 38px;
   border-radius: 10px;
   border: 1px solid rgba(90,220,255,0.18);
-  background: rgba(0,0,0,0.22);
-  color: #d6f1ff;
+  background: rgba(5,15,22,0.92);
+  color: rgba(226,243,255,0.92);
   padding: 10px 12px;
   outline: none;
 }
@@ -491,6 +491,13 @@ export default {
   box-shadow: 0 0 0 2px rgba(90,220,255,0.14);
   border-color: rgba(90,220,255,0.28);
 }
+
+/* Option palette (best-effort across browsers) */
+.term-select option{
+  background: #061019;
+  color: rgba(226,243,255,0.92);
+}
+
 
 .muted{ color: rgba(214,241,255,0.7); opacity: 0.95; }
 
@@ -506,14 +513,43 @@ export default {
 }
 
 .unit-header{
+  position: relative;
   display: flex;
   justify-content: space-between;
   gap: 14px;
   align-items: center;
   padding: 12px 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.18);
+  border-bottom: 1px solid rgba(170,220,255,0.16);
+  background: linear-gradient(90deg, rgba(90,220,255,0.08), transparent 55%), rgba(5,15,22,0.72);
+  overflow: hidden;
 }
+.unit-header::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:4px;
+  background: rgba(90,220,255,0.60); /* default */
+  box-shadow: 0 0 18px rgba(90,220,255,0.20);
+}
+.unit-header[data-type="Marine"]::before,
+.unit-header[data-type="MARINE"]::before{
+  background: rgba(120,255,190,0.55);
+  box-shadow: 0 0 18px rgba(120,255,190,0.18);
+}
+.unit-header[data-type="ODST"]::before{
+  background: rgba(126,201,255,0.62);
+  box-shadow: 0 0 18px rgba(126,201,255,0.20);
+}
+.unit-header[data-type="Marine/ODST"]::before,
+.unit-header[data-type="MARINE/ODST"]::before,
+.unit-header[data-type="ODST/Marine"]::before,
+.unit-header[data-type="ODST/MARINE"]::before{
+  background: rgba(255,190,80,0.55);
+  box-shadow: 0 0 18px rgba(255,190,80,0.18);
+}
+.unit-header > *{ position: relative; z-index: 1; }
 
 .unit-name{ display:flex; align-items:center; gap: 10px; min-width: 0; }
 .unit-title{
@@ -531,12 +567,13 @@ export default {
   align-items: center;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(90,220,255,0.18);
-  background: rgba(0,0,0,0.18);
-  color: rgba(214,241,255,0.9);
+  border: 1px solid rgba(170,220,255,0.22);
+  background: rgba(0,0,0,0.26);
+  color: rgba(226,243,255,0.92);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+  box-shadow: 0 0 16px rgba(90,220,255,0.10);
 }
 
 .unit-type-pill[data-type="ODST"]{
