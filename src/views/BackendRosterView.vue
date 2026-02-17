@@ -368,7 +368,7 @@ export default {
   display: flex;
   flex-direction: column;
 }
-\.terminal-shell{
+.terminal-shell{
   width: 100%;
   flex: 1;
   min-height: 0;
