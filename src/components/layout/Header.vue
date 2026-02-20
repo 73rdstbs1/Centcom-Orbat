@@ -4,6 +4,7 @@
     <header class="header">
       <!-- LEFT: Title -->
       <div class="title clipped-x-large-forward">
+        <!-- Hard-coded CENTCOM logo (keep 120x120) -->
         <img class="logo" src="/faction-logos/UNSC_CENTCOM_LOGO.png" alt="UNSC Central Command" />
         <div class="title-container">
           <div class="title-row" id="title-first-line">
@@ -27,6 +28,10 @@
       <!-- RIGHT: Campaign AO details -->
       <div v-if="showCampaignPanel" class="planet-location-container" aria-label="Current AO details">
         <div class="location-info">
+          <!-- 2x2 stacked tiles + AO spanning both rows:
+               [ SYSTEM | PLANET | AO ]
+               [ YEAR   | STATUS | AO ]
+          -->
           <div class="meta-grid">
             <div class="meta-tile">
               <h4>SYSTEM</h4>
@@ -84,6 +89,15 @@
 import { getConfig } from "@/config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
+/**
+ * Campaign data remains content-driven (campaign.json per folder),
+ * but we detect the ACTIVE campaign by reading the Operations CSV:
+ * - Find first row where STATUS == "Active"
+ * - Resolve CAMPAIGN NAME (carry-forward from last non-empty campaign name above)
+ * - Match that to src/campaigns/**/campaign.json by (folder OR id OR name)
+ *
+ * NOTE (Vite 6): use query '?raw' instead of deprecated `as: "raw"`.
+ */
 const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
   query: "?raw",
   import: "default",
@@ -204,30 +218,7 @@ async function fetchCsv(url) {
 }
 
 /**
- * RefData.csv:
- * - Find a column named "Header details:" (case-insensitive, punctuation-insensitive)
- * - Take the first non-empty cell in that column (top to bottom)
- */
-async function readHeaderStatusFromRefData(refDataCsvUrl) {
-  const raw = await fetchCsv(refDataCsvUrl);
-  if (!raw) return "";
-
-  const rows = parseCsv(raw);
-  if (!rows.length) return "";
-
-  const headerRow = rows[0];
-  const idx = headerRow.findIndex((h) => normalizeKey(h) === normalizeKey("Header details:"));
-  if (idx < 0) return "";
-
-  for (let r = 1; r < rows.length; r++) {
-    const v = String(rows[r][idx] ?? "").trim();
-    if (v) return v;
-  }
-  return "";
-}
-
-/**
- * Returns the first "truthy" value found from multiple possible key paths.
+ * Returns the first non-empty value from possible key paths.
  * Supports nested keys like "header.system".
  */
 function getAny(obj, paths) {
@@ -259,13 +250,42 @@ function normalizeActiveStatus(s) {
   return v;
 }
 
+
 /**
- * Operations.csv resolver:
- * - Carry-forward "CAMPAIGN NAME" down a group.
- * - Find the first row where STATUS is active-ish.
- * - ALSO collect optional meta columns if they exist:
- *   SYSTEM, PLANET, AO, YEAR, THEATRE, LOCATION, etc.
- * - Carry-forward meta in the same way (so campaign header rows work).
+ * RefData.csv:
+ * - Find a column named "Header details:" (case-insensitive, punctuation-insensitive)
+ * - Take the first non-empty cell in that column (top to bottom)
+ */
+async function readHeaderStatusFromRefData(refDataCsvUrl) {
+  const raw = await fetchCsv(refDataCsvUrl);
+  if (!raw) return "";
+
+  const rows = parseCsv(raw);
+  if (!rows.length) return "";
+
+  const headerRow = rows[0];
+  const idx = headerRow.findIndex((h) => normalizeKey(h) === normalizeKey("Header details:"));
+  if (idx < 0) return "";
+
+  for (let r = 1; r < rows.length; r++) {
+    const v = String(rows[r][idx] ?? "").trim();
+    if (v) return v;
+  }
+  return "";
+}
+
+/**
+ * Operations.csv:
+ * Columns:
+ * - CAMPAIGN NAME
+ * - OPERATIONS
+ * - OP LINKS
+ * - STATUS
+ * - SUMMARY
+ *
+ * Rule:
+ * - Scan top-to-bottom, remembering the last non-empty CAMPAIGN NAME.
+ * - When a row's STATUS == "Active", return that remembered campaign name.
  */
 async function findActiveCampaignFromOperations(operationsCsvUrl) {
   const raw = await fetchCsv(operationsCsvUrl);
@@ -276,33 +296,22 @@ async function findActiveCampaignFromOperations(operationsCsvUrl) {
 
   const header = rows[0];
   const idx = {};
-  for (let i = 0; i < header.length; i++) {
-    idx[normalizeKey(header[i])] = i;
-  }
+  for (let i = 0; i < header.length; i++) idx[normalizeKey(header[i])] = i;
 
   const col = (label) => idx[normalizeKey(label)] ?? -1;
+
   const idxCampaign = col("CAMPAIGN NAME");
   const idxStatus = col("STATUS");
-
   if (idxCampaign < 0 || idxStatus < 0) return { name: "", meta: {} };
 
-  // Optional meta columns (support a few common spellings)
+  // Optional meta columns; won't break if missing.
   const idxSystem = col("SYSTEM");
   const idxPlanet = col("PLANET");
   const idxAo = col("AO");
   const idxYear = col("YEAR");
-  const idxTheatre = col("THEATRE");
-  const idxLocation = col("LOCATION");
 
   let lastCampaign = "";
-  const lastMeta = {
-    system: "",
-    planet: "",
-    ao: "",
-    year: "",
-    theatre: "",
-    location: "",
-  };
+  const lastMeta = { system: "", planet: "", ao: "", year: "" };
 
   const readCell = (r, i) => (i >= 0 ? String(rows[r][i] ?? "").trim() : "");
 
@@ -310,20 +319,15 @@ async function findActiveCampaignFromOperations(operationsCsvUrl) {
     const campCell = readCell(r, idxCampaign);
     if (campCell) lastCampaign = campCell;
 
-    // Carry-forward meta if present on this row
     const sys = readCell(r, idxSystem);
     const pla = readCell(r, idxPlanet);
     const ao = readCell(r, idxAo);
     const yr = readCell(r, idxYear);
-    const th = readCell(r, idxTheatre);
-    const loc = readCell(r, idxLocation);
 
     if (sys) lastMeta.system = sys;
     if (pla) lastMeta.planet = pla;
     if (ao) lastMeta.ao = ao;
     if (yr) lastMeta.year = yr;
-    if (th) lastMeta.theatre = th;
-    if (loc) lastMeta.location = loc;
 
     const statusCell = normalizeActiveStatus(readCell(r, idxStatus));
     if (statusCell === "active") {
@@ -341,6 +345,7 @@ function matchCampaignByName(allCampaigns, campaignName) {
   const key = normalizeMatch(campaignName);
   if (!key) return null;
 
+  // First pass: exact-ish matches
   for (const c of allCampaigns) {
     const folder = normalizeMatch(c.__folder);
     const id = normalizeMatch(c.id);
@@ -348,6 +353,7 @@ function matchCampaignByName(allCampaigns, campaignName) {
     if (key === folder || key === id || key === name) return c;
   }
 
+  // Second pass: containment (handles "Operation: X" vs "X")
   for (const c of allCampaigns) {
     const folder = normalizeMatch(c.__folder);
     const id = normalizeMatch(c.id);
@@ -384,12 +390,15 @@ export default {
   },
   data() {
     return {
+      // auth
       role: null,
       staffUser: null,
       unsub: null,
 
+      // header status (RefData)
       headerStatus: "",
 
+      // ticker
       tickerKey: 0,
       tickerSequence: "",
       tickerDuration: 28,
@@ -405,20 +414,12 @@ export default {
     showCampaignPanel() {
       return !!this.activeCampaign;
     },
-
-    /**
-     * Robustly extract fields from either:
-     * - campaign.json top-level keys
-     * - campaign.json nested "header" keys
-     * - campaign.json capitalized variants
-     * - optional meta merged from Operations CSV
-     */
     campaignHeader() {
       const c = this.activeCampaign;
       if (!c) return { system: "—", planet: "—", ao: "—", year: "—", status: "—" };
 
-      const system = getAny(c, ["system", "System", "header.system", "Header.System"]);
-      const planet = getAny(c, ["planet", "Planet", "header.planet", "Header.Planet"]);
+      const system = getAny(c, ["system", "System", "header.system"]);
+      const planet = getAny(c, ["planet", "Planet", "header.planet"]);
       const ao = getAny(c, ["ao", "AO", "Ao", "header.ao", "header.AO"]);
       const year = getAny(c, ["year", "Year", "header.year", "quarter", "Quarter"]);
       const statusRaw = getAny(c, ["status", "Status", "header.status"]);
@@ -452,6 +453,7 @@ export default {
       return (this.staffUser && this.staffUser.displayName) || "";
     },
 
+    // Status bar
     headerStatusLabel() {
       const v = String(this.headerStatus || "").trim();
       return v ? v.toUpperCase() : "—";
@@ -473,13 +475,16 @@ export default {
     },
   },
   async created() {
+    // Auth
     this.readAuth();
     this.unsub = authSubscribe(() => this.readAuth());
     window.addEventListener("storage", this.onStorage);
 
+    // RefData status + Active campaign
     this.refreshHeaderStatus();
     this.refreshActiveCampaign();
 
+    // Ticker
     this.startTicker();
     window.addEventListener("resize", this.onResize);
   },
@@ -537,24 +542,35 @@ export default {
         const matched = matchCampaignByName(allCampaigns, resolved.name);
         if (!matched) return;
 
-        // Merge sheet meta into campaign.json ONLY where campaign.json is missing values.
         const meta = resolved.meta || {};
         const merged = { ...matched };
 
+        // Only fill missing values; never override campaign.json.
         if (!getAny(merged, ["system", "System", "header.system"]) && meta.system) merged.system = meta.system;
         if (!getAny(merged, ["planet", "Planet", "header.planet"]) && meta.planet) merged.planet = meta.planet;
-        if (!getAny(merged, ["ao", "AO", "header.ao", "header.AO"]) && meta.ao) merged.ao = meta.ao;
-        if (!getAny(merged, ["year", "Year", "header.year", "quarter"]) && meta.year) merged.year = meta.year;
+        if (!getAny(merged, ["ao", "AO", "Ao", "header.ao", "header.AO"]) && meta.ao) merged.ao = meta.ao;
+        if (!getAny(merged, ["year", "Year", "header.year", "quarter", "Quarter"]) && meta.year) merged.year = meta.year;
         if (!getAny(merged, ["status", "Status", "header.status"]) && meta.status) merged.status = meta.status;
 
         if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = merged;
       } catch {}
     },
 
-    // ===== ticker (unchanged; keep your existing methods below) =====
+    // ===== ticker =====
     onResize() {
       if (this._resizeTimer) clearTimeout(this._resizeTimer);
       this._resizeTimer = setTimeout(() => this.recalcTickerDuration(), 120);
+    },
+    startTicker() {
+      this.stopTicker();
+      if (!this.newsEnabled) return;
+      if (!this.normalizedNewsItems.length) return;
+
+      this.buildNewSequence();
+      this._sequenceTimer = setInterval(
+        () => this.buildNewSequence(),
+        Math.max(5000, Number(this.sequenceRefreshMs) || 45000),
+      );
     },
     stopTicker() {
       if (this._sequenceTimer) clearInterval(this._sequenceTimer);
@@ -562,45 +578,64 @@ export default {
       if (this._resizeTimer) clearTimeout(this._resizeTimer);
       this._resizeTimer = null;
     },
-    startTicker() {
-      this.buildTickerSequence();
-      if (this._sequenceTimer) clearInterval(this._sequenceTimer);
-      this._sequenceTimer = setInterval(() => {
-        this.buildTickerSequence();
-      }, this.sequenceRefreshMs);
-    },
-    buildTickerSequence() {
+    buildNewSequence() {
       const items = this.normalizedNewsItems;
-      if (!items.length) return;
+      const n = items.length;
+      const k = Math.max(2, Number(this.tickerItemsPerLoop) || 10);
 
-      const n = Math.max(1, Math.min(this.tickerItemsPerLoop, items.length));
-      let pickStart = Math.floor(Math.random() * items.length);
-      if (items.length > 1 && pickStart === this._lastPick) {
-        pickStart = (pickStart + 1) % items.length;
+      const padCount = Math.max(0, Number(this.tickerSeparatorPad) || 0);
+      const pad = "\u00A0".repeat(padCount);
+      const token = String(this.tickerSeparatorToken || "//").trim() || "//";
+      const baseSep = String(this.tickerSeparator ?? " // ");
+      const effectiveSep = padCount > 0 ? `${pad}${baseSep.trim() || token}${pad}` : baseSep;
+
+      const picks = [];
+      let last = this._lastPick;
+
+      for (let i = 0; i < k; i++) {
+        const idx = this.randomIndex(n, last);
+        last = idx;
+        picks.push(items[idx]);
       }
-      this._lastPick = pickStart;
 
-      const picked = [];
-      for (let i = 0; i < n; i++) picked.push(items[(pickStart + i) % items.length]);
+      this._lastPick = last;
 
-      const sep = String(this.tickerSeparatorToken || "//");
-      const pad = " ".repeat(Math.max(1, this.tickerSeparatorPad));
-      const joiner = pad + sep + pad;
-
-      this.tickerSequence = picked.join(joiner);
+      const seq = picks.join(effectiveSep) + effectiveSep;
+      this.tickerSequence = seq;
       this.tickerKey += 1;
-
       this.$nextTick(() => this.recalcTickerDuration());
     },
     recalcTickerDuration() {
-      try {
-        const el = this.$refs.seq;
-        const width = el?.scrollWidth || 0;
-        const pxPerSec = Math.max(10, Number(this.tickerPxPerSecond) || 45);
-        const duration = Math.max(10, Math.ceil(width / pxPerSec));
-        this.tickerDuration = duration;
-      } catch {}
+      const seqEl = this.$refs.seq;
+      if (!seqEl || !seqEl.scrollWidth) return;
+
+      const widthPx = seqEl.scrollWidth;
+      const speed = Math.max(10, Number(this.tickerPxPerSecond) || 45);
+      const seconds = widthPx / speed;
+
+      this.tickerDuration = Math.max(12, Math.round(seconds * 10) / 10);
+    },
+    randomIndex(n, avoid) {
+      if (n <= 1) return 0;
+      let idx = Math.floor(Math.random() * n);
+      if (idx === avoid) idx = (idx + 1 + Math.floor(Math.random() * (n - 1))) % n;
+      return idx;
     },
   },
 };
 </script>
+
+<style scoped>
+.header-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Header base ===== */
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 0 !important;
+  border: 1
