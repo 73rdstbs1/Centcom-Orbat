@@ -218,40 +218,6 @@ async function fetchCsv(url) {
 }
 
 /**
- * Returns the first non-empty value from possible key paths.
- * Supports nested keys like "header.system".
- */
-function getAny(obj, paths) {
-  const o = obj && typeof obj === "object" ? obj : null;
-  if (!o) return "";
-
-  for (const p of paths) {
-    const parts = String(p || "").split(".").filter(Boolean);
-    let cur = o;
-    for (const k of parts) {
-      if (!cur || typeof cur !== "object") {
-        cur = null;
-        break;
-      }
-      cur = cur[k];
-    }
-    const v = String(cur ?? "").trim();
-    if (v) return v;
-  }
-  return "";
-}
-
-function normalizeActiveStatus(s) {
-  const v = String(s || "").trim().toLowerCase();
-  if (!v) return "";
-  if (v === "active") return "active";
-  if (v.startsWith("active")) return "active";
-  if (v === "in progress" || v === "ongoing") return "active";
-  return v;
-}
-
-
-/**
  * RefData.csv:
  * - Find a column named "Header details:" (case-insensitive, punctuation-insensitive)
  * - Take the first non-empty cell in that column (top to bottom)
@@ -274,6 +240,31 @@ async function readHeaderStatusFromRefData(refDataCsvUrl) {
   return "";
 }
 
+
+/**
+ * Returns first non-empty value from a list of possible key paths.
+ * Supports nested keys like "header.system".
+ */
+function getAny(obj, paths) {
+  const o = obj && typeof obj === "object" ? obj : null;
+  if (!o) return "";
+
+  for (const p of paths) {
+    const parts = String(p || "").split(".").filter(Boolean);
+    let cur = o;
+    for (const k of parts) {
+      if (!cur || typeof cur !== "object") {
+        cur = null;
+        break;
+      }
+      cur = cur[k];
+    }
+    const v = String(cur ?? "").trim();
+    if (v) return v;
+  }
+  return "";
+}
+
 /**
  * Operations.csv:
  * Columns:
@@ -287,7 +278,7 @@ async function readHeaderStatusFromRefData(refDataCsvUrl) {
  * - Scan top-to-bottom, remembering the last non-empty CAMPAIGN NAME.
  * - When a row's STATUS == "Active", return that remembered campaign name.
  */
-async function findActiveCampaignFromOperations(operationsCsvUrl) {
+async function findActiveCampaignNameFromOperations(operationsCsvUrl) {
   const raw = await fetchCsv(operationsCsvUrl);
   if (!raw) return { name: "", meta: {} };
 
@@ -304,16 +295,25 @@ async function findActiveCampaignFromOperations(operationsCsvUrl) {
   const idxStatus = col("STATUS");
   if (idxCampaign < 0 || idxStatus < 0) return { name: "", meta: {} };
 
-  // Optional meta columns; won't break if missing.
+  // Optional meta columns (won't break if missing)
   const idxSystem = col("SYSTEM");
   const idxPlanet = col("PLANET");
   const idxAo = col("AO");
   const idxYear = col("YEAR");
 
+  const readCell = (r, i) => (i >= 0 ? String(rows[r][i] ?? "").trim() : "");
+
   let lastCampaign = "";
   const lastMeta = { system: "", planet: "", ao: "", year: "" };
 
-  const readCell = (r, i) => (i >= 0 ? String(rows[r][i] ?? "").trim() : "");
+  const normalizeActiveStatus = (s) => {
+    const v = String(s || "").trim().toLowerCase();
+    if (!v) return "";
+    if (v === "active") return "active";
+    if (v.startsWith("active")) return "active";
+    if (v === "in progress" || v === "ongoing") return "active";
+    return v;
+  };
 
   for (let r = 1; r < rows.length; r++) {
     const campCell = readCell(r, idxCampaign);
@@ -331,10 +331,7 @@ async function findActiveCampaignFromOperations(operationsCsvUrl) {
 
     const statusCell = normalizeActiveStatus(readCell(r, idxStatus));
     if (statusCell === "active") {
-      return {
-        name: lastCampaign || campCell || "",
-        meta: { ...lastMeta, status: "active" },
-      };
+      return { name: lastCampaign || campCell || "", meta: { ...lastMeta, status: "active" } };
     }
   }
 
@@ -420,7 +417,7 @@ export default {
 
       const system = getAny(c, ["system", "System", "header.system"]);
       const planet = getAny(c, ["planet", "Planet", "header.planet"]);
-      const ao = getAny(c, ["ao", "AO", "Ao", "header.ao", "header.AO"]);
+      const ao = getAny(c, ["ao", "AO", "header.ao", "header.AO"]);
       const year = getAny(c, ["year", "Year", "header.year", "quarter", "Quarter"]);
       const statusRaw = getAny(c, ["status", "Status", "header.status"]);
 
@@ -535,20 +532,21 @@ export default {
       if (!opsUrl) return;
 
       try {
-        const resolved = await findActiveCampaignFromOperations(opsUrl);
-        if (!resolved?.name) return;
+        const resolved = await findActiveCampaignNameFromOperations(opsUrl);
+        const activeCampaignName = resolved?.name || "";
+        if (!activeCampaignName) return;
 
         const allCampaigns = loadAllCampaigns();
-        const matched = matchCampaignByName(allCampaigns, resolved.name);
+        const matched = matchCampaignByName(allCampaigns, activeCampaignName);
         if (!matched) return;
 
-        const meta = resolved.meta || {};
+        const meta = resolved?.meta || {};
         const merged = { ...matched };
 
-        // Only fill missing values; never override campaign.json.
+        // Only fill missing values; do not override campaign.json values.
         if (!getAny(merged, ["system", "System", "header.system"]) && meta.system) merged.system = meta.system;
         if (!getAny(merged, ["planet", "Planet", "header.planet"]) && meta.planet) merged.planet = meta.planet;
-        if (!getAny(merged, ["ao", "AO", "Ao", "header.ao", "header.AO"]) && meta.ao) merged.ao = meta.ao;
+        if (!getAny(merged, ["ao", "AO", "header.ao", "header.AO"]) && meta.ao) merged.ao = meta.ao;
         if (!getAny(merged, ["year", "Year", "header.year", "quarter", "Quarter"]) && meta.year) merged.year = meta.year;
         if (!getAny(merged, ["status", "Status", "header.status"]) && meta.status) merged.status = meta.status;
 
