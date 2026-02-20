@@ -637,3 +637,5 @@ export default {
   align-items: center;
   border-radius: 0 !important;
   border: 1
+
+</style>
