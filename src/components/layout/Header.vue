@@ -94,11 +94,11 @@ import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/u
  * but we detect the ACTIVE campaign by reading the Operations CSV:
  * - Find first row where STATUS == "Active"
  * - Resolve CAMPAIGN NAME (carry-forward from last non-empty campaign name above)
- + * - Match that to src/campaigns/<campaign>/campaign.json by (folder OR id OR name)
+ * - Match that to src/campaigns/<campaign>/campaign.json by (folder OR id OR name)
  *
  * NOTE (Vite 6): use query '?raw' instead of deprecated `as: "raw"`.
  */
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/<campaign>/campaign.json", {
   query: "?raw",
   import: "default",
   eager: true,
@@ -190,6 +190,39 @@ function safeJson(raw) {
   } catch {
     return null;
   }
+
+/**
+ * Returns the first non-empty string found from multiple possible key paths.
+ * Supports nested keys (e.g. "header.system").
+ */
+function getAny(obj, paths) {
+  const o = obj && typeof obj === "object" ? obj : null;
+  if (!o) return "";
+
+  for (const p of paths) {
+    const parts = String(p || "").split(".").filter(Boolean);
+    let cur = o;
+    for (const k of parts) {
+      if (!cur || typeof cur !== "object") {
+        cur = null;
+        break;
+      }
+      cur = cur[k];
+    }
+    const v = String(cur ?? "").trim();
+    if (v) return v;
+  }
+  return "";
+}
+
+function normalizeActiveStatus(s) {
+  const v = String(s || "").trim().toLowerCase();
+  if (!v) return "";
+  if (v === "active") return "active";
+  if (v.startsWith("active")) return "active";
+  if (v === "in progress" || v === "ongoing") return "active";
+  return v;
+}
 }
 
 function campaignFolderFromJsonPath(path) {
@@ -240,31 +273,6 @@ async function readHeaderStatusFromRefData(refDataCsvUrl) {
   return "";
 }
 
-
-/**
- * Returns first non-empty value from a list of possible key paths.
- * Supports nested keys like "header.system".
- */
-function getAny(obj, paths) {
-  const o = obj && typeof obj === "object" ? obj : null;
-  if (!o) return "";
-
-  for (const p of paths) {
-    const parts = String(p || "").split(".").filter(Boolean);
-    let cur = o;
-    for (const k of parts) {
-      if (!cur || typeof cur !== "object") {
-        cur = null;
-        break;
-      }
-      cur = cur[k];
-    }
-    const v = String(cur ?? "").trim();
-    if (v) return v;
-  }
-  return "";
-}
-
 /**
  * Operations.csv:
  * Columns:
@@ -278,7 +286,7 @@ function getAny(obj, paths) {
  * - Scan top-to-bottom, remembering the last non-empty CAMPAIGN NAME.
  * - When a row's STATUS == "Active", return that remembered campaign name.
  */
-async function findActiveCampaignNameFromOperations(operationsCsvUrl) {
+async function findActiveCampaignFromOperations(operationsCsvUrl) {
   const raw = await fetchCsv(operationsCsvUrl);
   if (!raw) return { name: "", meta: {} };
 
@@ -290,7 +298,6 @@ async function findActiveCampaignNameFromOperations(operationsCsvUrl) {
   for (let i = 0; i < header.length; i++) idx[normalizeKey(header[i])] = i;
 
   const col = (label) => idx[normalizeKey(label)] ?? -1;
-
   const idxCampaign = col("CAMPAIGN NAME");
   const idxStatus = col("STATUS");
   if (idxCampaign < 0 || idxStatus < 0) return { name: "", meta: {} };
@@ -305,15 +312,6 @@ async function findActiveCampaignNameFromOperations(operationsCsvUrl) {
 
   let lastCampaign = "";
   const lastMeta = { system: "", planet: "", ao: "", year: "" };
-
-  const normalizeActiveStatus = (s) => {
-    const v = String(s || "").trim().toLowerCase();
-    if (!v) return "";
-    if (v === "active") return "active";
-    if (v.startsWith("active")) return "active";
-    if (v === "in progress" || v === "ongoing") return "active";
-    return v;
-  };
 
   for (let r = 1; r < rows.length; r++) {
     const campCell = readCell(r, idxCampaign);
@@ -532,22 +530,21 @@ export default {
       if (!opsUrl) return;
 
       try {
-        const resolved = await findActiveCampaignNameFromOperations(opsUrl);
-        const activeCampaignName = resolved?.name || "";
-        if (!activeCampaignName) return;
+        const resolved = await findActiveCampaignFromOperations(opsUrl);
+        if (!resolved?.name) return;
 
         const allCampaigns = loadAllCampaigns();
-        const matched = matchCampaignByName(allCampaigns, activeCampaignName);
+        const matched = matchCampaignByName(allCampaigns, resolved.name);
         if (!matched) return;
 
-        const meta = resolved?.meta || {};
+        const meta = resolved.meta || {};
         const merged = { ...matched };
 
-        // Only fill missing values; do not override campaign.json values.
+        // Only fill missing values from sheet meta (never override campaign.json)
         if (!getAny(merged, ["system", "System", "header.system"]) && meta.system) merged.system = meta.system;
         if (!getAny(merged, ["planet", "Planet", "header.planet"]) && meta.planet) merged.planet = meta.planet;
         if (!getAny(merged, ["ao", "AO", "header.ao", "header.AO"]) && meta.ao) merged.ao = meta.ao;
-        if (!getAny(merged, ["year", "Year", "header.year", "quarter", "Quarter"]) && meta.year) merged.year = meta.year;
+        if (!getAny(merged, ["year", "Year", "header.year", "quarter"]) && meta.year) merged.year = meta.year;
         if (!getAny(merged, ["status", "Status", "header.status"]) && meta.status) merged.status = meta.status;
 
         if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = merged;
@@ -621,21 +618,169 @@ export default {
     },
   },
 };
-</script>
+
 
 <style scoped>
+/* Keep this file build-safe: the heavy header theming lives in src/assets/styles/_base.css. */
+
 .header-wrap {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* ===== Header base ===== */
-.header {
-  position: relative;
+/* Center status pill without disturbing existing absolute right panel */
+.status-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  border-radius: 0 !important;
-  border: 1
+  justify-content: center;
+  height: 100%;
+  pointer-events: none;
+}
 
+/* Status pill */
+.status-pill {
+  pointer-events: none;
+  padding: 6px 14px;
+  border: 1px solid var(--primary-color);
+  background: rgba(0, 0, 0, 0.25);
+  font-family: "Raleway", sans-serif;
+  letter-spacing: 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.status-pill[data-status="active"] {
+  border-color: var(--primary-color);
+}
+
+.status-label {
+  color: var(--text-location);
+}
+
+/* AO tiles */
+.meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 8px 14px;
+  align-items: end;
+}
+
+.meta-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.meta-tile h4 {
+  margin: 0;
+  line-height: 1.5em;
+  font-family: "Raleway", sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+}
+
+.meta-tile .subtitle {
+  font-size: 18px;
+  margin: 0;
+  align-self: flex-end;
+  font-family: "Big Shoulders Display", sans-serif;
+  letter-spacing: 1px;
+}
+
+.meta-tile--ao {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-items: flex-end;
+  justify-content: flex-end;
+  min-width: 220px;
+}
+
+/* Auth block (kept compact; should not shift the right panel) */
+.auth-indicator {
+  margin-left: auto;
+  padding-right: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.auth-line {
+  font-family: "Raleway", sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-location);
+}
+
+.auth-role[data-variant="staff"] {
+  color: var(--primary-color);
+}
+
+.auth-logout {
+  font-family: "Raleway", sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border: 1px solid var(--primary-color);
+  background: transparent;
+  color: var(--text-location);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+/* Ticker */
+.news-ticker {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.35);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.news-label {
+  flex: 0 0 auto;
+  padding: 0 14px;
+  font-family: "Raleway", sans-serif;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-location);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.news-viewport {
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.news-track {
+  display: inline-flex;
+  white-space: nowrap;
+  will-change: transform;
+  animation: ticker var(--ticker-duration, 28s) linear infinite;
+}
+
+.news-seq {
+  display: inline-block;
+  padding-left: 24px;
+  font-family: "Titillium Web", sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--text-location);
+}
+
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
 </style>
+
