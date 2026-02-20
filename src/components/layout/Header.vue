@@ -5,23 +5,24 @@
     :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }"
   >
     <header>
-      <!-- LEFT: Unit logos strip -->
+      <!-- LEFT: Unit logos (from /public/faction-logos/) -->
       <div class="logo-strip" aria-label="Unit logos">
         <img
           v-for="(src, i) in unitLogoSrcs"
-          :key="src + ':' + i"
+          :key="i"
           class="unit-logo"
           :src="src"
-          alt="Unit logo"
+          alt="Unit Logo"
           loading="lazy"
+          decoding="async"
         />
       </div>
 
       <div class="rhombus" aria-hidden="true"></div>
 
-      <!-- CENTER: Title + status pill beneath -->
+      <!-- CENTER: Title + status pill stacked -->
       <div class="center-block" aria-label="CENTCOM header">
-        <div class="center-title">
+        <div class="title-container">
           <div id="title-first-line" class="title-row">
             <span id="title-header">UNSC CENTRAL COMMAND</span>
           </div>
@@ -37,10 +38,6 @@
       <!-- RIGHT: Active campaign details (from Operations CSV -> campaign.json) -->
       <div v-if="showCampaignPanel" class="planet-location-container">
         <div class="location-info" aria-label="Current AO details">
-          <!-- 2x2 stacked tiles + AO column spanning both rows:
-               [ SYSTEM | PLANET | AO ]
-               [ YEAR   | STATUS | AO ]
-          -->
           <div class="meta-grid">
             <div class="meta-tile">
               <h4>SYSTEM</h4>
@@ -142,7 +139,6 @@ function safeJson(raw) {
 }
 
 function csvSplit(line) {
-  // Minimal CSV splitter that handles quoted fields.
   const out = [];
   let cur = "";
   let inQ = false;
@@ -227,14 +223,12 @@ function findCampaignByName(all, campaignName) {
   const q = normMatch(campaignName);
   if (!q) return null;
 
-  // Exact match by id/name/folder (normalized)
   const exact =
     all.find((c) => normMatch(c.id) === q) ||
     all.find((c) => normMatch(c.name) === q) ||
     all.find((c) => normMatch(c.__folder) === q);
   if (exact) return exact;
 
-  // Loose contains match
   const contains =
     all.find((c) => normMatch(c.name).includes(q)) ||
     all.find((c) => normMatch(c.__folder).includes(q)) ||
@@ -256,15 +250,12 @@ async function readHeaderStatusFromRefData(refDataCsvUrl) {
     const rows = parseCsv(raw);
     if (!rows.length) return "";
 
-    // Find a column header that equals "Header details:" (case-insensitive)
     const headers = Object.keys(rows[0] || {});
     const col = headers.find(
-      (h) =>
-        headerKeyMatch(h) === "header details:" || headerKeyMatch(h) === "header details"
+      (h) => headerKeyMatch(h) === "header details:" || headerKeyMatch(h) === "header details",
     );
     if (!col) return "";
 
-    // First non-empty value in that column
     for (const r of rows) {
       const v = String(r[col] || "").trim();
       if (v) return v;
@@ -307,19 +298,11 @@ function mergeCampaignWithMeta(campaign, meta) {
   if (!campaign) return campaign;
   const merged = { ...campaign };
 
-  if (!getAny(merged, ["system", "System", "header.system"]) && meta.system)
-    merged.system = meta.system;
-  if (!getAny(merged, ["planet", "Planet", "header.planet"]) && meta.planet)
-    merged.planet = meta.planet;
-  if (!getAny(merged, ["ao", "AO", "header.ao", "header.AO"]) && meta.ao)
-    merged.ao = meta.ao;
-  if (
-    !getAny(merged, ["year", "Year", "header.year", "quarter", "Quarter"]) &&
-    meta.year
-  )
-    merged.year = meta.year;
-  if (!getAny(merged, ["status", "Status", "header.status"]) && meta.status)
-    merged.status = meta.status;
+  if (!getAny(merged, ["system", "System", "header.system"]) && meta.system) merged.system = meta.system;
+  if (!getAny(merged, ["planet", "Planet", "header.planet"]) && meta.planet) merged.planet = meta.planet;
+  if (!getAny(merged, ["ao", "AO", "header.ao", "header.AO"]) && meta.ao) merged.ao = meta.ao;
+  if (!getAny(merged, ["year", "Year", "header.year", "quarter", "Quarter"]) && meta.year) merged.year = meta.year;
+  if (!getAny(merged, ["status", "Status", "header.status"]) && meta.status) merged.status = meta.status;
 
   return merged;
 }
@@ -334,15 +317,12 @@ async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
 
     const headers = Object.keys(rows[0] || {});
     const findCol = (labels) =>
-      headers.find((h) =>
-        labels.some((lbl) => headerKeyMatch(h) === headerKeyMatch(lbl))
-      ) || null;
+      headers.find((h) => labels.some((lbl) => headerKeyMatch(h) === headerKeyMatch(lbl))) || null;
 
     const colCampaign = findCol(["campaign name", "campaign", "campaign_name"]);
     const colStatus = findCol(["status", "op status", "operation status"]);
     if (!colCampaign || !colStatus) return null;
 
-    // Optional meta columns (won't break if missing)
     const colSystem = findCol(["system"]);
     const colPlanet = findCol(["planet"]);
     const colAo = findCol(["ao", "a.o."]);
@@ -369,7 +349,6 @@ async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
       if (st === "active") {
         lastMeta.status = "active";
 
-        // Active row may not have a campaign name -> carry-forward from above
         const campaignName = lastCampaign || campCell;
         if (!campaignName) return null;
 
@@ -387,11 +366,11 @@ async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
   }
 }
 
-function normalizeLogoSrc(entry) {
-  const raw = String(entry || "").trim();
-  if (!raw) return "";
-  if (raw.startsWith("/")) return raw;
-  return `/faction-logos/${raw}`;
+function resolveLogoSrc(entry) {
+  const v = String(entry || "").trim();
+  if (!v) return "";
+  if (v.startsWith("/")) return v;
+  return `/faction-logos/${v}`;
 }
 
 export default {
@@ -432,18 +411,14 @@ export default {
   },
   computed: {
     unitLogoSrcs() {
-      const cfg = getConfig();
-      const arr =
-        cfg?.header?.branding?.unitLogos ||
-        cfg?.header?.branding?.logos ||
-        [];
-      const list = Array.isArray(arr) ? arr : [];
-      const srcs = list.map(normalizeLogoSrc).filter(Boolean);
+      const branding = getConfig().header?.branding || {};
+      const unitLogos = Array.isArray(branding.unitLogos) ? branding.unitLogos : [];
+      const list = unitLogos.map(resolveLogoSrc).filter(Boolean);
 
-      // Fallback: keep at least one logo (existing behavior)
-      if (srcs.length) return srcs;
-      const single = cfg?.header?.branding?.headerLogo || "/faction-logos/UNSC_CENTCOM_LOGO.png";
-      return [normalizeLogoSrc(single)];
+      if (list.length) return list;
+
+      const fallback = String(branding.headerLogo || "").trim();
+      return fallback ? [fallback] : [];
     },
 
     authLogoutLabel() {
@@ -475,9 +450,9 @@ export default {
     },
     headerStatusLabel() {
       const v = this.normalizedHeaderStatus;
-      if (v === "training") return "TRAINING";
-      if (v === "rearming") return "REARMING";
-      return "ACTIVE";
+      if (v === "training") return "STATUS: TRAINING";
+      if (v === "rearming") return "STATUS: REARMING";
+      return "STATUS: ACTIVE";
     },
 
     activeCampaign() {
@@ -489,12 +464,9 @@ export default {
     campaignHeader() {
       const c = this.activeCampaign || {};
 
-      const system =
-        getAny(c, ["system", "System", "header.system"]) || this.header?.system || "—";
-      const planet =
-        getAny(c, ["planet", "Planet", "header.planet"]) || this.header?.planet || "—";
-      const ao =
-        getAny(c, ["ao", "AO", "header.ao", "header.AO"]) || this.header?.AO || "—";
+      const system = getAny(c, ["system", "System", "header.system"]) || this.header?.system || "—";
+      const planet = getAny(c, ["planet", "Planet", "header.planet"]) || this.header?.planet || "—";
+      const ao = getAny(c, ["ao", "AO", "header.ao", "header.AO"]) || this.header?.AO || "—";
 
       const year =
         getAny(c, ["year", "Year", "header.year", "quarter", "Quarter"]) ||
@@ -514,22 +486,15 @@ export default {
         .map((s) => s.trim())
         .filter(Boolean);
     },
-
-    branding() {
-      return getConfig().branding || {};
-    },
   },
   async created() {
-    // Auth
     this.readAuth();
     this.unsub = authSubscribe(() => this.readAuth());
     window.addEventListener("storage", this.onStorage);
 
-    // Header status (RefData)
     const refUrl = getConfig().sheets?.refDataCsvUrl;
     this.headerStatus = await readHeaderStatusFromRefData(refUrl);
 
-    // Active campaign from Operations CSV -> campaign.json
     const operationsUrl =
       getConfig().sheets?.operationsCsvUrl ||
       getConfig().sheets?.opsCsvUrl ||
@@ -538,7 +503,6 @@ export default {
     const activeCampaign = await detectActiveCampaignFromOperationsCsv(operationsUrl);
     if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = activeCampaign;
 
-    // Ticker
     this.startTicker();
     window.addEventListener("resize", this.onResize);
   },
@@ -675,14 +639,12 @@ export default {
 </script>
 
 <style scoped>
-/* Wrapper lets ticker sit below header without changing/overlapping header internals */
 .header-wrap {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* Header spans top edge: no rounding */
 header {
   position: relative;
   border-radius: 0 !important;
@@ -755,26 +717,21 @@ header > * {
   opacity: 0.18;
 }
 
-/* LEFT: logos strip */
+/* LEFT logos */
 .logo-strip {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding-left: 12px;
-  padding-right: 18px;
-  height: 96px;
-  background: rgba(31, 79, 70, 0.92);
-  border-right: 1px solid rgba(170, 220, 255, 0.14);
+  gap: 10px;
+  padding: 8px 12px;
 }
-
 .unit-logo {
-  width: 100px;
-  height: 100px;
+  width: 90px;
+  height: 90px;
   object-fit: contain;
   flex: 0 0 auto;
 }
 
-/* CENTER: title + status beneath */
+/* CENTER block */
 .center-block {
   flex: 1 1 auto;
   min-width: 0;
@@ -782,27 +739,23 @@ header > * {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 14px;
+  gap: 6px;
+  padding: 0 14px;
 }
 
-.center-title {
+.title-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  justify-content: center;
   min-width: 0;
 }
-
 .title-row {
   width: 100%;
-  text-align: center;
 }
-
 #title-first-line {
   border-bottom: 1px solid rgba(0, 0, 0, 0.55);
   padding-bottom: 2px;
-  margin-bottom: 0;
-  width: max-content;
+  margin-bottom: 2px;
 }
 
 #title-header {
@@ -815,16 +768,16 @@ header > * {
   white-space: nowrap;
 }
 
-/* CENTER status pill */
+/* Status pill (shrink ~10% to avoid clipping) */
 .header-status {
   display: flex;
   justify-content: center;
   align-items: center;
   min-width: 0;
-  padding: 0;
 }
-
 .status-pill-lg {
+  transform: scale(0.9);
+  transform-origin: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -878,7 +831,6 @@ header .planet-location-container {
   border-left: 1px solid rgba(170, 220, 255, 0.22);
 }
 
-/* Panel can grow leftward if content is long */
 .location-info {
   min-width: 0;
   width: max-content;
@@ -980,9 +932,7 @@ header .planet-location-container {
   border-color: rgba(170, 255, 210, 0.9);
 }
 
-/* =========================
-   News Ticker (continuous loop)
-   ========================= */
+/* News Ticker */
 .news-ticker {
   height: 32px;
   display: grid;
