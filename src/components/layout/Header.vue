@@ -733,7 +733,10 @@ header > * {
 
 /* CENTER block */
 .center-block {
-  flex: 1 1 auto;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, 52vw);
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -741,9 +744,7 @@ header > * {
   justify-content: center;
   gap: 6px;
   padding: 0 14px;
-}
-
-.title-container {
+}.title-container {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -880,7 +881,8 @@ header .planet-location-container {
 .auth-indicator {
   position: absolute;
   right: 12px;
-  top: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -894,8 +896,7 @@ header .planet-location-container {
   text-transform: uppercase;
   line-height: 1;
   z-index: 2;
-}
-.auth-line {
+}.auth-line {
   display: inline-flex;
   align-items: center;
   gap: 6px;
