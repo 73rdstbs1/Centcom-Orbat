@@ -1,13 +1,15 @@
 <!-- /src/components/layout/Header.vue -->
 <template>
-  <div class="header-wrap">
-    <header class="header">
-      <!-- LEFT: Title -->
+  <div
+    class="header-wrap"
+    :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }"
+  >
+    <header>
+      <!-- LEFT: Logo + fixed CENTCOM title -->
       <div class="title clipped-x-large-forward">
-        <!-- Hard-coded CENTCOM logo (keep 120x120) -->
-        <img class="logo" src="/faction-logos/UNSC_CENTCOM_LOGO.png" alt="UNSC Central Command" />
+        <img class="logo" :src="centcomLogo" alt="UNSC CENTCOM" />
         <div class="title-container">
-          <div class="title-row" id="title-first-line">
+          <div id="title-first-line" class="title-row">
             <span id="title-header">UNSC CENTRAL COMMAND</span>
           </div>
           <div class="title-row">
@@ -18,17 +20,17 @@
 
       <div class="rhombus" aria-hidden="true"></div>
 
-      <!-- MIDDLE: Current status pill (from RefData CSV) -->
-      <div class="status-center" aria-label="Current status">
-        <div class="status-pill" :data-status="statusVariant">
+      <!-- CENTER: Status bar (from RefData CSV) -->
+      <div class="header-status" aria-label="Current CENTCOM status">
+        <div class="status-pill-lg" :data-status="normalizedHeaderStatus">
           <span class="status-label">{{ headerStatusLabel }}</span>
         </div>
       </div>
 
-      <!-- RIGHT: Campaign AO details -->
-      <div v-if="showCampaignPanel" class="planet-location-container" aria-label="Current AO details">
-        <div class="location-info">
-          <!-- 2x2 stacked tiles + AO spanning both rows:
+      <!-- RIGHT: Active campaign details (from Operations CSV -> campaign.json) -->
+      <div v-if="showCampaignPanel" class="planet-location-container">
+        <div class="location-info" aria-label="Current AO details">
+          <!-- 2x2 stacked tiles + AO column spanning both rows:
                [ SYSTEM | PLANET | AO ]
                [ YEAR   | STATUS | AO ]
           -->
@@ -61,7 +63,7 @@
         </div>
       </div>
 
-      <!-- FAR RIGHT: Auth (member/staff + logout) -->
+      <!-- AUTH (right edge, themed) -->
       <div class="auth-indicator" v-if="isLoggedIn">
         <div class="auth-line">
           <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
@@ -86,22 +88,25 @@
 </template>
 
 <script>
-import { getConfig } from "@/config/runtimeConfig";
+/**
+ * Header.vue
+ *
+ * Data sources:
+ * - RefData CSV: reads "Header details:" cell (expects Active | Training | Rearming)
+ * - Operations CSV: finds first row with STATUS == "Active"
+ *     -> links to CAMPAIGN NAME by carrying-forward the last non-empty CAMPAIGN NAME above
+ *     -> loads matching src/campaigns/<campaign>/campaign.json (matches by id/name/folder)
+ *
+ * Notes:
+ * - Vite 6: use import.meta.glob with query '?raw' (NOT `as: 'raw'`)
+ */
+import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
-/**
- * Campaign data remains content-driven (campaign.json per folder),
- * but we detect the ACTIVE campaign by reading the Operations CSV:
- * - Find first row where STATUS == "Active"
- * - Resolve CAMPAIGN NAME (carry-forward from last non-empty campaign name above)
- * - Match that to src/campaigns/<campaign>/campaign.json by (folder OR id OR name)
- *
- * NOTE (Vite 6): use query '?raw' instead of deprecated `as: "raw"`.
- */
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/<campaign>/campaign.json", {
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
+  eager: true,
   query: "?raw",
   import: "default",
-  eager: true,
 });
 
 const defaultNewsItems = [
@@ -110,79 +115,8 @@ const defaultNewsItems = [
   "ONI ADVISORY: OPSEC reminders in effect. Avoid publishing mission details outside TACNET.",
   "SITREP: Patrol activity increased near contested sectors. Proceed with caution.",
   "SYSTEM NOTICE: Training rotations updated. Check your squad channel for timings.",
+  "BREAKING: Marine promoted after surviving three drops and one briefing.",
 ];
-
-function normalizeKey(s) {
-  return String(s || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .replace(/[^\w\s:-]/g, "");
-}
-
-function normalizeMatch(s) {
-  return String(s || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]+/g, "")
-    .replace(/[^a-z0-9]/g, "");
-}
-
-/**
- * Minimal CSV parser that handles quoted fields.
- */
-function parseCsv(text) {
-  const rows = [];
-  const s = String(text || "");
-  let row = [];
-  let cur = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    const next = s[i + 1];
-
-    if (inQuotes) {
-      if (ch === '"' && next === '"') {
-        cur += '"';
-        i++;
-      } else if (ch === '"') {
-        inQuotes = false;
-      } else {
-        cur += ch;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      inQuotes = true;
-      continue;
-    }
-
-    if (ch === ",") {
-      row.push(cur);
-      cur = "";
-      continue;
-    }
-
-    if (ch === "\n") {
-      row.push(cur);
-      cur = "";
-      row = row.map((x) => (x && x.endsWith("\r") ? x.slice(0, -1) : x));
-      if (row.some((c) => String(c || "").trim() !== "")) rows.push(row);
-      row = [];
-      continue;
-    }
-
-    cur += ch;
-  }
-
-  row.push(cur);
-  row = row.map((x) => (x && x.endsWith("\r") ? x.slice(0, -1) : x));
-  if (row.some((c) => String(c || "").trim() !== "")) rows.push(row);
-
-  return rows;
-}
 
 function safeJson(raw) {
   try {
@@ -190,15 +124,142 @@ function safeJson(raw) {
   } catch {
     return null;
   }
+}
 
-/**
- * Returns the first non-empty string found from multiple possible key paths.
- * Supports nested keys (e.g. "header.system").
- */
+function csvSplit(line) {
+  // Minimal CSV splitter that handles quoted fields.
+  const out = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQ = !inQ;
+      }
+      continue;
+    }
+    if (ch === "," && !inQ) {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((s) => String(s ?? "").trim());
+}
+
+function parseCsv(raw) {
+  const text = String(raw || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = text.split("\n").filter((l) => l.trim().length);
+  if (!lines.length) return [];
+  const header = csvSplit(lines[0]).map((h) => h.trim());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = csvSplit(lines[i]);
+    const obj = {};
+    for (let j = 0; j < header.length; j++) obj[header[j]] = cols[j] ?? "";
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function norm(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function normMatch(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function headerKeyMatch(h) {
+  return String(h || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[^\w\s:-]/g, "");
+}
+
+function folderFromCampaignPath(path) {
+  const parts = String(path || "").split("/campaigns/");
+  if (parts.length < 2) return "";
+  return parts[1].split("/")[0] || "";
+}
+
+function loadAllCampaigns() {
+  const out = [];
+  for (const [path, raw] of Object.entries(CAMPAIGN_JSON)) {
+    const json = safeJson(raw);
+    if (!json) continue;
+    out.push({
+      __path: path,
+      __folder: folderFromCampaignPath(path),
+      ...json,
+    });
+  }
+  return out;
+}
+
+function findCampaignByName(all, campaignName) {
+  const q = normMatch(campaignName);
+  if (!q) return null;
+
+  // Exact match by id/name/folder (normalized)
+  const exact =
+    all.find((c) => normMatch(c.id) === q) ||
+    all.find((c) => normMatch(c.name) === q) ||
+    all.find((c) => normMatch(c.__folder) === q);
+  if (exact) return exact;
+
+  // Loose contains match
+  const contains =
+    all.find((c) => normMatch(c.name).includes(q)) ||
+    all.find((c) => normMatch(c.__folder).includes(q)) ||
+    all.find((c) => q.includes(normMatch(c.__folder))) ||
+    all.find((c) => q.includes(normMatch(c.id)));
+  return contains || null;
+}
+
+async function fetchText(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+  return await res.text();
+}
+
+async function readHeaderStatusFromRefData(refDataCsvUrl) {
+  if (!refDataCsvUrl) return "";
+  try {
+    const raw = await fetchText(refDataCsvUrl);
+    const rows = parseCsv(raw);
+    if (!rows.length) return "";
+
+    // Find a column header that equals "Header details:" (case-insensitive)
+    const headers = Object.keys(rows[0] || {});
+    const col = headers.find((h) => headerKeyMatch(h) === "header details:" || headerKeyMatch(h) === "header details");
+    if (!col) return "";
+
+    // First non-empty value in that column
+    for (const r of rows) {
+      const v = String(r[col] || "").trim();
+      if (v) return v;
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 function getAny(obj, paths) {
   const o = obj && typeof obj === "object" ? obj : null;
   if (!o) return "";
-
   for (const p of paths) {
     const parts = String(p || "").split(".").filter(Boolean);
     let cur = o;
@@ -216,162 +277,96 @@ function getAny(obj, paths) {
 }
 
 function normalizeActiveStatus(s) {
-  const v = String(s || "").trim().toLowerCase();
+  const v = norm(s);
   if (!v) return "";
   if (v === "active") return "active";
   if (v.startsWith("active")) return "active";
   if (v === "in progress" || v === "ongoing") return "active";
   return v;
 }
+
+function mergeCampaignWithMeta(campaign, meta) {
+  if (!campaign) return campaign;
+  const merged = { ...campaign };
+
+  if (!getAny(merged, ["system", "System", "header.system"]) && meta.system) merged.system = meta.system;
+  if (!getAny(merged, ["planet", "Planet", "header.planet"]) && meta.planet) merged.planet = meta.planet;
+  if (!getAny(merged, ["ao", "AO", "header.ao", "header.AO"]) && meta.ao) merged.ao = meta.ao;
+  if (!getAny(merged, ["year", "Year", "header.year", "quarter", "Quarter"]) && meta.year) merged.year = meta.year;
+  if (!getAny(merged, ["status", "Status", "header.status"]) && meta.status) merged.status = meta.status;
+
+  return merged;
 }
 
-function campaignFolderFromJsonPath(path) {
-  const parts = String(path || "").split("/campaigns/");
-  if (parts.length < 2) return "";
-  return parts[1].split("/")[0] || "";
-}
+async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
+  if (!operationsCsvUrl) return null;
 
-function loadAllCampaigns() {
-  return Object.entries(CAMPAIGN_JSON)
-    .map(([path, raw]) => {
-      const json = safeJson(raw);
-      if (!json) return null;
-      const folder = campaignFolderFromJsonPath(path);
-      return { ...json, __folder: folder, __path: path };
-    })
-    .filter(Boolean);
-}
+  try {
+    const raw = await fetchText(operationsCsvUrl);
+    const rows = parseCsv(raw);
+    if (!rows.length) return null;
 
-async function fetchCsv(url) {
-  const u = String(url || "").trim();
-  if (!u) return null;
-  const res = await fetch(u, { cache: "no-store" });
-  if (!res.ok) return null;
-  return await res.text();
-}
+    const headers = Object.keys(rows[0] || {});
+    const findCol = (labels) =>
+      headers.find((h) => labels.some((lbl) => headerKeyMatch(h) === headerKeyMatch(lbl))) || null;
 
-/**
- * RefData.csv:
- * - Find a column named "Header details:" (case-insensitive, punctuation-insensitive)
- * - Take the first non-empty cell in that column (top to bottom)
- */
-async function readHeaderStatusFromRefData(refDataCsvUrl) {
-  const raw = await fetchCsv(refDataCsvUrl);
-  if (!raw) return "";
+    const colCampaign = findCol(["campaign name", "campaign", "campaign_name"]);
+    const colStatus = findCol(["status", "op status", "operation status"]);
+    if (!colCampaign || !colStatus) return null;
 
-  const rows = parseCsv(raw);
-  if (!rows.length) return "";
+    // Optional meta columns (won't break if missing)
+    const colSystem = findCol(["system"]);
+    const colPlanet = findCol(["planet"]);
+    const colAo = findCol(["ao", "a.o."]);
+    const colYear = findCol(["year"]);
 
-  const headerRow = rows[0];
-  const idx = headerRow.findIndex((h) => normalizeKey(h) === normalizeKey("Header details:"));
-  if (idx < 0) return "";
+    let lastCampaign = "";
+    const lastMeta = { system: "", planet: "", ao: "", year: "", status: "" };
 
-  for (let r = 1; r < rows.length; r++) {
-    const v = String(rows[r][idx] ?? "").trim();
-    if (v) return v;
-  }
-  return "";
-}
+    for (const r of rows) {
+      const campCell = String(r[colCampaign] || "").trim();
+      if (campCell) lastCampaign = campCell;
 
-/**
- * Operations.csv:
- * Columns:
- * - CAMPAIGN NAME
- * - OPERATIONS
- * - OP LINKS
- * - STATUS
- * - SUMMARY
- *
- * Rule:
- * - Scan top-to-bottom, remembering the last non-empty CAMPAIGN NAME.
- * - When a row's STATUS == "Active", return that remembered campaign name.
- */
-async function findActiveCampaignFromOperations(operationsCsvUrl) {
-  const raw = await fetchCsv(operationsCsvUrl);
-  if (!raw) return { name: "", meta: {} };
+      const sys = colSystem ? String(r[colSystem] || "").trim() : "";
+      const pla = colPlanet ? String(r[colPlanet] || "").trim() : "";
+      const ao = colAo ? String(r[colAo] || "").trim() : "";
+      const yr = colYear ? String(r[colYear] || "").trim() : "";
 
-  const rows = parseCsv(raw);
-  if (rows.length < 2) return { name: "", meta: {} };
+      if (sys) lastMeta.system = sys;
+      if (pla) lastMeta.planet = pla;
+      if (ao) lastMeta.ao = ao;
+      if (yr) lastMeta.year = yr;
 
-  const header = rows[0];
-  const idx = {};
-  for (let i = 0; i < header.length; i++) idx[normalizeKey(header[i])] = i;
+      const st = normalizeActiveStatus(r[colStatus]);
+      if (st === "active") {
+        lastMeta.status = "active";
 
-  const col = (label) => idx[normalizeKey(label)] ?? -1;
-  const idxCampaign = col("CAMPAIGN NAME");
-  const idxStatus = col("STATUS");
-  if (idxCampaign < 0 || idxStatus < 0) return { name: "", meta: {} };
+        // Active row may not have a campaign name -> carry-forward from above
+        const campaignName = lastCampaign || campCell;
+        if (!campaignName) return null;
 
-  // Optional meta columns (won't break if missing)
-  const idxSystem = col("SYSTEM");
-  const idxPlanet = col("PLANET");
-  const idxAo = col("AO");
-  const idxYear = col("YEAR");
+        const allCampaigns = loadAllCampaigns();
+        const campaign = findCampaignByName(allCampaigns, campaignName);
+        if (!campaign) return null;
 
-  const readCell = (r, i) => (i >= 0 ? String(rows[r][i] ?? "").trim() : "");
-
-  let lastCampaign = "";
-  const lastMeta = { system: "", planet: "", ao: "", year: "" };
-
-  for (let r = 1; r < rows.length; r++) {
-    const campCell = readCell(r, idxCampaign);
-    if (campCell) lastCampaign = campCell;
-
-    const sys = readCell(r, idxSystem);
-    const pla = readCell(r, idxPlanet);
-    const ao = readCell(r, idxAo);
-    const yr = readCell(r, idxYear);
-
-    if (sys) lastMeta.system = sys;
-    if (pla) lastMeta.planet = pla;
-    if (ao) lastMeta.ao = ao;
-    if (yr) lastMeta.year = yr;
-
-    const statusCell = normalizeActiveStatus(readCell(r, idxStatus));
-    if (statusCell === "active") {
-      return { name: lastCampaign || campCell || "", meta: { ...lastMeta, status: "active" } };
+        return mergeCampaignWithMeta(campaign, lastMeta);
+      }
     }
+
+    return null;
+  } catch {
+    return null;
   }
-
-  return { name: "", meta: {} };
-}
-
-function matchCampaignByName(allCampaigns, campaignName) {
-  const key = normalizeMatch(campaignName);
-  if (!key) return null;
-
-  // First pass: exact-ish matches
-  for (const c of allCampaigns) {
-    const folder = normalizeMatch(c.__folder);
-    const id = normalizeMatch(c.id);
-    const name = normalizeMatch(c.name);
-    if (key === folder || key === id || key === name) return c;
-  }
-
-  // Second pass: containment (handles "Operation: X" vs "X")
-  for (const c of allCampaigns) {
-    const folder = normalizeMatch(c.__folder);
-    const id = normalizeMatch(c.id);
-    const name = normalizeMatch(c.name);
-    if (
-      folder.includes(key) ||
-      id.includes(key) ||
-      name.includes(key) ||
-      key.includes(folder) ||
-      key.includes(id) ||
-      key.includes(name)
-    ) {
-      return c;
-    }
-  }
-
-  return null;
 }
 
 export default {
+  name: "Header",
   inject: ["activeCampaignStore"],
   props: {
     header: { type: Object, required: true },
+    authOffsetX: { type: Number, default: 330 },
+    authOffsetY: { type: Number, default: 10 },
+
     newsEnabled: { type: Boolean, default: true },
     newsItems: { type: Array, default: () => defaultNewsItems },
 
@@ -385,52 +380,31 @@ export default {
   },
   data() {
     return {
-      // auth
       role: null,
       staffUser: null,
       unsub: null,
 
-      // header status (RefData)
       headerStatus: "",
 
-      // ticker
       tickerKey: 0,
       tickerSequence: "",
       tickerDuration: 28,
+
       _sequenceTimer: null,
       _resizeTimer: null,
       _lastPick: -1,
     };
   },
   computed: {
-    activeCampaign() {
-      return this.activeCampaignStore?.activeCampaign || null;
-    },
-    showCampaignPanel() {
-      return !!this.activeCampaign;
-    },
-    campaignHeader() {
-      const c = this.activeCampaign;
-      if (!c) return { system: "—", planet: "—", ao: "—", year: "—", status: "—" };
-
-      const system = getAny(c, ["system", "System", "header.system"]);
-      const planet = getAny(c, ["planet", "Planet", "header.planet"]);
-      const ao = getAny(c, ["ao", "AO", "header.ao", "header.AO"]);
-      const year = getAny(c, ["year", "Year", "header.year", "quarter", "Quarter"]);
-      const statusRaw = getAny(c, ["status", "Status", "header.status"]);
-
-      return {
-        system: system || "—",
-        planet: planet || "—",
-        ao: ao || "—",
-        year: year || "—",
-        status: (statusRaw || "—").toString().toUpperCase(),
-      };
+    centcomLogo() {
+      // Hard-coded per your request.
+      return "/faction-logos/UNSC_CENTCOM_LOGO.png";
     },
 
     authLogoutLabel() {
       return getConfig().ui?.auth?.logoutLabel || "Logout";
     },
+
     isLoggedIn() {
       return this.role === "member" || this.isStaff;
     },
@@ -448,17 +422,41 @@ export default {
       return (this.staffUser && this.staffUser.displayName) || "";
     },
 
-    // Status bar
-    headerStatusLabel() {
-      const v = String(this.headerStatus || "").trim();
-      return v ? v.toUpperCase() : "—";
-    },
-    statusVariant() {
-      const v = String(this.headerStatus || "").trim().toLowerCase();
-      if (v === "active") return "active";
+    normalizedHeaderStatus() {
+      const v = norm(this.headerStatus);
       if (v === "training") return "training";
-      if (v === "rearming" || v === "rest") return "rearming";
-      return "unknown";
+      if (v === "rearming") return "rearming";
+      return "active";
+    },
+    headerStatusLabel() {
+      const v = this.normalizedHeaderStatus;
+      if (v === "training") return "TRAINING";
+      if (v === "rearming") return "REARMING";
+      return "ACTIVE";
+    },
+
+    activeCampaign() {
+      return this.activeCampaignStore?.activeCampaign || null;
+    },
+    showCampaignPanel() {
+      return !!this.activeCampaign;
+    },
+    campaignHeader() {
+      const c = this.activeCampaign || {};
+
+      const system = getAny(c, ["system", "System", "header.system"]) || this.header?.system || "—";
+      const planet = getAny(c, ["planet", "Planet", "header.planet"]) || this.header?.planet || "—";
+      const ao = getAny(c, ["ao", "AO", "header.ao", "header.AO"]) || this.header?.AO || "—";
+
+      const year =
+        getAny(c, ["year", "Year", "header.year", "quarter", "Quarter"]) ||
+        String(getAny(c, ["startDate", "StartDate", "header.startDate"]) || "").slice(0, 4) ||
+        String(getAny(c, ["endDate", "EndDate", "header.endDate"]) || "").slice(0, 4) ||
+        "—";
+
+      const status = (getAny(c, ["status", "Status", "header.status"]) || "—").toUpperCase();
+
+      return { system, planet, ao, year, status };
     },
 
     normalizedNewsItems() {
@@ -468,6 +466,10 @@ export default {
         .map((s) => s.trim())
         .filter(Boolean);
     },
+
+    branding() {
+      return getConfig().branding || {};
+    },
   },
   async created() {
     // Auth
@@ -475,9 +477,18 @@ export default {
     this.unsub = authSubscribe(() => this.readAuth());
     window.addEventListener("storage", this.onStorage);
 
-    // RefData status + Active campaign
-    this.refreshHeaderStatus();
-    this.refreshActiveCampaign();
+    // Header status (RefData)
+    const refUrl = getConfig().sheets?.refDataCsvUrl;
+    this.headerStatus = await readHeaderStatusFromRefData(refUrl);
+
+    // Active campaign from Operations CSV -> campaign.json
+    const operationsUrl =
+      getConfig().sheets?.operationsCsvUrl ||
+      getConfig().sheets?.opsCsvUrl ||
+      getConfig().sheets?.operationsPageCsvUrl ||
+      "";
+    const activeCampaign = await detectActiveCampaignFromOperationsCsv(operationsUrl);
+    if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = activeCampaign;
 
     // Ticker
     this.startTicker();
@@ -491,6 +502,29 @@ export default {
     window.removeEventListener("storage", this.onStorage);
     window.removeEventListener("resize", this.onResize);
     this.stopTicker();
+  },
+  watch: {
+    newsEnabled() {
+      this.startTicker();
+    },
+    normalizedNewsItems() {
+      this.startTicker();
+    },
+    tickerPxPerSecond() {
+      this.recalcTickerDuration();
+    },
+    tickerItemsPerLoop() {
+      this.startTicker();
+    },
+    tickerSeparator() {
+      this.startTicker();
+    },
+    tickerSeparatorToken() {
+      this.startTicker();
+    },
+    tickerSeparatorPad() {
+      this.startTicker();
+    },
   },
   methods: {
     readAuth() {
@@ -516,46 +550,11 @@ export default {
       }
     },
 
-    async refreshHeaderStatus() {
-      const refUrl = getConfig().sheets?.refDataCsvUrl || "";
-      if (!refUrl) return;
-      try {
-        const v = await readHeaderStatusFromRefData(refUrl);
-        this.headerStatus = v || this.headerStatus;
-      } catch {}
-    },
-
-    async refreshActiveCampaign() {
-      const opsUrl = getConfig().sheets?.operationsCsvUrl || getConfig().sheets?.opsCsvUrl || "";
-      if (!opsUrl) return;
-
-      try {
-        const resolved = await findActiveCampaignFromOperations(opsUrl);
-        if (!resolved?.name) return;
-
-        const allCampaigns = loadAllCampaigns();
-        const matched = matchCampaignByName(allCampaigns, resolved.name);
-        if (!matched) return;
-
-        const meta = resolved.meta || {};
-        const merged = { ...matched };
-
-        // Only fill missing values from sheet meta (never override campaign.json)
-        if (!getAny(merged, ["system", "System", "header.system"]) && meta.system) merged.system = meta.system;
-        if (!getAny(merged, ["planet", "Planet", "header.planet"]) && meta.planet) merged.planet = meta.planet;
-        if (!getAny(merged, ["ao", "AO", "header.ao", "header.AO"]) && meta.ao) merged.ao = meta.ao;
-        if (!getAny(merged, ["year", "Year", "header.year", "quarter"]) && meta.year) merged.year = meta.year;
-        if (!getAny(merged, ["status", "Status", "header.status"]) && meta.status) merged.status = meta.status;
-
-        if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = merged;
-      } catch {}
-    },
-
-    // ===== ticker =====
     onResize() {
       if (this._resizeTimer) clearTimeout(this._resizeTimer);
       this._resizeTimer = setTimeout(() => this.recalcTickerDuration(), 120);
     },
+
     startTicker() {
       this.stopTicker();
       if (!this.newsEnabled) return;
@@ -573,6 +572,7 @@ export default {
       if (this._resizeTimer) clearTimeout(this._resizeTimer);
       this._resizeTimer = null;
     },
+
     buildNewSequence() {
       const items = this.normalizedNewsItems;
       const n = items.length;
@@ -581,6 +581,8 @@ export default {
       const padCount = Math.max(0, Number(this.tickerSeparatorPad) || 0);
       const pad = "\u00A0".repeat(padCount);
       const token = String(this.tickerSeparatorToken || "//").trim() || "//";
+      const sep = `${pad}${token}${pad}`;
+
       const baseSep = String(this.tickerSeparator ?? " // ");
       const effectiveSep = padCount > 0 ? `${pad}${baseSep.trim() || token}${pad}` : baseSep;
 
@@ -595,11 +597,14 @@ export default {
 
       this._lastPick = last;
 
-      const seq = picks.join(effectiveSep) + effectiveSep;
+      const sequenceSep = effectiveSep || sep;
+      const seq = picks.join(sequenceSep) + sequenceSep;
+
       this.tickerSequence = seq;
       this.tickerKey += 1;
       this.$nextTick(() => this.recalcTickerDuration());
     },
+
     recalcTickerDuration() {
       const seqEl = this.$refs.seq;
       if (!seqEl || !seqEl.scrollWidth) return;
@@ -610,6 +615,7 @@ export default {
 
       this.tickerDuration = Math.max(12, Math.round(seconds * 10) / 10);
     },
+
     randomIndex(n, avoid) {
       if (n <= 1) return 0;
       let idx = Math.floor(Math.random() * n);
@@ -618,169 +624,371 @@ export default {
     },
   },
 };
-
+</script>
 
 <style scoped>
-/* Keep this file build-safe: the heavy header theming lives in src/assets/styles/_base.css. */
-
+/* Wrapper lets ticker sit below header without changing/overlapping header internals */
 .header-wrap {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* Center status pill without disturbing existing absolute right panel */
-.status-center {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+/* Header spans top edge: no rounding */
+header {
+  position: relative;
+  border-radius: 0 !important;
+  border: 1px solid rgba(170, 220, 255, 0.22);
+  background: linear-gradient(180deg, rgba(8, 14, 20, 0.9), rgba(3, 6, 10, 0.94));
+  box-shadow:
+    0 0 0 1px rgba(170, 220, 255, 0.06) inset,
+    0 0 26px rgba(120, 180, 255, 0.1),
+    0 0 110px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
   display: flex;
   align-items: center;
+}
+
+header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.02),
+    rgba(255, 255, 255, 0.02) 1px,
+    rgba(0, 0, 0, 0) 3px,
+    rgba(0, 0, 0, 0) 6px
+  );
+  mix-blend-mode: overlay;
+  opacity: 0.22;
+  z-index: 0;
+}
+header::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background: radial-gradient(circle at 30% 20%, rgba(120, 180, 255, 0.07), transparent 58%);
+  opacity: 0.85;
+  animation: headerFlicker 3.1s infinite;
+  z-index: 0;
+}
+@keyframes headerFlicker {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.7;
+  }
+  12% {
+    transform: translate3d(-1px, 1px, 0);
+    opacity: 0.86;
+  }
+  25% {
+    transform: translate3d(1px, -1px, 0);
+    opacity: 0.68;
+  }
+  42% {
+    transform: translate3d(0, 2px, 0);
+    opacity: 0.9;
+  }
+  70% {
+    transform: translate3d(2px, 0, 0);
+    opacity: 0.76;
+  }
+}
+header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.rhombus {
+  opacity: 0.18;
+}
+
+/* LEFT title block (existing shape) */
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding-left: 12px;
+  padding-right: 22px;
+  height: 96px;
+  background: rgba(31, 79, 70, 0.92);
+  border-right: 1px solid rgba(170, 220, 255, 0.14);
+}
+
+.logo {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  image-rendering: auto;
+  flex: 0 0 auto;
+}
+
+.title-container {
+  display: flex;
+  flex-direction: column;
   justify-content: center;
-  height: 100%;
-  pointer-events: none;
+  min-width: 0;
 }
 
-/* Status pill */
-.status-pill {
-  pointer-events: none;
-  padding: 6px 14px;
-  border: 1px solid var(--primary-color);
-  background: rgba(0, 0, 0, 0.25);
-  font-family: "Raleway", sans-serif;
-  letter-spacing: 3px;
-  font-size: 10px;
+.title-row {
+  width: 100%;
+}
+#title-first-line {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.55);
+  padding-bottom: 2px;
+  margin-bottom: 2px;
+}
+
+#title-header {
+  font-size: 32px;
+  font-family: "Big Shoulders Display", cursive;
+  font-weight: 800;
   text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(230, 251, 255, 0.95);
+  white-space: nowrap;
 }
 
-.status-pill[data-status="active"] {
-  border-color: var(--primary-color);
+#subtitle-header {
+  font-size: 24px;
+  font-family: "Big Shoulders Display", cursive;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(214, 241, 255, 0.92);
+  white-space: nowrap;
 }
 
-.status-label {
-  color: var(--text-location);
+/* CENTER status pill: doubled size + uses empty space */
+.header-status {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  padding: 0 14px;
 }
 
-/* AO tiles */
+.status-pill-lg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 260px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(90, 220, 255, 0.22);
+  background: rgba(0, 0, 0, 0.22);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-family: "Titillium Web", sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow:
+    0 0 0 1px rgba(170, 220, 255, 0.06) inset,
+    0 0 28px rgba(120, 180, 255, 0.08);
+}
+
+.status-pill-lg[data-status="active"] {
+  border-color: rgba(120, 255, 190, 0.55);
+  color: rgba(120, 255, 190, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(120, 255, 190, 0.12) inset,
+    0 0 26px rgba(120, 255, 190, 0.08);
+}
+.status-pill-lg[data-status="training"] {
+  border-color: rgba(255, 210, 90, 0.55);
+  color: rgba(255, 210, 90, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(255, 210, 90, 0.12) inset,
+    0 0 26px rgba(255, 210, 90, 0.08);
+}
+.status-pill-lg[data-status="rearming"] {
+  border-color: rgba(255, 90, 90, 0.55);
+  color: rgba(255, 90, 90, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(255, 90, 90, 0.12) inset,
+    0 0 26px rgba(255, 90, 90, 0.08);
+}
+
+/* RIGHT details + vertical divider like OG header */
+header .planet-location-container {
+  margin-left: auto !important;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  padding-left: 16px;
+  padding-right: 12px;
+  border-left: 1px solid rgba(170, 220, 255, 0.22);
+}
+
+/* Panel can grow leftward if content is long */
+.location-info {
+  min-width: 0;
+  width: max-content;
+  max-width: min(1120px, 46vw);
+}
+
 .meta-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: max-content max-content minmax(220px, 420px);
   grid-template-rows: auto auto;
-  gap: 8px 14px;
+  gap: 10px 14px;
+  justify-content: end;
   align-items: end;
 }
 
 .meta-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  align-content: start;
 }
-
-.meta-tile h4 {
-  margin: 0;
-  line-height: 1.5em;
-  font-family: "Raleway", sans-serif;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 3px;
-}
-
-.meta-tile .subtitle {
-  font-size: 18px;
-  margin: 0;
-  align-self: flex-end;
-  font-family: "Big Shoulders Display", sans-serif;
-  letter-spacing: 1px;
-}
-
 .meta-tile--ao {
   grid-column: 3;
   grid-row: 1 / span 2;
-  align-items: flex-end;
-  justify-content: flex-end;
-  min-width: 220px;
 }
 
-/* Auth block (kept compact; should not shift the right panel) */
+.meta-tile h4 {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  margin: 0;
+  color: rgba(214, 241, 255, 0.75);
+}
+
+.subtitle {
+  display: block;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(230, 251, 255, 0.92);
+}
+
+/* AUTH: right edge */
 .auth-indicator {
-  margin-left: auto;
-  padding-right: 18px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(170, 255, 210, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(170, 255, 210, 0.92);
+  font-family: "Titillium Web", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1;
+  z-index: 2;
+}
+.auth-line {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
 }
-
-.auth-line {
-  font-family: "Raleway", sans-serif;
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--text-location);
+.auth-role {
+  font-weight: 800;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(170, 255, 210, 0.35);
 }
-
+.auth-role[data-variant="member"] {
+  opacity: 0.9;
+}
 .auth-role[data-variant="staff"] {
-  color: var(--primary-color);
+  border-color: rgba(30, 144, 255, 0.75);
 }
-
+.auth-name {
+  font-size: 12px;
+  opacity: 0.9;
+}
 .auth-logout {
-  font-family: "Raleway", sans-serif;
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  border: 1px solid var(--primary-color);
   background: transparent;
-  color: var(--text-location);
-  padding: 4px 10px;
+  border: 1px solid rgba(170, 255, 210, 0.35);
+  border-radius: 999px;
+  padding: 2px 10px;
+  color: rgba(170, 255, 210, 0.92);
   cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.auth-logout:hover {
+  border-color: rgba(170, 255, 210, 0.9);
 }
 
-/* Ticker */
+/* =========================
+   News Ticker (continuous loop)
+   ========================= */
 .news-ticker {
-  display: flex;
-  align-items: center;
   height: 32px;
-  background: rgba(0, 0, 0, 0.35);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid rgba(170, 220, 255, 0.14);
+  border-top: none;
+  background: linear-gradient(180deg, rgba(8, 14, 20, 0.75), rgba(3, 6, 10, 0.88));
+  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.08);
 }
 
 .news-label {
-  flex: 0 0 auto;
-  padding: 0 14px;
-  font-family: "Raleway", sans-serif;
-  font-size: 10px;
-  letter-spacing: 3px;
+  font-family: "Titillium Web", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--text-location);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(190, 230, 255, 0.92);
+  border: 1px solid rgba(170, 220, 255, 0.18);
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
 }
 
 .news-viewport {
-  flex: 1 1 auto;
   overflow: hidden;
-  white-space: nowrap;
+  width: 100%;
+  mask-image: linear-gradient(to right, transparent 0%, black 7%, black 93%, transparent 100%);
 }
 
 .news-track {
+  --ticker-duration: 28s;
   display: inline-flex;
+  align-items: center;
   white-space: nowrap;
   will-change: transform;
-  animation: ticker var(--ticker-duration, 28s) linear infinite;
+  animation: tickerLoop var(--ticker-duration) linear infinite;
 }
 
 .news-seq {
-  display: inline-block;
-  padding-left: 24px;
   font-family: "Titillium Web", sans-serif;
   font-size: 12px;
-  letter-spacing: 1px;
-  color: var(--text-location);
+  letter-spacing: 0.1em;
+  color: rgba(226, 243, 255, 0.92);
+  text-transform: uppercase;
+  text-shadow: 0 0 14px rgba(120, 180, 255, 0.1);
+  padding-right: 48px;
 }
 
-@keyframes ticker {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+@keyframes tickerLoop {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
 }
 </style>
-
