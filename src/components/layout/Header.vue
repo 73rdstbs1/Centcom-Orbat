@@ -94,7 +94,7 @@ import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/u
  * but we detect the ACTIVE campaign by reading the Operations CSV:
  * - Find first row where STATUS == "Active"
  * - Resolve CAMPAIGN NAME (carry-forward from last non-empty campaign name above)
- * - Match that to src/campaigns/**/campaign.json by (folder OR id OR name)
+ + * - Match that to src/campaigns/<campaign>/campaign.json by (folder OR id OR name)
  *
  * NOTE (Vite 6): use query '?raw' instead of deprecated `as: "raw"`.
  */
