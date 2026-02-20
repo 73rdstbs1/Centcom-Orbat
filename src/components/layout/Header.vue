@@ -5,25 +5,32 @@
     :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }"
   >
     <header>
-      <!-- LEFT: Logo + fixed CENTCOM title -->
-      <div class="title clipped-x-large-forward">
-        <img class="logo" :src="centcomLogo" alt="UNSC CENTCOM" />
-        <div class="title-container">
-          <div id="title-first-line" class="title-row">
-            <span id="title-header">UNSC CENTRAL COMMAND</span>
-          </div>
-          <div class="title-row">
-            <span id="subtitle-header">CENTCOM</span>
-          </div>
-        </div>
+      <!-- LEFT: Unit logos strip -->
+      <div class="logo-strip" aria-label="Unit logos">
+        <img
+          v-for="(src, i) in unitLogoSrcs"
+          :key="src + ':' + i"
+          class="unit-logo"
+          :src="src"
+          alt="Unit logo"
+          loading="lazy"
+        />
       </div>
 
       <div class="rhombus" aria-hidden="true"></div>
 
-      <!-- CENTER: Status bar (from RefData CSV) -->
-      <div class="header-status" aria-label="Current CENTCOM status">
-        <div class="status-pill-lg" :data-status="normalizedHeaderStatus">
-          <span class="status-label">{{ headerStatusLabel }}</span>
+      <!-- CENTER: Title + status pill beneath -->
+      <div class="center-block" aria-label="CENTCOM header">
+        <div class="center-title">
+          <div id="title-first-line" class="title-row">
+            <span id="title-header">UNSC CENTRAL COMMAND</span>
+          </div>
+        </div>
+
+        <div class="header-status" aria-label="Current CENTCOM status">
+          <div class="status-pill-lg" :data-status="normalizedHeaderStatus">
+            <span class="status-label">{{ headerStatusLabel }}</span>
+          </div>
         </div>
       </div>
 
@@ -74,11 +81,19 @@
     </header>
 
     <!-- Continuous Marquee News Ticker -->
-    <div v-if="newsEnabled && normalizedNewsItems.length" class="news-ticker" aria-label="UNSC News Ticker">
+    <div
+      v-if="newsEnabled && normalizedNewsItems.length"
+      class="news-ticker"
+      aria-label="UNSC News Ticker"
+    >
       <div class="news-label">BROADCAST</div>
 
       <div class="news-viewport">
-        <div class="news-track" :key="tickerKey" :style="{ '--ticker-duration': tickerDuration + 's' }">
+        <div
+          class="news-track"
+          :key="tickerKey"
+          :style="{ '--ticker-duration': tickerDuration + 's' }"
+        >
           <span class="news-seq" ref="seq">{{ tickerSequence }}</span>
           <span class="news-seq" aria-hidden="true">{{ tickerSequence }}</span>
         </div>
@@ -243,7 +258,10 @@ async function readHeaderStatusFromRefData(refDataCsvUrl) {
 
     // Find a column header that equals "Header details:" (case-insensitive)
     const headers = Object.keys(rows[0] || {});
-    const col = headers.find((h) => headerKeyMatch(h) === "header details:" || headerKeyMatch(h) === "header details");
+    const col = headers.find(
+      (h) =>
+        headerKeyMatch(h) === "header details:" || headerKeyMatch(h) === "header details"
+    );
     if (!col) return "";
 
     // First non-empty value in that column
@@ -289,11 +307,19 @@ function mergeCampaignWithMeta(campaign, meta) {
   if (!campaign) return campaign;
   const merged = { ...campaign };
 
-  if (!getAny(merged, ["system", "System", "header.system"]) && meta.system) merged.system = meta.system;
-  if (!getAny(merged, ["planet", "Planet", "header.planet"]) && meta.planet) merged.planet = meta.planet;
-  if (!getAny(merged, ["ao", "AO", "header.ao", "header.AO"]) && meta.ao) merged.ao = meta.ao;
-  if (!getAny(merged, ["year", "Year", "header.year", "quarter", "Quarter"]) && meta.year) merged.year = meta.year;
-  if (!getAny(merged, ["status", "Status", "header.status"]) && meta.status) merged.status = meta.status;
+  if (!getAny(merged, ["system", "System", "header.system"]) && meta.system)
+    merged.system = meta.system;
+  if (!getAny(merged, ["planet", "Planet", "header.planet"]) && meta.planet)
+    merged.planet = meta.planet;
+  if (!getAny(merged, ["ao", "AO", "header.ao", "header.AO"]) && meta.ao)
+    merged.ao = meta.ao;
+  if (
+    !getAny(merged, ["year", "Year", "header.year", "quarter", "Quarter"]) &&
+    meta.year
+  )
+    merged.year = meta.year;
+  if (!getAny(merged, ["status", "Status", "header.status"]) && meta.status)
+    merged.status = meta.status;
 
   return merged;
 }
@@ -308,7 +334,9 @@ async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
 
     const headers = Object.keys(rows[0] || {});
     const findCol = (labels) =>
-      headers.find((h) => labels.some((lbl) => headerKeyMatch(h) === headerKeyMatch(lbl))) || null;
+      headers.find((h) =>
+        labels.some((lbl) => headerKeyMatch(h) === headerKeyMatch(lbl))
+      ) || null;
 
     const colCampaign = findCol(["campaign name", "campaign", "campaign_name"]);
     const colStatus = findCol(["status", "op status", "operation status"]);
@@ -359,6 +387,13 @@ async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
   }
 }
 
+function normalizeLogoSrc(entry) {
+  const raw = String(entry || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("/")) return raw;
+  return `/faction-logos/${raw}`;
+}
+
 export default {
   name: "Header",
   inject: ["activeCampaignStore"],
@@ -396,9 +431,19 @@ export default {
     };
   },
   computed: {
-    centcomLogo() {
-      // Hard-coded per your request.
-      return "/faction-logos/UNSC_CENTCOM_LOGO.png";
+    unitLogoSrcs() {
+      const cfg = getConfig();
+      const arr =
+        cfg?.header?.branding?.unitLogos ||
+        cfg?.header?.branding?.logos ||
+        [];
+      const list = Array.isArray(arr) ? arr : [];
+      const srcs = list.map(normalizeLogoSrc).filter(Boolean);
+
+      // Fallback: keep at least one logo (existing behavior)
+      if (srcs.length) return srcs;
+      const single = cfg?.header?.branding?.headerLogo || "/faction-logos/UNSC_CENTCOM_LOGO.png";
+      return [normalizeLogoSrc(single)];
     },
 
     authLogoutLabel() {
@@ -444,9 +489,12 @@ export default {
     campaignHeader() {
       const c = this.activeCampaign || {};
 
-      const system = getAny(c, ["system", "System", "header.system"]) || this.header?.system || "—";
-      const planet = getAny(c, ["planet", "Planet", "header.planet"]) || this.header?.planet || "—";
-      const ao = getAny(c, ["ao", "AO", "header.ao", "header.AO"]) || this.header?.AO || "—";
+      const system =
+        getAny(c, ["system", "System", "header.system"]) || this.header?.system || "—";
+      const planet =
+        getAny(c, ["planet", "Planet", "header.planet"]) || this.header?.planet || "—";
+      const ao =
+        getAny(c, ["ao", "AO", "header.ao", "header.AO"]) || this.header?.AO || "—";
 
       const year =
         getAny(c, ["year", "Year", "header.year", "quarter", "Quarter"]) ||
@@ -707,40 +755,54 @@ header > * {
   opacity: 0.18;
 }
 
-/* LEFT title block (existing shape) */
-.title {
+/* LEFT: logos strip */
+.logo-strip {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding-left: 12px;
-  padding-right: 22px;
+  padding-right: 18px;
   height: 96px;
   background: rgba(31, 79, 70, 0.92);
   border-right: 1px solid rgba(170, 220, 255, 0.14);
 }
 
-.logo {
-  width: 120px;
-  height: 120px;
+.unit-logo {
+  width: 100px;
+  height: 100px;
   object-fit: contain;
-  image-rendering: auto;
   flex: 0 0 auto;
 }
 
-.title-container {
+/* CENTER: title + status beneath */
+.center-block {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+}
+
+.center-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   min-width: 0;
 }
 
 .title-row {
   width: 100%;
+  text-align: center;
 }
+
 #title-first-line {
   border-bottom: 1px solid rgba(0, 0, 0, 0.55);
   padding-bottom: 2px;
-  margin-bottom: 2px;
+  margin-bottom: 0;
+  width: max-content;
 }
 
 #title-header {
@@ -753,24 +815,13 @@ header > * {
   white-space: nowrap;
 }
 
-#subtitle-header {
-  font-size: 24px;
-  font-family: "Big Shoulders Display", cursive;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(214, 241, 255, 0.92);
-  white-space: nowrap;
-}
-
-/* CENTER status pill: doubled size + uses empty space */
+/* CENTER status pill */
 .header-status {
-  flex: 1 1 auto;
   display: flex;
   justify-content: center;
   align-items: center;
   min-width: 0;
-  padding: 0 14px;
+  padding: 0;
 }
 
 .status-pill-lg {
