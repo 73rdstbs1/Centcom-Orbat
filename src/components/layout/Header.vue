@@ -1,15 +1,13 @@
 <!-- /src/components/layout/Header.vue -->
 <template>
-  <div
-    class="header-wrap"
-    :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }"
-  >
-    <header>
-      <!-- LEFT: Logo + fixed CENTCOM title -->
+  <div class="header-wrap">
+    <header class="header">
+      <!-- LEFT: Title -->
       <div class="title clipped-x-large-forward">
-        <img class="logo" :src="centcomLogo" alt="UNSC CENTCOM" />
+        <!-- Hard-coded CENTCOM logo (keep 120x120) -->
+        <img class="logo" src="/faction-logos/UNSC_CENTCOM_LOGO.png" alt="UNSC Central Command" />
         <div class="title-container">
-          <div id="title-first-line" class="title-row">
+          <div class="title-row" id="title-first-line">
             <span id="title-header">UNSC CENTRAL COMMAND</span>
           </div>
           <div class="title-row">
@@ -20,17 +18,17 @@
 
       <div class="rhombus" aria-hidden="true"></div>
 
-      <!-- CENTER: Status bar (from RefData CSV) -->
-      <div class="header-status" aria-label="Current CENTCOM status">
-        <div class="status-pill-lg" :data-status="normalizedHeaderStatus">
+      <!-- MIDDLE: Current status pill (from RefData CSV) -->
+      <div class="status-center" aria-label="Current status">
+        <div class="status-pill" :data-status="statusVariant">
           <span class="status-label">{{ headerStatusLabel }}</span>
         </div>
       </div>
 
-      <!-- RIGHT: Active campaign details (from Operations CSV -> campaign.json) -->
-      <div v-if="showCampaignPanel" class="planet-location-container">
-        <div class="location-info" aria-label="Current AO details">
-          <!-- 2x2 stacked tiles + AO column spanning both rows:
+      <!-- RIGHT: Campaign AO details -->
+      <div v-if="showCampaignPanel" class="planet-location-container" aria-label="Current AO details">
+        <div class="location-info">
+          <!-- 2x2 stacked tiles + AO spanning both rows:
                [ SYSTEM | PLANET | AO ]
                [ YEAR   | STATUS | AO ]
           -->
@@ -63,7 +61,7 @@
         </div>
       </div>
 
-      <!-- AUTH (right edge, themed) -->
+      <!-- FAR RIGHT: Auth (member/staff + logout) -->
       <div class="auth-indicator" v-if="isLoggedIn">
         <div class="auth-line">
           <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
@@ -88,25 +86,22 @@
 </template>
 
 <script>
-/**
- * Header.vue
- *
- * Data sources:
- * - RefData CSV: reads "Header details:" cell (expects Active | Training | Rearming)
- * - Operations CSV: finds first row with STATUS == "Active"
- *     -> reads CAMPAIGN NAME from that row
- *     -> loads matching src/campaigns/**/campaign.json (matches by id/name/folder)
- *
- * Notes:
- * - Vite 6: use import.meta.glob with query '?raw' (NOT `as: 'raw'`)
- */
-import { getConfig } from "../../config/runtimeConfig";
+import { getConfig } from "@/config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
+/**
+ * Campaign data remains content-driven (campaign.json per folder),
+ * but we detect the ACTIVE campaign by reading the Operations CSV:
+ * - Find first row where STATUS == "Active"
+ * - Resolve CAMPAIGN NAME (carry-forward from last non-empty campaign name above)
+ * - Match that to src/campaigns/**/campaign.json by (folder OR id OR name)
+ *
+ * NOTE (Vite 6): use query '?raw' instead of deprecated `as: "raw"`.
+ */
 const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
-  eager: true,
   query: "?raw",
   import: "default",
+  eager: true,
 });
 
 const defaultNewsItems = [
@@ -115,8 +110,79 @@ const defaultNewsItems = [
   "ONI ADVISORY: OPSEC reminders in effect. Avoid publishing mission details outside TACNET.",
   "SITREP: Patrol activity increased near contested sectors. Proceed with caution.",
   "SYSTEM NOTICE: Training rotations updated. Check your squad channel for timings.",
-  "BREAKING: Marine promoted after surviving three drops and one briefing.",
 ];
+
+function normalizeKey(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[^\w\s:-]/g, "");
+}
+
+function normalizeMatch(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Minimal CSV parser that handles quoted fields.
+ */
+function parseCsv(text) {
+  const rows = [];
+  const s = String(text || "");
+  let row = [];
+  let cur = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    const next = s[i + 1];
+
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        cur += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        cur += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (ch === ",") {
+      row.push(cur);
+      cur = "";
+      continue;
+    }
+
+    if (ch === "\n") {
+      row.push(cur);
+      cur = "";
+      row = row.map((x) => (x && x.endsWith("\r") ? x.slice(0, -1) : x));
+      if (row.some((c) => String(c || "").trim() !== "")) rows.push(row);
+      row = [];
+      continue;
+    }
+
+    cur += ch;
+  }
+
+  row.push(cur);
+  row = row.map((x) => (x && x.endsWith("\r") ? x.slice(0, -1) : x));
+  if (row.some((c) => String(c || "").trim() !== "")) rows.push(row);
+
+  return rows;
+}
 
 function safeJson(raw) {
   try {
@@ -126,152 +192,127 @@ function safeJson(raw) {
   }
 }
 
-function csvSplit(line) {
-  // Minimal CSV splitter that handles quoted fields.
-  const out = [];
-  let cur = "";
-  let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQ && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else {
-        inQ = !inQ;
-      }
-      continue;
-    }
-    if (ch === "," && !inQ) {
-      out.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += ch;
-  }
-  out.push(cur);
-  return out.map((s) => String(s ?? "").trim());
-}
-
-function parseCsv(raw) {
-  const text = String(raw || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = text.split("\n").filter((l) => l.trim().length);
-  if (!lines.length) return [];
-  const header = csvSplit(lines[0]).map((h) => h.trim());
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = csvSplit(lines[i]);
-    const obj = {};
-    for (let j = 0; j < header.length; j++) obj[header[j]] = cols[j] ?? "";
-    rows.push(obj);
-  }
-  return rows;
-}
-
-function norm(s) {
-  return String(s || "").trim().toLowerCase();
-}
-
-function folderFromCampaignPath(path) {
+function campaignFolderFromJsonPath(path) {
   const parts = String(path || "").split("/campaigns/");
   if (parts.length < 2) return "";
   return parts[1].split("/")[0] || "";
 }
 
 function loadAllCampaigns() {
-  const out = [];
-  for (const [path, raw] of Object.entries(CAMPAIGN_JSON)) {
-    const json = safeJson(raw);
-    if (!json) continue;
-    out.push({
-      __path: path,
-      __folder: folderFromCampaignPath(path),
-      ...json,
-    });
-  }
-  return out;
+  return Object.entries(CAMPAIGN_JSON)
+    .map(([path, raw]) => {
+      const json = safeJson(raw);
+      if (!json) return null;
+      const folder = campaignFolderFromJsonPath(path);
+      return { ...json, __folder: folder, __path: path };
+    })
+    .filter(Boolean);
 }
 
-function findCampaignByName(all, campaignName) {
-  const q = norm(campaignName);
-  if (!q) return null;
-
-  // Match by id, name, folder (case-insensitive)
-  const exact = all.find((c) => norm(c.id) === q) || all.find((c) => norm(c.name) === q) || all.find((c) => norm(c.__folder) === q);
-  if (exact) return exact;
-
-  // Loose contains match (helps if sheet uses "Operation: X" while folder is "operation_x")
-  const contains = all.find((c) => norm(c.name).includes(q)) || all.find((c) => q.includes(norm(c.__folder)));
-  return contains || null;
-}
-
-async function fetchText(url) {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+async function fetchCsv(url) {
+  const u = String(url || "").trim();
+  if (!u) return null;
+  const res = await fetch(u, { cache: "no-store" });
+  if (!res.ok) return null;
   return await res.text();
 }
 
+/**
+ * RefData.csv:
+ * - Find a column named "Header details:" (case-insensitive, punctuation-insensitive)
+ * - Take the first non-empty cell in that column (top to bottom)
+ */
 async function readHeaderStatusFromRefData(refDataCsvUrl) {
-  if (!refDataCsvUrl) return "";
-  try {
-    const raw = await fetchText(refDataCsvUrl);
-    const rows = parseCsv(raw);
-    if (!rows.length) return "";
+  const raw = await fetchCsv(refDataCsvUrl);
+  if (!raw) return "";
 
-    // Find a column header that equals "Header details:" (case-insensitive)
-    const headers = Object.keys(rows[0] || {});
-    const col = headers.find((h) => norm(h) === "header details:" || norm(h) === "header details");
-    if (!col) return "";
+  const rows = parseCsv(raw);
+  if (!rows.length) return "";
 
-    // First non-empty value in that column
-    for (const r of rows) {
-      const v = String(r[col] || "").trim();
-      if (v) return v;
-    }
-    return "";
-  } catch {
-    return "";
+  const headerRow = rows[0];
+  const idx = headerRow.findIndex((h) => normalizeKey(h) === normalizeKey("Header details:"));
+  if (idx < 0) return "";
+
+  for (let r = 1; r < rows.length; r++) {
+    const v = String(rows[r][idx] ?? "").trim();
+    if (v) return v;
   }
+  return "";
 }
 
-async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
-  if (!operationsCsvUrl) return null;
+/**
+ * Operations.csv:
+ * Columns:
+ * - CAMPAIGN NAME
+ * - OPERATIONS
+ * - OP LINKS
+ * - STATUS
+ * - SUMMARY
+ *
+ * Rule:
+ * - Scan top-to-bottom, remembering the last non-empty CAMPAIGN NAME.
+ * - When a row's STATUS == "Active", return that remembered campaign name.
+ */
+async function findActiveCampaignNameFromOperations(operationsCsvUrl) {
+  const raw = await fetchCsv(operationsCsvUrl);
+  if (!raw) return "";
 
-  try {
-    const raw = await fetchText(operationsCsvUrl);
-    const rows = parseCsv(raw);
-    if (!rows.length) return null;
+  const rows = parseCsv(raw);
+  if (rows.length < 2) return "";
 
-    // Column names (case-insensitive match)
-    const headers = Object.keys(rows[0] || {});
-    const colCampaign = headers.find((h) => norm(h) === "campaign name");
-    const colStatus = headers.find((h) => norm(h) === "status");
+  const header = rows[0];
+  const idxCampaign = header.findIndex((h) => normalizeKey(h) === normalizeKey("CAMPAIGN NAME"));
+  const idxStatus = header.findIndex((h) => normalizeKey(h) === normalizeKey("STATUS"));
+  if (idxCampaign < 0 || idxStatus < 0) return "";
 
-    if (!colCampaign || !colStatus) return null;
+  let lastCampaign = "";
+  for (let r = 1; r < rows.length; r++) {
+    const campCell = String(rows[r][idxCampaign] ?? "").trim();
+    if (campCell) lastCampaign = campCell;
 
-    // Find first active op
-    const activeRow = rows.find((r) => norm(r[colStatus]) === "active");
-    if (!activeRow) return null;
-
-    const campaignName = String(activeRow[colCampaign] || "").trim();
-    if (!campaignName) return null;
-
-    const allCampaigns = loadAllCampaigns();
-    const campaign = findCampaignByName(allCampaigns, campaignName);
-    return campaign || null;
-  } catch {
-    return null;
+    const statusCell = String(rows[r][idxStatus] ?? "").trim().toLowerCase();
+    if (statusCell === "active") return lastCampaign || campCell || "";
   }
+
+  return "";
+}
+
+function matchCampaignByName(allCampaigns, campaignName) {
+  const key = normalizeMatch(campaignName);
+  if (!key) return null;
+
+  // First pass: exact-ish matches
+  for (const c of allCampaigns) {
+    const folder = normalizeMatch(c.__folder);
+    const id = normalizeMatch(c.id);
+    const name = normalizeMatch(c.name);
+    if (key === folder || key === id || key === name) return c;
+  }
+
+  // Second pass: containment (handles "Operation: X" vs "X")
+  for (const c of allCampaigns) {
+    const folder = normalizeMatch(c.__folder);
+    const id = normalizeMatch(c.id);
+    const name = normalizeMatch(c.name);
+    if (
+      folder.includes(key) ||
+      id.includes(key) ||
+      name.includes(key) ||
+      key.includes(folder) ||
+      key.includes(id) ||
+      key.includes(name)
+    ) {
+      return c;
+    }
+  }
+
+  return null;
 }
 
 export default {
-  name: "Header",
   inject: ["activeCampaignStore"],
   props: {
     header: { type: Object, required: true },
-    authOffsetX: { type: Number, default: 330 },
-    authOffsetY: { type: Number, default: 10 },
-
     newsEnabled: { type: Boolean, default: true },
     newsItems: { type: Array, default: () => defaultNewsItems },
 
@@ -285,31 +326,46 @@ export default {
   },
   data() {
     return {
+      // auth
       role: null,
       staffUser: null,
       unsub: null,
 
+      // header status (RefData)
       headerStatus: "",
 
+      // ticker
       tickerKey: 0,
       tickerSequence: "",
       tickerDuration: 28,
-
       _sequenceTimer: null,
       _resizeTimer: null,
       _lastPick: -1,
     };
   },
   computed: {
-    centcomLogo() {
-      // Hard-coded per your request.
-      return "/faction-logos/UNSC_CENTCOM_LOGO.png";
+    activeCampaign() {
+      return this.activeCampaignStore?.activeCampaign || null;
+    },
+    showCampaignPanel() {
+      return !!this.activeCampaign;
+    },
+    campaignHeader() {
+      const c = this.activeCampaign;
+      if (!c) return { system: "—", planet: "—", ao: "—", year: "—", status: "—" };
+      const ao = c.ao || c.AO || "—";
+      return {
+        system: c.system || "—",
+        planet: c.planet || "—",
+        ao,
+        year: c.year || c.quarter || "—",
+        status: (c.status || "—").toString().toUpperCase(),
+      };
     },
 
     authLogoutLabel() {
       return getConfig().ui?.auth?.logoutLabel || "Logout";
     },
-
     isLoggedIn() {
       return this.role === "member" || this.isStaff;
     },
@@ -327,33 +383,17 @@ export default {
       return (this.staffUser && this.staffUser.displayName) || "";
     },
 
-    normalizedHeaderStatus() {
-      const v = norm(this.headerStatus);
-      if (v === "training") return "training";
-      if (v === "rearming") return "rearming";
-      return "active";
-    },
+    // Status bar
     headerStatusLabel() {
-      const v = this.normalizedHeaderStatus;
-      if (v === "training") return "TRAINING";
-      if (v === "rearming") return "REARMING";
-      return "ACTIVE";
+      const v = String(this.headerStatus || "").trim();
+      return v ? v.toUpperCase() : "—";
     },
-
-    activeCampaign() {
-      return this.activeCampaignStore?.activeCampaign || null;
-    },
-    showCampaignPanel() {
-      return !!this.activeCampaign;
-    },
-    campaignHeader() {
-      const c = this.activeCampaign || {};
-      const system = c.system || this.header?.system || "—";
-      const planet = c.planet || this.header?.planet || "—";
-      const ao = c.ao || c.AO || this.header?.AO || "—";
-      const year = (c.startDate || c.endDate || "").slice(0, 4) || "—";
-      const status = (c.status || "—").toUpperCase();
-      return { system, planet, ao, year, status };
+    statusVariant() {
+      const v = String(this.headerStatus || "").trim().toLowerCase();
+      if (v === "active") return "active";
+      if (v === "training") return "training";
+      if (v === "rearming" || v === "rest") return "rearming";
+      return "unknown";
     },
 
     normalizedNewsItems() {
@@ -363,10 +403,6 @@ export default {
         .map((s) => s.trim())
         .filter(Boolean);
     },
-
-    branding() {
-      return getConfig().branding || {};
-    },
   },
   async created() {
     // Auth
@@ -374,18 +410,9 @@ export default {
     this.unsub = authSubscribe(() => this.readAuth());
     window.addEventListener("storage", this.onStorage);
 
-    // Header status (RefData)
-    const refUrl = getConfig().sheets?.refDataCsvUrl;
-    this.headerStatus = await readHeaderStatusFromRefData(refUrl);
-
-    // Active campaign from Operations CSV -> campaign.json
-    const operationsUrl =
-      getConfig().sheets?.operationsCsvUrl ||
-      getConfig().sheets?.opsCsvUrl ||
-      getConfig().sheets?.operationsPageCsvUrl ||
-      "";
-    const activeCampaign = await detectActiveCampaignFromOperationsCsv(operationsUrl);
-    if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = activeCampaign;
+    // RefData status + Active campaign
+    this.refreshHeaderStatus();
+    this.refreshActiveCampaign();
 
     // Ticker
     this.startTicker();
@@ -399,29 +426,6 @@ export default {
     window.removeEventListener("storage", this.onStorage);
     window.removeEventListener("resize", this.onResize);
     this.stopTicker();
-  },
-  watch: {
-    newsEnabled() {
-      this.startTicker();
-    },
-    normalizedNewsItems() {
-      this.startTicker();
-    },
-    tickerPxPerSecond() {
-      this.recalcTickerDuration();
-    },
-    tickerItemsPerLoop() {
-      this.startTicker();
-    },
-    tickerSeparator() {
-      this.startTicker();
-    },
-    tickerSeparatorToken() {
-      this.startTicker();
-    },
-    tickerSeparatorPad() {
-      this.startTicker();
-    },
   },
   methods: {
     readAuth() {
@@ -447,11 +451,36 @@ export default {
       }
     },
 
+    async refreshHeaderStatus() {
+      const refUrl = getConfig().sheets?.refDataCsvUrl || "";
+      if (!refUrl) return;
+      try {
+        const v = await readHeaderStatusFromRefData(refUrl);
+        this.headerStatus = v || this.headerStatus;
+      } catch {}
+    },
+
+    async refreshActiveCampaign() {
+      const opsUrl = getConfig().sheets?.operationsCsvUrl || getConfig().sheets?.opsCsvUrl || "";
+      if (!opsUrl) return;
+
+      try {
+        const activeCampaignName = await findActiveCampaignNameFromOperations(opsUrl);
+        if (!activeCampaignName) return;
+
+        const allCampaigns = loadAllCampaigns();
+        const matched = matchCampaignByName(allCampaigns, activeCampaignName);
+        if (!matched) return;
+
+        if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = matched;
+      } catch {}
+    },
+
+    // ===== ticker =====
     onResize() {
       if (this._resizeTimer) clearTimeout(this._resizeTimer);
       this._resizeTimer = setTimeout(() => this.recalcTickerDuration(), 120);
     },
-
     startTicker() {
       this.stopTicker();
       if (!this.newsEnabled) return;
@@ -469,7 +498,6 @@ export default {
       if (this._resizeTimer) clearTimeout(this._resizeTimer);
       this._resizeTimer = null;
     },
-
     buildNewSequence() {
       const items = this.normalizedNewsItems;
       const n = items.length;
@@ -478,8 +506,6 @@ export default {
       const padCount = Math.max(0, Number(this.tickerSeparatorPad) || 0);
       const pad = "\u00A0".repeat(padCount);
       const token = String(this.tickerSeparatorToken || "//").trim() || "//";
-      const sep = `${pad}${token}${pad}`;
-
       const baseSep = String(this.tickerSeparator ?? " // ");
       const effectiveSep = padCount > 0 ? `${pad}${baseSep.trim() || token}${pad}` : baseSep;
 
@@ -494,14 +520,11 @@ export default {
 
       this._lastPick = last;
 
-      const sequenceSep = effectiveSep || sep;
-      const seq = picks.join(sequenceSep) + sequenceSep;
-
+      const seq = picks.join(effectiveSep) + effectiveSep;
       this.tickerSequence = seq;
       this.tickerKey += 1;
       this.$nextTick(() => this.recalcTickerDuration());
     },
-
     recalcTickerDuration() {
       const seqEl = this.$refs.seq;
       if (!seqEl || !seqEl.scrollWidth) return;
@@ -512,7 +535,6 @@ export default {
 
       this.tickerDuration = Math.max(12, Math.round(seconds * 10) / 10);
     },
-
     randomIndex(n, avoid) {
       if (n <= 1) return 0;
       let idx = Math.floor(Math.random() * n);
@@ -524,368 +546,16 @@ export default {
 </script>
 
 <style scoped>
-/* Wrapper lets ticker sit below header without changing/overlapping header internals */
 .header-wrap {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* Header spans top edge: no rounding */
-header {
+/* ===== Header base ===== */
+.header {
   position: relative;
+  display: flex;
+  align-items: center;
   border-radius: 0 !important;
-  border: 1px solid rgba(170, 220, 255, 0.22);
-  background: linear-gradient(180deg, rgba(8, 14, 20, 0.9), rgba(3, 6, 10, 0.94));
-  box-shadow:
-    0 0 0 1px rgba(170, 220, 255, 0.06) inset,
-    0 0 26px rgba(120, 180, 255, 0.1),
-    0 0 110px rgba(0, 0, 0, 0.55);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-}
-
-header::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.02),
-    rgba(255, 255, 255, 0.02) 1px,
-    rgba(0, 0, 0, 0) 3px,
-    rgba(0, 0, 0, 0) 6px
-  );
-  mix-blend-mode: overlay;
-  opacity: 0.22;
-  z-index: 0;
-}
-header::after {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  pointer-events: none;
-  background: radial-gradient(circle at 30% 20%, rgba(120, 180, 255, 0.07), transparent 58%);
-  opacity: 0.85;
-  animation: headerFlicker 3.1s infinite;
-  z-index: 0;
-}
-@keyframes headerFlicker {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-    opacity: 0.7;
-  }
-  12% {
-    transform: translate3d(-1px, 1px, 0);
-    opacity: 0.86;
-  }
-  25% {
-    transform: translate3d(1px, -1px, 0);
-    opacity: 0.68;
-  }
-  42% {
-    transform: translate3d(0, 2px, 0);
-    opacity: 0.9;
-  }
-  70% {
-    transform: translate3d(2px, 0, 0);
-    opacity: 0.76;
-  }
-}
-header > * {
-  position: relative;
-  z-index: 1;
-}
-
-.rhombus {
-  opacity: 0.18;
-}
-
-/* LEFT title block (existing shape) */
-.title {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  padding-left: 12px;
-  padding-right: 22px;
-  height: 96px;
-  background: rgba(31, 79, 70, 0.92);
-  border-right: 1px solid rgba(170, 220, 255, 0.14);
-}
-
-.logo {
-  width: 120px;
-  height: 120px;
-  object-fit: contain;
-  image-rendering: auto;
-  flex: 0 0 auto;
-}
-
-.title-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-}
-
-.title-row {
-  width: 100%;
-}
-#title-first-line {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.55);
-  padding-bottom: 2px;
-  margin-bottom: 2px;
-}
-
-#title-header {
-  font-size: 32px;
-  font-family: "Big Shoulders Display", cursive;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: rgba(230, 251, 255, 0.95);
-  white-space: nowrap;
-}
-
-#subtitle-header {
-  font-size: 24px;
-  font-family: "Big Shoulders Display", cursive;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(214, 241, 255, 0.92);
-  white-space: nowrap;
-}
-
-/* CENTER status pill: doubled size + uses empty space */
-.header-status {
-  flex: 1 1 auto;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-width: 0;
-  padding: 0 14px;
-}
-
-.status-pill-lg {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 260px;
-  padding: 12px 22px;
-  border-radius: 999px;
-  border: 1px solid rgba(90, 220, 255, 0.22);
-  background: rgba(0, 0, 0, 0.22);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  font-family: "Titillium Web", sans-serif;
-  font-weight: 800;
-  font-size: 14px;
-  box-shadow:
-    0 0 0 1px rgba(170, 220, 255, 0.06) inset,
-    0 0 28px rgba(120, 180, 255, 0.08);
-}
-
-.status-pill-lg[data-status="active"] {
-  border-color: rgba(120, 255, 190, 0.55);
-  color: rgba(120, 255, 190, 0.95);
-  box-shadow:
-    0 0 0 1px rgba(120, 255, 190, 0.12) inset,
-    0 0 26px rgba(120, 255, 190, 0.08);
-}
-.status-pill-lg[data-status="training"] {
-  border-color: rgba(255, 210, 90, 0.55);
-  color: rgba(255, 210, 90, 0.95);
-  box-shadow:
-    0 0 0 1px rgba(255, 210, 90, 0.12) inset,
-    0 0 26px rgba(255, 210, 90, 0.08);
-}
-.status-pill-lg[data-status="rearming"] {
-  border-color: rgba(255, 90, 90, 0.55);
-  color: rgba(255, 90, 90, 0.95);
-  box-shadow:
-    0 0 0 1px rgba(255, 90, 90, 0.12) inset,
-    0 0 26px rgba(255, 90, 90, 0.08);
-}
-
-/* RIGHT details + vertical divider like OG header */
-header .planet-location-container {
-  margin-left: auto !important;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-
-  padding-left: 16px;
-  padding-right: 12px;
-  border-left: 1px solid rgba(170, 220, 255, 0.22);
-}
-
-/* Panel can grow leftward if content is long */
-.location-info {
-  min-width: 0;
-  width: max-content;
-  max-width: min(1120px, 46vw);
-}
-
-.meta-grid {
-  display: grid;
-  grid-template-columns: max-content max-content minmax(220px, 420px);
-  grid-template-rows: auto auto;
-  gap: 10px 14px;
-  justify-content: end;
-  align-items: end;
-}
-
-.meta-tile {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-  align-content: start;
-}
-.meta-tile--ao {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-}
-
-.meta-tile h4 {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.78rem;
-  margin: 0;
-  color: rgba(214, 241, 255, 0.75);
-}
-
-.subtitle {
-  display: block;
-  font-size: 0.95rem;
-  letter-spacing: 0.1em;
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: rgba(230, 251, 255, 0.92);
-}
-
-/* AUTH: right edge */
-.auth-indicator {
-  position: absolute;
-  right: 12px;
-  top: 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid rgba(170, 255, 210, 0.35);
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.35);
-  color: rgba(170, 255, 210, 0.92);
-  font-family: "Titillium Web", sans-serif;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  line-height: 1;
-  z-index: 2;
-}
-.auth-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.auth-role {
-  font-weight: 800;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(170, 255, 210, 0.35);
-}
-.auth-role[data-variant="member"] {
-  opacity: 0.9;
-}
-.auth-role[data-variant="staff"] {
-  border-color: rgba(30, 144, 255, 0.75);
-}
-.auth-name {
-  font-size: 12px;
-  opacity: 0.9;
-}
-.auth-logout {
-  background: transparent;
-  border: 1px solid rgba(170, 255, 210, 0.35);
-  border-radius: 999px;
-  padding: 2px 10px;
-  color: rgba(170, 255, 210, 0.92);
-  cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.auth-logout:hover {
-  border-color: rgba(170, 255, 210, 0.9);
-}
-
-/* =========================
-   News Ticker (continuous loop)
-   ========================= */
-.news-ticker {
-  height: 32px;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  border: 1px solid rgba(170, 220, 255, 0.14);
-  border-top: none;
-  background: linear-gradient(180deg, rgba(8, 14, 20, 0.75), rgba(3, 6, 10, 0.88));
-  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.08);
-}
-
-.news-label {
-  font-family: "Titillium Web", sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(190, 230, 255, 0.92);
-  border: 1px solid rgba(170, 220, 255, 0.18);
-  background: rgba(0, 0, 0, 0.18);
-  border-radius: 999px;
-  padding: 3px 10px;
-  white-space: nowrap;
-}
-
-.news-viewport {
-  overflow: hidden;
-  width: 100%;
-  mask-image: linear-gradient(to right, transparent 0%, black 7%, black 93%, transparent 100%);
-}
-
-.news-track {
-  --ticker-duration: 28s;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-  will-change: transform;
-  animation: tickerLoop var(--ticker-duration) linear infinite;
-}
-
-.news-seq {
-  font-family: "Titillium Web", sans-serif;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  color: rgba(226, 243, 255, 0.92);
-  text-transform: uppercase;
-  text-shadow: 0 0 14px rgba(120, 180, 255, 0.1);
-  padding-right: 48px;
-}
-
-@keyframes tickerLoop {
-  0% {
-    transform: translate3d(0, 0, 0);
-  }
-  100% {
-    transform: translate3d(-50%, 0, 0);
-  }
-}
-</style>
+  border: 1
