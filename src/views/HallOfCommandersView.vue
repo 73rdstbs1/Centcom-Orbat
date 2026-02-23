@@ -45,7 +45,7 @@
           <div class="filter-block meta-block">
             <div class="filter-label">RECORDS</div>
             <div class="meta-chip">
-              {{ tiles.length }} commander{{ tiles.length === 1 ? "" : "s" }}
+              {{ tiles.length }} campaign{{ tiles.length === 1 ? "" : "s" }}
             </div>
           </div>
         </div>
@@ -83,7 +83,7 @@
         </div>
 
         <div v-if="!tiles.length" class="empty">
-          <div class="muted">No matching commander records.</div>
+          <div class="muted">No matching campaign records.</div>
         </div>
       </div>
     </section>
@@ -267,7 +267,7 @@
             <div class="section-label">NOTES</div>
             <div class="panel">
               <div class="muted">
-                Placeholder for citations, commendations, OPORD links, and campaign archive references.
+                {{ notesText(activeCommander) }}
               </div>
             </div>
           </section>
@@ -282,8 +282,6 @@
 </template>
 
 <script>
-import { commanders, awardById, campaignById } from "@/data/pocData";
-
 const PLACEHOLDER_PORTRAIT =
   "data:image/svg+xml;charset=utf-8," +
   encodeURIComponent(`<?xml version="1.0" encoding="UTF-8"?>
@@ -303,15 +301,105 @@ const PLACEHOLDER_PORTRAIT =
   </text>
 </svg>`);
 
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+});
+
+function safeJson(raw) {
+  try {
+    return JSON.parse(String(raw || ""));
+  } catch {
+    return null;
+  }
+}
+
+function norm(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function folderFromCampaignPath(path) {
+  const parts = String(path || "").split("/campaigns/");
+  if (parts.length < 2) return "";
+  return parts[1].split("/")[0] || "";
+}
+
+function asArray(v) {
+  return Array.isArray(v) ? v : [];
+}
+
+function awardLabel(x) {
+  if (!x) return "";
+  if (typeof x === "string") return x.trim();
+  if (typeof x === "object") return String(x.name || x.title || x.id || "").trim();
+  return String(x).trim();
+}
+
+function loadCampaignIndex() {
+  const campaigns = [];
+  const campaignById = {};
+
+  for (const [path, raw] of Object.entries(CAMPAIGN_JSON)) {
+    const json = safeJson(raw);
+    if (!json) continue;
+
+    const folder = folderFromCampaignPath(path);
+    const id = json.id || folder;
+    if (!id) continue;
+
+    const camp = { __path: path, __folder: folder, ...json, id };
+    campaigns.push(camp);
+    campaignById[id] = camp;
+  }
+
+  // One tile per campaign: use the MAIN commander from campaign.command.commander
+  const mainCommanders = campaigns
+    .map((camp) => {
+      const cmd = camp?.command?.commander || {};
+      return {
+        id: `${camp.id}__cmd`,
+        campaignId: camp.id,
+        name: cmd.name || camp.commanderName || "—",
+        callsign: cmd.callsign || "",
+        position: cmd.role || "Commander",
+        unit: cmd.unitName || camp.theatre || camp.location || "—",
+        portrait: cmd.portrait || "",
+        awards: asArray(cmd.awards || camp.commanderAwards),
+      };
+    })
+    .filter((c) => c.name && c.name !== "—");
+
+  return { campaigns, campaignById, mainCommanders };
+}
+
+const CAMPAIGN_INDEX = loadCampaignIndex();
+
 export default {
   name: "HallOfCommandersView",
   data() {
     return {
-      commanders,
+      campaigns: CAMPAIGN_INDEX.campaigns,
+      campaignById: CAMPAIGN_INDEX.campaignById,
+
+      commanders: CAMPAIGN_INDEX.mainCommanders,
+
       search: "",
       statusFilter: "",
       activeCommander: null,
-      connector: { ready: false, w: 1000, h: 200, midX: 500, leftX: 250, rightX: 750, midY0: 0, midY1: 70, busY: 100, subY1: 200 },
+
+      connector: {
+        ready: false,
+        w: 1000,
+        h: 200,
+        midX: 500,
+        leftX: 250,
+        rightX: 750,
+        midY0: 0,
+        midY1: 70,
+        busY: 100,
+        subY1: 200,
+      },
       _ro: null,
     };
   },
@@ -331,45 +419,63 @@ export default {
           (c.position || "").toLowerCase().includes(q) ||
           (c.unit || "").toLowerCase().includes(q);
 
-        const camp = campaignById?.[c.campaignId];
-        const tf = (camp?.orgChart?.taskForceName || "").toLowerCase();
+        const camp = this.campaignById?.[c.campaignId];
         const inCampaign =
           (camp?.name || "").toLowerCase().includes(q) ||
           (camp?.overview || "").toLowerCase().includes(q) ||
-          tf.includes(q);
+          (camp?.location || "").toLowerCase().includes(q) ||
+          (camp?.theatre || "").toLowerCase().includes(q);
 
-        const inAwards = (c.awards || []).some((a) => String(a || "").toLowerCase().includes(q));
+        const inAwards = (this.awardsFor(c) || []).some((a) => String(a || "").toLowerCase().includes(q));
+        const inNotables = (this.notableAwards(c) || []).some((a) => String(a || "").toLowerCase().includes(q));
 
-        return inCommander || inCampaign || inAwards;
+        return inCommander || inCampaign || inAwards || inNotables;
       });
 
-      return filtered
-        .map((c) => {
-          const camp = campaignById?.[c.campaignId];
-          const dateLabel = this.tileDate(camp);
-          const taskForce = camp?.orgChart?.taskForceName || c.unit || "—";
+      const scored = filtered.map((c) => {
+        const camp = this.campaignById?.[c.campaignId];
+        const dateLabel = this.tileDate(camp);
+        const taskForce =
+          c.unit ||
+          camp?.command?.commander?.unitName ||
+          camp?.theatre ||
+          camp?.location ||
+          "—";
 
-          return {
-            id: c.id,
-            name: c.name || "—",
-            taskForce,
-            dateLabel,
-            raw: c,
-          };
-        })
-        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        const sortKey = Date.parse(camp?.startDate || "") || 0;
+
+        return {
+          id: c.id,
+          name: c.name || "—",
+          taskForce,
+          dateLabel,
+          sortKey,
+          raw: c,
+        };
+      });
+
+      // Sort: newest campaign first, then campaign name.
+      return scored.sort((a, b) => {
+        if (b.sortKey !== a.sortKey) return b.sortKey - a.sortKey;
+        return String(this.campaignName(a.raw)).localeCompare(String(this.campaignName(b.raw)));
+      });
     },
+
     subCommanders() {
-      if (!this.activeCommander) return [null, null];
+      if (!this.activeCommander?.campaignId) return [null, null];
 
-      const sameCampaign = (this.commanders || []).filter(
-        (c) =>
-          c.campaignId &&
-          c.campaignId === this.activeCommander.campaignId &&
-          c.id !== this.activeCommander.id
-      );
+      const camp = this.campaignById?.[this.activeCommander.campaignId];
+      if (!camp) return [null, null];
 
-      const out = sameCampaign.slice(0, 2);
+      const main = this.mainCommanderForCampaign(camp);
+      const subs = this.subCommanderRecordsForCampaign(camp);
+
+      const all = [main, ...subs].filter(Boolean);
+
+      const activeId = this.activeCommander?.id;
+      const others = all.filter((x) => x && x.id !== activeId);
+
+      const out = others.slice(0, 2);
       while (out.length < 2) out.push(null);
       return out;
     },
@@ -410,8 +516,35 @@ export default {
   methods: {
     noop() {},
 
+    mainCommanderForCampaign(camp) {
+      const cmd = camp?.command?.commander || {};
+      return {
+        id: `${camp.id}__cmd`,
+        campaignId: camp.id,
+        name: cmd.name || camp.commanderName || "—",
+        callsign: cmd.callsign || "",
+        position: cmd.role || "Commander",
+        unit: cmd.unitName || camp.theatre || camp.location || "—",
+        portrait: cmd.portrait || "",
+        awards: asArray(cmd.awards || camp.commanderAwards),
+      };
+    },
+
+    subCommanderRecordsForCampaign(camp) {
+      const subs = asArray(camp?.command?.subCommanders);
+      return subs.map((sc, idx) => ({
+        id: `${camp.id}__sub__${idx}`,
+        campaignId: camp.id,
+        name: sc?.name || "—",
+        callsign: sc?.callsign || "",
+        position: sc?.role || "Sub-Commander",
+        unit: sc?.unitName || camp.theatre || camp.location || "—",
+        portrait: sc?.portrait || "",
+        awards: asArray(sc?.awards),
+      }));
+    },
+
     refreshConnector() {
-      // Measure actual tile centers and build an SVG in pixel space to avoid any overlap/clipping guessing.
       this.$nextTick(() => {
         const wrap = this.$refs.connectorWrap;
         const top = this.$refs.topTile;
@@ -430,7 +563,7 @@ export default {
         const rightRect = right.getBoundingClientRect();
 
         const w = wClient;
-        const h = 140; // fixed connector row height in CSS
+        const h = 140;
 
         const midX = (topRect.left + topRect.width / 2) - wRect.left;
         const leftX = (leftRect.left + leftRect.width / 2) - wRect.left;
@@ -459,19 +592,33 @@ export default {
         this.refreshConnector();
       });
     },
+
     portraitUrlFor(commander) {
       if (!commander) return PLACEHOLDER_PORTRAIT;
+      const direct = String(commander.portrait || "").trim();
+      if (direct) return direct;
+
+      const camp = this.campaignById?.[commander.campaignId];
+      const fallback = String(camp?.assets?.defaultPortrait || "").trim();
+      if (fallback) return fallback;
+
+      const fallbacks = asArray(camp?.assets?.fallbackPortraits);
+      if (fallbacks.length) return String(fallbacks[0]).trim() || PLACEHOLDER_PORTRAIT;
+
       return PLACEHOLDER_PORTRAIT;
     },
+
     commanderCallsign(commander) {
       if (!commander) return "CALLSIGN";
-      return commander.callsign || commander.name || "CALLSIGN";
+      return commander.callsign || commander.position || commander.name || "CALLSIGN";
     },
+
     goToCampaign(campaignId) {
       if (!campaignId) return;
       this.closeDetails();
       this.$router.push({ path: "/campaigns", query: { campaignId } });
     },
+
     tileDate(campaign) {
       if (!campaign) return "—";
       const s = campaign.startDate;
@@ -479,57 +626,85 @@ export default {
       if (s && e) return `${s} → ${e}`;
       return s || e || "—";
     },
+
     campaignName(c) {
       if (!c || !c.campaignId) return "—";
-      return campaignById?.[c.campaignId]?.name || "—";
+      return this.campaignById?.[c.campaignId]?.name || "—";
     },
+
     campaignDates(c) {
-      const camp = campaignById?.[c.campaignId];
+      const camp = this.campaignById?.[c.campaignId];
       return this.tileDate(camp);
     },
+
     campaignStatus(c) {
-      return c.campaignStatus || campaignById?.[c.campaignId]?.status || "archived";
+      return norm(c?.campaignStatus) || this.campaignById?.[c?.campaignId]?.status || "archived";
     },
+
     campaignLocation(c) {
-      const camp = campaignById?.[c.campaignId];
-      return camp?.location || "CLASSIFIED / TBD";
+      const camp = this.campaignById?.[c?.campaignId];
+      return camp?.location || [camp?.system, camp?.planet, camp?.ao].filter(Boolean).join(" / ") || "CLASSIFIED / TBD";
     },
+
     taskForceFor(c) {
-      const camp = campaignById?.[c.campaignId];
-      return camp?.orgChart?.taskForceName || c.unit || "—";
+      const camp = this.campaignById?.[c?.campaignId];
+      return c?.unit || camp?.command?.commander?.unitName || camp?.theatre || camp?.location || "—";
     },
+
     awardsFor(c) {
-      const raw = c?.awards || [];
-      return raw.map((x) => awardById?.[x]?.name || x).filter(Boolean);
+      const raw = asArray(c?.awards);
+      return raw.map(awardLabel).filter(Boolean);
     },
+
     notableAwards(c) {
-      const camp = campaignById?.[c.campaignId];
-      const raw = camp?.notableAwardsEarned || [];
-      return (raw || []).map((x) => awardById?.[x]?.name || x).filter(Boolean);
+      const camp = this.campaignById?.[c?.campaignId];
+      const raw =
+        asArray(camp?.notableAwardsEarned) ||
+        asArray(camp?.awards?.notable) ||
+        [];
+      return raw.map(awardLabel).filter(Boolean);
     },
+
+    notesText(c) {
+      const camp = this.campaignById?.[c?.campaignId];
+      const v =
+        String(camp?.overview || "").trim() ||
+        String(camp?.summary || "").trim() ||
+        String(camp?.notes || "").trim();
+      return v || "No campaign summary recorded.";
+    },
+
     openDetails(c) {
-      this.activeCommander = c;
+      // Ensure we open the MAIN commander record for the campaign tile.
+      const camp = this.campaignById?.[c?.campaignId];
+      this.activeCommander = camp ? this.mainCommanderForCampaign(camp) : c;
+
       this.$nextTick(() => {
         this.$refs.modalRef?.focus?.();
         this.refreshConnector();
       });
     },
+
     closeDetails() {
       this.activeCommander = null;
       this.connector.ready = false;
     },
+
     subCommanderName(idx) {
       const c = this.subCommanders[idx];
       return c?.name || "SUB-COMMANDER SLOT";
     },
+
     subCommanderUnit(idx) {
       const c = this.subCommanders[idx];
       if (!c) return "—";
       return this.taskForceFor(c) || "—";
     },
+
     onResize() {
       if (this.activeCommander) this.refreshConnector();
     },
+
     onKeydown(e) {
       if (e.key === "Escape" && this.activeCommander) this.closeDetails();
     },
