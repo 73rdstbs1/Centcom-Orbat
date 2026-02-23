@@ -40,20 +40,20 @@
     "commander": {
       "name": "CPT John Doe",
       "unitName": "Task Force Atlas",
-      "portrait": "/assets/portraits/atlas.png",
+      "portrait": "/icons/pilot.svg",
       "role": "Task Force Commander"
     },
     "subCommanders": [
       {
         "name": "MAJ Jane Roe",
         "unitName": "Task Unit Odyssey",
-        "portrait": "/assets/portraits/odyssey.png",
+        "portrait": "/icons/pilot.svg",
         "role": "Task Unit Commander"
       },
       {
         "name": "CWO Alex Smith",
         "unitName": "Task Unit Vanguard",
-        "portrait": "/assets/portraits/vanguard.png",
+        "portrait": "/icons/pilot.svg",
         "role": "Task Unit Commander"
       }
     ]
