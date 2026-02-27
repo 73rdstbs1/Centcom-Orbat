@@ -65,6 +65,8 @@
                   <span class="value">{{ fmtDates(c.startDate, c.endDate) }}</span>
                 </div>
                 <div class="meta-line">
+                  <span class="label">QTR</span>
+</div>
               </div>
             </header>
 
@@ -138,6 +140,9 @@
               <span class="value">{{ fmtDates(activeCampaign.startDate, activeCampaign.endDate) }}</span>
             </div>
             <div>
+              <span class="label">QTR</span>
+              <span class="value">{{ "—"}}</span>
+            </div>
           </div>
 
           <section class="modal-section">
@@ -147,16 +152,6 @@
               <div class="org-node root">
                 <div class="node-title">{{ activeCampaign.orgChart.taskForceName || "Task Force" }}</div>
                 <div v-if="activeCampaign.command?.commander" class="node-sub">
-                  <img
-                    v-if="activeCampaign.command.commander.portrait"
-                    :src="activeCampaign.command.commander.portrait"
-                    :alt="`${activeCampaign.command.commander.name || 'Commander'} portrait`"
-                    width="36"
-                    height="36"
-                    style="margin-right:8px; border-radius:10px; object-fit:cover; vertical-align:middle;"
-                    loading="lazy"
-                    decoding="async"
-                  />
                   <span class="muted">COMMANDER:</span>
                   <span class="value">{{ activeCampaign.command.commander.name || "—" }}</span>
                 </div>
