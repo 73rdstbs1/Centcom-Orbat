@@ -39,7 +39,7 @@
     "_help": "Command tile info. Only uses names + portraits. UnitName should match roster sheet unit names.",
     "commander": {
       "name": "CPT John Doe",
-      "unitName": "809 Booba Sqn",
+      "unitName": "Task Force Command",
       "portrait": "/icons/pilot.svg",
       "role": "Task Force Commander"
     },
