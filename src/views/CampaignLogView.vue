@@ -174,8 +174,8 @@
                   <span class="value">{{ (activeCampaign.command.subCommanders && activeCampaign.command.subCommanders[1] && activeCampaign.command.subCommanders[1].name) || "—" }}</span>
                 </div>
                 <div class="node-sub">
-                  <span class="muted">HQ:</span>
-                  <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.name || "—" }}</span>
+                  <span class="muted">UNIT:</span>
+                  <span class="value">{{ activeCampaign.orgChart.taskForceUNIT?.name || "—" }}</span>
                 </div>
               </div>
 
@@ -188,8 +188,8 @@
                   <div class="node-title">{{ tu.name }}</div>
 
                   <div class="node-sub">
-                    <span class="muted">HQ:</span>
-                    <span class="value">{{ tu.hqName || (tu.name + " HQ") }}</span>
+                    <span class="muted">UNIT:</span>
+                    <span class="value">{{ tu.hqName || (tu.name + " Unit") }}</span>
                     <span class="muted">COMMANDER:</span>
                     <span class="value">{{ commanderLabel(activeCampaign, tu.commanderId) }}</span>
                   </div>
@@ -464,8 +464,8 @@ function deriveOrgChartFromTaskForces(campaign) {
 
   const patchLookup = buildUnitPatchLookup(campaign);
 
-  const taskForceHQ = {
-    name: `${taskForceName} HQ`,
+  const taskForceUNIT = {
+    name: (toSafeString(commander?.unitName) || toSafeString(campaign?.taskForceUnit) || `${taskForceName} Unit`),
     commanderId: toSafeString(cmd?.id) || toSafeString(cmd?.name) || "",
   };
 
@@ -480,7 +480,7 @@ function deriveOrgChartFromTaskForces(campaign) {
       return {
         id: toSafeString(tf?.id) || `div_${normToken(name)}`,
         name,
-        hqName: toSafeString(tf?.hq || tf?.hqName) || `${name} HQ`,
+        hqName: toSafeString(tf?.hq || tf?.hqName) || `${name} UNIT`,
         commanderId:
           toSafeString(tf?.commanderId) ||
           toSafeString(tf?.commanderName) ||
@@ -492,7 +492,7 @@ function deriveOrgChartFromTaskForces(campaign) {
     })
     .filter(Boolean);
 
-  return { taskForceName, taskForceHQ, taskUnits };
+  return { taskForceName, taskForceUNIT, taskUnits };
 }
 
 function splitLines(text) {
