@@ -318,8 +318,16 @@ import { getConfig } from "@/config/runtimeConfig";
  * Legacy fallback (if no CSV configured or fetch fails):
  * - campaign.json `operationsIndex[]` plus optional md overrides.
  */
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { eager: true, as: "raw" });
-const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { eager: true, as: "raw" });
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+});
+const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+});
 
 function safeJson(raw) {
   try {
@@ -343,6 +351,244 @@ function normalizeStatus(s) {
   return v;
 }
 
+
+
+function normToken(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function ensurePerson(obj, fallbackPrefix) {
+  if (!obj || typeof obj !== "object") return { id: "", name: "", callsign: "" };
+  const name = String(obj.name || obj.fullName || obj.displayName || "").trim();
+  const callsign = String(obj.callsign || "").trim();
+  const id =
+    String(obj.id || "").trim() ||
+    (callsign ? `${fallbackPrefix || "p"}_${normToken(callsign)}` : "") ||
+    (name ? `${fallbackPrefix || "p"}_${normToken(name)}` : "");
+  return { ...obj, id, name, callsign };
+}
+
+function personShortLabel(p) {
+  const pp = ensurePerson(p, "p");
+  const cs = pp.callsign ? `CALLSIGN ${pp.callsign}` : "";
+  const nm = pp.name || "";
+  return [cs, nm].filter(Boolean).join(" / ") || nm || "—";
+}
+
+function normalizeCommandRoster(c) {
+  const cmd = c?.commandRoster?.commander || c?.command?.commander || c?.commander || null;
+
+  const subs =
+    c?.commandRoster?.subCommanders ||
+    c?.command?.subCommanders ||
+    c?.subCommanders ||
+    [];
+
+  const commander = cmd ? ensurePerson(cmd, "cmd") : null;
+  const subCommanders = Array.isArray(subs)
+    ? subs.map((x) => ensurePerson(x, "sub")).filter((x) => x.id)
+    : [];
+
+  const staff = [];
+  const divisions =
+    c?.forceOrg?.divisions ||
+    c?.divisions ||
+    c?.orgChart?.taskUnits ||
+    c?.taskUnits ||
+    [];
+  if (Array.isArray(divisions)) {
+    for (const d of divisions) {
+      const dc = d?.commander || d?.leader || d?.divisionCommander || null;
+      if (dc) staff.push(ensurePerson(dc, "div"));
+    }
+  }
+
+  return {
+    ...(c?.commandRoster || {}),
+    commander: commander || c?.commandRoster?.commander || null,
+    subCommanders: subCommanders.length
+      ? subCommanders
+      : (Array.isArray(c?.commandRoster?.subCommanders) ? c.commandRoster.subCommanders : []),
+    staff,
+  };
+}
+
+function normalizeOrgChart(c, commandRoster) {
+  const existing = c?.orgChart && typeof c.orgChart === "object" ? { ...c.orgChart } : null;
+
+  const commander = commandRoster?.commander ? ensurePerson(commandRoster.commander, "cmd") : null;
+  const subs = Array.isArray(commandRoster?.subCommanders)
+    ? commandRoster.subCommanders.map((x) => ensurePerson(x, "sub"))
+    : [];
+
+  const baseHq =
+    String(existing?.taskForceHQ?.name || "").trim() ||
+    String(c?.forceOrg?.taskForceHQ?.name || "").trim() ||
+    "Task Force HQ";
+
+  const subsLabel = subs.slice(0, 2).map(personShortLabel).filter(Boolean);
+  const hqWithSubs = subsLabel.length
+    ? `${baseHq} / XO: ${subsLabel[0]}${subsLabel[1] ? ` / 2IC: ${subsLabel[1]}` : ""}`
+    : baseHq;
+
+  const taskForceName =
+    String(existing?.taskForceName || "").trim() ||
+    String(c?.forceOrg?.taskForceName || "").trim() ||
+    String(c?.taskForceName || "").trim() ||
+    String(c?.name || "").trim() ||
+    "Task Force";
+
+  const taskForceHQ = {
+    ...(existing?.taskForceHQ || {}),
+    name: hqWithSubs,
+    commanderId:
+      String(existing?.taskForceHQ?.commanderId || "").trim() ||
+      String(c?.forceOrg?.taskForceHQ?.commanderId || "").trim() ||
+      (commander ? commander.id : ""),
+  };
+
+  const divisions =
+    (existing && Array.isArray(existing.taskUnits) ? existing.taskUnits : null) ||
+    (Array.isArray(c?.forceOrg?.divisions) ? c.forceOrg.divisions : null) ||
+    (Array.isArray(c?.divisions) ? c.divisions : null) ||
+    (Array.isArray(c?.taskUnits) ? c.taskUnits : null) ||
+    [];
+
+  const taskUnits = [];
+  if (Array.isArray(divisions)) {
+    for (const d of divisions) {
+      const name = String(d?.name || d?.title || d?.division || "").trim();
+      if (!name) continue;
+
+      const leader = d?.commander || d?.leader || d?.divisionCommander || null;
+      const leaderObj = leader ? ensurePerson(leader, "div") : null;
+
+      const commanderId = String(d?.commanderId || "").trim() || (leaderObj ? leaderObj.id : "");
+
+      const unitIds = [];
+      const units = [];
+
+      const srcUnits = Array.isArray(d?.units) ? d.units : (Array.isArray(d?.unitList) ? d.unitList : []);
+
+      if (Array.isArray(srcUnits)) {
+        for (const u of srcUnits) {
+          if (typeof u === "string") {
+            const nm = u.trim();
+            if (!nm) continue;
+            const id = `u_${normToken(nm)}`;
+            unitIds.push(id);
+            units.push({ id, name: nm });
+          } else if (u && typeof u === "object") {
+            const nm = String(u.name || u.title || "").trim();
+            if (!nm) continue;
+            const id =
+              String(u.id || "").trim() ||
+              String(u.backendUnitSlug || u.slug || "").trim() ||
+              `u_${normToken(nm)}`;
+            unitIds.push(id);
+            units.push({
+              ...u,
+              id,
+              name: nm,
+              backendUnitSlug: String(u.backendUnitSlug || u.slug || "").trim() || u.backendUnitSlug,
+            });
+          }
+        }
+      }
+
+      const srcUnitIds = Array.isArray(d?.unitIds) ? d.unitIds : [];
+      for (const id of srcUnitIds) {
+        const s = String(id || "").trim();
+        if (s) unitIds.push(s);
+      }
+
+      taskUnits.push({
+        id: d?.id || `div_${normToken(name)}`,
+        name,
+        hqName: String(d?.hqName || "").trim() || `${name} HQ`,
+        commanderId,
+        unitIds: Array.from(new Set(unitIds.filter(Boolean))),
+        _units: units,
+      });
+    }
+  }
+
+  return {
+    ...(existing || {}),
+    taskForceName,
+    taskForceHQ,
+    taskUnits: taskUnits.length ? taskUnits : (existing?.taskUnits || []),
+  };
+}
+
+function normalizeUnitRoster(c, orgChart) {
+  const existingUnits = Array.isArray(c?.roster?.units) ? c.roster.units : [];
+  const units = [];
+
+  const addUnit = (u) => {
+    if (!u) return;
+
+    if (typeof u === "string") {
+      const name = u.trim();
+      if (!name) return;
+      units.push({ id: `u_${normToken(name)}`, name });
+      return;
+    }
+
+    const name = String(u.name || u.title || u.unit || "").trim();
+    if (!name) return;
+
+    const id =
+      String(u.id || "").trim() ||
+      String(u.backendUnitSlug || u.slug || "").trim() ||
+      `u_${normToken(name)}`;
+
+    units.push({
+      ...u,
+      id,
+      name,
+      backendUnitSlug: String(u.backendUnitSlug || u.slug || "").trim() || u.backendUnitSlug,
+    });
+  };
+
+  for (const u of existingUnits) addUnit(u);
+
+  const tus = Array.isArray(orgChart?.taskUnits) ? orgChart.taskUnits : [];
+  for (const tu of tus) {
+    const src = tu?._units || tu?.units || [];
+    if (Array.isArray(src)) for (const u of src) addUnit(u);
+  }
+
+  const seen = new Set();
+  const deduped = [];
+  for (const u of units) {
+    if (!u?.id) continue;
+    if (seen.has(u.id)) continue;
+    seen.add(u.id);
+    deduped.push(u);
+  }
+
+  return { ...(c?.roster || {}), units: deduped };
+}
+
+function normalizeCampaignForForceOrg(campaign, folder, operations) {
+  const base = {
+    ...(campaign || {}),
+    id: (campaign && campaign.id) || folder || "",
+    status: normalizeStatus(campaign && campaign.status),
+    operations: operations || (campaign && campaign.operations) || [],
+  };
+
+  const commandRoster = normalizeCommandRoster(base);
+  const orgChart = normalizeOrgChart(base, commandRoster);
+  const roster = normalizeUnitRoster(base, orgChart);
+
+  return { ...base, commandRoster, orgChart, roster };
+}
 function splitLines(text) {
   return String(text || "").replace(/\r\n/g, "\n").split("\n");
 }
@@ -603,12 +849,7 @@ function loadCampaignsFromContent() {
         };
       });
 
-      return {
-        ...json,
-        id: json.id || folder,
-        status: normalizeStatus(json.status),
-        operations: ops,
-      };
+            return normalizeCampaignForForceOrg(json, folder, ops);
     })
     .filter(Boolean)
     .sort((a, b) => String(b.startDate || "").localeCompare(String(a.startDate || "")));
@@ -705,9 +946,14 @@ export default {
       if (!campaign || !commanderId) return "—";
 
       const roster = campaign.commandRoster || {};
-      const all = [roster.commander ? roster.commander : null, ...(Array.isArray(roster.subCommanders) ? roster.subCommanders : [])].filter(Boolean);
+      const pool = [
+        roster.commander || null,
+        ...(Array.isArray(roster.subCommanders) ? roster.subCommanders : []),
+        ...(Array.isArray(roster.staff) ? roster.staff : []),
+      ].filter(Boolean);
 
-      const found = all.find((x) => String(x.id || "").toLowerCase() === String(commanderId).toLowerCase());
+      const key = normToken(commanderId);
+      const found = pool.find((x) => normToken(x.id || "") === key || normToken(x.name || "") === key);
       if (!found) return "—";
 
       const callsign = found.callsign ? `CALLSIGN ${found.callsign}` : "";
