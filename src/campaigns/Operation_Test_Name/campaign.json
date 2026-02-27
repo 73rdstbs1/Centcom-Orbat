@@ -70,7 +70,7 @@
     {
       "_help": "Optional additional task force example.",
       "name": "Task Unit Atombo",
-      "commanderName": "MAJ Jane Roe",
+      "commanderName": "CWO Alex Smith",
       "patch": "/assets/patches/tu-odyssey.png",
       "units": ["1st Marines"]
     }
