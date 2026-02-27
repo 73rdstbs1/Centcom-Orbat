@@ -63,7 +63,7 @@
     {
       "_help": "Each task force becomes a section in the campaign view. Units listed here must match the sheet unit names.",
       "name": "Task Unit Bumbo",
-      "commanderName": "CPT John Doe",
+      "commanderName": "MAJ Jane Roe",
       "patch": "/assets/patches/tf-atlas.png",
       "units": ["1st Marines","77th Air Wing"]
     },
