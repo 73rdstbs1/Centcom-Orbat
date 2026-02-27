@@ -66,10 +66,7 @@
       "hq": "TF Atlas HQ",
       "commanderName": "CPT John Doe",
       "patch": "/assets/patches/tf-atlas.png",
-      "units": [
-        "1st Marines",
-        "77th Air Wing"
-      ]
+      "units": ["1st Marines","77th Air Wing"]
     },
     {
       "_help": "Optional additional task force example.",
@@ -77,9 +74,7 @@
       "hq": "Odyssey HQ",
       "commanderName": "MAJ Jane Roe",
       "patch": "/assets/patches/tu-odyssey.png",
-      "units": [
-        "1st Marines"
-      ]
+      "units": ["1st Marines"]
     }
   ],
 
