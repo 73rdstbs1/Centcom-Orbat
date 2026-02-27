@@ -65,9 +65,6 @@
                   <span class="value">{{ fmtDates(c.startDate, c.endDate) }}</span>
                 </div>
                 <div class="meta-line">
-                  <span class="label">QTR</span>
-                  <span class="value">{{ c.quarter || "—" }}</span>
-                </div>
               </div>
             </header>
 
@@ -141,9 +138,6 @@
               <span class="value">{{ fmtDates(activeCampaign.startDate, activeCampaign.endDate) }}</span>
             </div>
             <div>
-              <span class="label">QTR</span>
-              <span class="value">{{ activeCampaign.quarter || "—" }}</span>
-            </div>
           </div>
 
           <section class="modal-section">
