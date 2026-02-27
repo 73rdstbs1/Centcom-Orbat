@@ -175,7 +175,7 @@
                 </div>
                 <div class="node-sub">
                   <span class="muted">UNIT:</span>
-                  <span class="value">{{ activeCampaign.orgChart.taskForceUNIT?.name || "—" }}</span>
+                  <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.name || "—" }}</span>
                 </div>
               </div>
 
@@ -189,7 +189,7 @@
 
                   <div class="node-sub">
                     <span class="muted">UNIT:</span>
-                    <span class="value">{{ tu.hqName || (tu.name + " Unit") }}</span>
+                    <span class="value">{{ tu.hqName || (tu.name + " HQ") }}</span>
                     <span class="muted">COMMANDER:</span>
                     <span class="value">{{ commanderLabel(activeCampaign, tu.commanderId) }}</span>
                   </div>
@@ -464,8 +464,8 @@ function deriveOrgChartFromTaskForces(campaign) {
 
   const patchLookup = buildUnitPatchLookup(campaign);
 
-  const taskForceUNIT = {
-    name: (toSafeString(commander?.unitName) || toSafeString(campaign?.taskForceUnit) || `${taskForceName} Unit`),
+  const taskForceHQ = {
+    name: `${taskForceName} HQ`,
     commanderId: toSafeString(cmd?.id) || toSafeString(cmd?.name) || "",
   };
 
@@ -480,7 +480,7 @@ function deriveOrgChartFromTaskForces(campaign) {
       return {
         id: toSafeString(tf?.id) || `div_${normToken(name)}`,
         name,
-        hqName: toSafeString(tf?.hq || tf?.hqName) || `${name} UNIT`,
+        hqName: toSafeString(tf?.hq || tf?.hqName) || `${name} HQ`,
         commanderId:
           toSafeString(tf?.commanderId) ||
           toSafeString(tf?.commanderName) ||
@@ -492,7 +492,7 @@ function deriveOrgChartFromTaskForces(campaign) {
     })
     .filter(Boolean);
 
-  return { taskForceName, taskForceUNIT, taskUnits };
+  return { taskForceName, taskForceHQ, taskUnits };
 }
 
 function splitLines(text) {
