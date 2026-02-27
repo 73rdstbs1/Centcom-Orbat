@@ -22,27 +22,47 @@
         </div>
 
         <div class="gate">
-          <div class="gate-title">{{ loginUi.gateTitle }}</div>
+  <div class="gate-title">{{ gateTitle }}</div>
 
-          <div class="login-options-wrap">
-            <div class="login-options">
-              <button class="login-option" :disabled="isFading" @click="memberLogin">
-                <div class="opt-title">{{ loginUi.memberTitle }}</div>
-                <div class="opt-desc">{{ loginUi.memberDesc }}</div>
-              </button>
+  <div class="hint dim">
+    {{ gateBody }}
+  </div>
 
-              <button class="login-option" :disabled="isFading" @click="openAdminLogin">
-                <div class="opt-title">{{ loginUi.staffTitle }}</div>
-                <div class="opt-desc">{{ loginUi.staffDesc }}</div>
-              </button>
-            </div>
-          </div>
+  <div class="login-options-wrap">
+    <div class="login-options">
+      <button
+        class="login-option"
+        :disabled="isFading || (gateClicked && !bootReady)"
+        @click="onGateClick"
+      >
+        <div class="opt-title">{{ gateButtonTitle }}</div>
+        <div class="opt-desc">{{ gateButtonDesc }}</div>
+      </button>
+    </div>
+  </div>
 
-          <div class="hint dim">
-            {{ loginUi.legalHint }}
-          </div>
-        </div>
-      </div>
+  <div class="progress-wrap">
+    <div class="progress-top dim">
+      <span>{{ progressText }}</span>
+      <span>{{ progressPercent }}%</span>
+    </div>
+
+    <div
+      class="progress-bar"
+      role="progressbar"
+      :aria-valuenow="progressPercent"
+      aria-valuemin="0"
+      aria-valuemax="100"
+    >
+      <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+    </div>
+
+    <div class="progress-sub dim">
+      <span v-if="bootError">{{ bootError }}</span>
+      <span v-else>{{ bootReady ? "SYSTEMS: READY" : "SYSTEMS: LOADING…" }}</span>
+    </div>
+  </div>
+</div>
 
       <div class="term-ftr dim">
         <span>{{ loginFooter[0] }}</span>
@@ -51,13 +71,6 @@
         <span>{{ loginFooter[3] }}</span>
       </div>
     </div>
-
-    <AdminLoginModal
-      v-if="showAdminModal"
-      @close="closeAdminLogin"
-      @success="onAdminLoginSuccess"
-    />
-  </div>
 
   <template v-else>
     <div class="page-wrapper">
@@ -88,14 +101,13 @@
 <script>
 import Header from "./components/layout/Header.vue";
 import Sidebar from "./components/layout/Sidebar.vue";
-import AdminLoginModal from "@/components/modals/AdminLoginModal.vue";
 import Config from "@/config/unit-config.json";
 import { getSheetUrls, getTerminalFeed } from "@/config/runtimeConfig";
 import Papa from "papaparse";
 
 export default {
   name: "App",
-  components: { Header, Sidebar, AdminLoginModal },
+  components: { Header, Sidebar, },
   provide() {
     return {
       activeCampaignStore: this.activeCampaignStore,
@@ -109,7 +121,10 @@ export default {
       // --- existing (working) auth overlay state ---
       showLogin: true,
       isFading: false,
-      showAdminModal: false,
+      gateClicked: false,
+      bootReady: false,
+      bootError: "",
+      bootSteps: [],
 
       // --- added: terminal ambience state (NO changes to data loading logic) ---
       feedPool: getTerminalFeed(),
@@ -153,6 +168,42 @@ export default {
     documentTitleSuffix() {
       return Config.branding?.documentTitleSuffix || "BRIEFING";
     },
+    gateTitle() {
+  return Config.ui?.login?.subtitle || "AUDIO HANDSHAKE REQUIRED";
+},
+gateBody() {
+  return (
+    Config.ui?.login?.hint ||
+    "Click to authorize audio output and synchronize TACNET briefing systems. Stand by while datasets and interface assets are initialized."
+  );
+},
+gateButtonTitle() {
+  if (!this.gateClicked) return "AUTHORIZE & SYNC";
+  if (this.gateClicked && !this.bootReady) return "SYNCHRONIZING…";
+  return "ENTER TACNET";
+},
+gateButtonDesc() {
+  if (!this.gateClicked) return "Single-click authorization required by UNSC protocol.";
+  if (this.gateClicked && !this.bootReady) return "Loading feeds, roster data, and operation archives…";
+  return "All systems green. Proceed.";
+},
+progressTotal() {
+  return Array.isArray(this.bootSteps) ? this.bootSteps.length : 0;
+},
+progressDone() {
+  const steps = Array.isArray(this.bootSteps) ? this.bootSteps : [];
+  return steps.filter((s) => s.status === "success" || s.status === "fail").length;
+},
+progressPercent() {
+  const total = this.progressTotal || 0;
+  if (!total) return this.bootReady ? 100 : 0;
+  return Math.min(100, Math.round((this.progressDone / total) * 100));
+},
+progressText() {
+  const total = this.progressTotal || 0;
+  if (!total) return this.bootReady ? "SYNC COMPLETE" : "SYNC 0/0";
+  return this.bootReady ? "SYNC COMPLETE" : `SYNC ${this.progressDone}/${total}`;
+},
 
     // caret is inline on the active typing line (not floating on its own line)
     typedHtml() {
@@ -187,22 +238,9 @@ export default {
     // --- untouched: your working init logic ---
     this.setTitleFavicon(`${Config.defaultTitle} ${this.documentTitleSuffix}`.trim(), Config.icon);
 
-    // preload markdown
-    this.importMissions(import.meta.glob("@/assets/missions/**/*.md", { query: "?raw", import: "default" }));
-    this.importEvents(import.meta.glob("@/assets/events/*.md", { query: "?raw", import: "default" }));
-
-    // async CSVs
-    const { membersCsvUrl: membersUrl, refDataCsvUrl: refDataUrl, opsCsvUrl: opsUrl } = getSheetUrls();
-
-    this.loadMembersCSV(membersUrl)
-      .then(() => this.loadRefDataCSV(refDataUrl))
-      .then(() => this.loadOpsCSV(opsUrl).catch((err) => console.warn("Ops CSV failed; continuing.", err)));
-
-    // if already authenticated earlier, skip overlay
-    const role = sessionStorage.getItem("authRole");
-    if (role === "member" || role === "staff") {
-      this.showLogin = false;
-    }
+    // Start background bootstrap immediately; gate will not dismiss until ready.
+    this.bootstrapGate();
+    
   },
 
   mounted() {
@@ -223,6 +261,134 @@ export default {
       const pad = (n) => String(n).padStart(2, "0");
       this.stamp = `UTC ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
     },
+
+    initBootSteps() {
+  this.bootSteps = [
+    { id: "fonts", label: "FONTS", status: "pending" },
+    { id: "missions", label: "ARCHIVE", status: "pending" },
+    { id: "events", label: "BROADCASTS", status: "pending" },
+    { id: "members", label: "ROSTER", status: "pending" },
+    { id: "refdata", label: "REFDATA", status: "pending" },
+    { id: "ops", label: "OPERATIONS", status: "pending" },
+    { id: "paint", label: "RENDER", status: "pending" },
+  ];
+},
+
+setStepStatus(id, status) {
+  const steps = Array.isArray(this.bootSteps) ? this.bootSteps : [];
+  const idx = steps.findIndex((s) => s.id === id);
+  if (idx < 0) return;
+  this.bootSteps[idx] = { ...steps[idx], status };
+},
+
+withTimeout(promise, timeoutMs) {
+  const ms = Math.max(1, Number(timeoutMs) || 1);
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
+},
+
+async runStep(id, fn, opts = {}) {
+  const timeoutMs = Number(opts.timeoutMs) || 20000;
+  const allowFail = opts.allowFail !== false; // default true
+  this.setStepStatus(id, "running");
+
+  try {
+    await this.withTimeout(Promise.resolve().then(fn), timeoutMs);
+    this.setStepStatus(id, "success");
+    return true;
+  } catch (e) {
+    this.setStepStatus(id, "fail");
+    if (!this.bootError) this.bootError = allowFail ? "DATA LINK DEGRADED (OFFLINE MODE)" : "SYNC FAILED";
+    if (!allowFail) throw e;
+    return false;
+  }
+},
+
+waitForPaint() {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+},
+
+async bootstrapGate() {
+  this.bootReady = false;
+  this.bootError = "";
+  this.initBootSteps();
+
+  const tasks = [];
+
+  tasks.push(
+    this.runStep("fonts", () => (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()), {
+      timeoutMs: 15000,
+      allowFail: true,
+    }),
+  );
+
+  tasks.push(
+    this.runStep(
+      "missions",
+      () => this.importMissions(import.meta.glob("@/assets/missions/**/*.md", { query: "?raw", import: "default" })),
+      { timeoutMs: 20000, allowFail: true },
+    ),
+  );
+
+  tasks.push(
+    this.runStep("events", () => this.importEvents(import.meta.glob("@/assets/events/*.md", { query: "?raw", import: "default" })), {
+      timeoutMs: 20000,
+      allowFail: true,
+    }),
+  );
+
+  // CSV chain (members -> refdata -> ops)
+  const { membersCsvUrl: membersUrl, refDataCsvUrl: refDataUrl, opsCsvUrl: opsUrl } = getSheetUrls();
+
+  tasks.push(
+    (async () => {
+      await this.runStep("members", () => this.loadMembersCSV(membersUrl), { timeoutMs: 20000, allowFail: true });
+      await this.runStep("refdata", () => this.loadRefDataCSV(refDataUrl), { timeoutMs: 20000, allowFail: true });
+      await this.runStep("ops", () => this.loadOpsCSV(opsUrl), { timeoutMs: 20000, allowFail: true });
+    })(),
+  );
+
+  tasks.push(this.runStep("paint", () => this.waitForPaint(), { timeoutMs: 8000, allowFail: true }));
+
+  await Promise.all(tasks);
+
+  this.bootReady = true;
+  this.maybeEnter();
+},
+
+onGateClick() {
+  if (this.isFading) return;
+
+  this.gateClicked = true;
+
+  // Keep "member" role for UI elements expecting it
+  try {
+    sessionStorage.setItem("authRole", "member");
+  } catch {}
+
+  // Enable audio (user gesture)
+  const a = this.$refs.startupAudio;
+  if (a && typeof a.play === "function") {
+    try {
+      a.currentTime = 0;
+      a.play().catch(() => {});
+    } catch {}
+  }
+
+  this.maybeEnter();
+},
+
+maybeEnter() {
+  if (this.isFading) return;
+  if (!this.gateClicked) return;
+  if (!this.bootReady) return;
+
+  const curr = this.$router?.currentRoute?.value?.path || "/";
+  const target = curr === "/" ? "/status" : curr;
+  this.fadeAndEnter(target);
+},
 
     // Start typing from the very beginning (no pre-seeded lines)
     seedInitialFeed() {
@@ -332,26 +498,6 @@ export default {
       tick();
     },
 
-    // --- existing (working) login methods (UNCHANGED) ---
-    memberLogin() {
-      if (this.isFading) return;
-      sessionStorage.setItem("authRole", "member");
-      this.fadeAndEnter("/status");
-    },
-
-    openAdminLogin() {
-      if (this.isFading) return;
-      this.showAdminModal = true;
-    },
-    closeAdminLogin() {
-      this.showAdminModal = false;
-    },
-    onAdminLoginSuccess() {
-      sessionStorage.setItem("authRole", "staff");
-      this.showAdminModal = false;
-      this.fadeAndEnter("/admin");
-    },
-
     fadeAndEnter(targetPath) {
       this.isFading = true;
 
@@ -359,12 +505,6 @@ export default {
       if (this.bootTimer) {
         window.clearTimeout(this.bootTimer);
         this.bootTimer = null;
-      }
-
-      const a = this.$refs.startupAudio;
-      if (a && typeof a.play === "function") {
-        a.currentTime = 0;
-        a.play().catch(() => {});
       }
 
       setTimeout(() => {
@@ -1005,6 +1145,47 @@ export default {
 }
 
 /* FX */
+
+/* Gate progress bar */
+.progress-wrap {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(170, 220, 255, 0.12);
+}
+
+.progress-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  margin-bottom: 8px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(170, 220, 255, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(120, 255, 190, 0.85), rgba(120, 180, 255, 0.75));
+  transition: width 240ms ease;
+}
+
+.progress-sub {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  line-height: 1.6;
+}
+  
 .scanlines {
   position: absolute;
   inset: 0;
