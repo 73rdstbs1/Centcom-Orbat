@@ -163,13 +163,13 @@
                     loading="lazy"
                     decoding="async"
                   />
-                  <span class="muted">COMMANDER</span>
+                  <span class="muted">COMMANDER:</span>
                   <span class="value">{{ activeCampaign.command.commander.name || "—" }}</span>
                 </div>
                 <div class="node-sub">
-                  <span class="muted">HQ</span>
+                  <span class="muted">HQ:</span>
                   <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.name || "—" }}</span>
-                  <span class="muted">/</span>
+                  <span class="muted">COMMANDER:</span>
                   <span class="value">
                     {{ commanderLabel(activeCampaign, activeCampaign.orgChart.taskForceHQ?.commanderId) }}
                   </span>
@@ -185,9 +185,9 @@
                   <div class="node-title">{{ tu.name }}</div>
 
                   <div class="node-sub">
-                    <span class="muted">HQ</span>
+                    <span class="muted">HQ:</span>
                     <span class="value">{{ tu.hqName || (tu.name + " HQ") }}</span>
-                    <span class="muted">/</span>
+                    <span class="muted">COMMANDER:</span>
                     <span class="value">{{ commanderLabel(activeCampaign, tu.commanderId) }}</span>
                   </div>
 
@@ -1384,6 +1384,24 @@ export default {
   gap: 12px;
 }
 
+
+
+/* Org chart readability: spacing between labels/values */
+.orgchart .node-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+}
+
+.orgchart .node-sub .muted {
+  white-space: nowrap;
+}
+
+.orgchart .node-sub .value {
+  min-width: 0;
+}
 .org-node {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
