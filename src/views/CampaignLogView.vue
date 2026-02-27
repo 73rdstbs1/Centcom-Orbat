@@ -62,12 +62,9 @@
               <div class="campaign-meta">
                 <div class="meta-line">
                   <span class="label">DATES</span>
-                  <span class="value">{{ fmtDates(c.startDate, c.endDate) }}</span>
+                  <span class="value">{{ fmtDates(campaignStartDate(c), campaignEndDate(c)) }}</span>
                 </div>
-                <div class="meta-line">
-                  <span class="label">QTR</span>
 </div>
-              </div>
             </header>
 
             <p class="desc">{{ c.overview }}</p>
@@ -137,13 +134,9 @@
           <div class="modal-meta">
             <div>
               <span class="label">DATES</span>
-              <span class="value">{{ fmtDates(activeCampaign.startDate, activeCampaign.endDate) }}</span>
+              <span class="value">{{ fmtDates(campaignStartDate(activeCampaign), campaignEndDate(activeCampaign)) }}</span>
             </div>
-            <div>
-              <span class="label">QTR</span>
-              <span class="value">{{ "—"}}</span>
-            </div>
-          </div>
+</div>
 
           <section class="modal-section">
             <div class="section-label">TASK FORCE ORG CHART</div>
@@ -351,6 +344,34 @@ function normalizeStatus(s) {
   if (v === "training") return "training";
   if (v === "rearming" || v === "rest") return "rearming";
   return v;
+}
+
+function parseDateCell(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return null;
+
+  // ISO-ish: YYYY-MM-DD
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+
+  // UK-ish: DD/MM/YYYY
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+
+  // DD-MM-YYYY
+  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (m) return new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+
+  const dt = new Date(s);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+function formatIsoDate(dt) {
+  if (!dt || isNaN(dt.getTime())) return "";
+  const y = dt.getUTCFullYear();
+  const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(dt.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function normToken(s) {
