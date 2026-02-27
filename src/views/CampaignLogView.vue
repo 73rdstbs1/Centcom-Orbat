@@ -62,7 +62,7 @@
               <div class="campaign-meta">
                 <div class="meta-line">
                   <span class="label">DATES</span>
-                  <span class="value">{{ fmtDates(campaignStartDate(c), campaignEndDate(c)) }}</span>
+                  <span class="value">{{ fmtDates(c.startDate, c.endDate) }}</span>
                 </div>
 </div>
             </header>
@@ -134,7 +134,7 @@
           <div class="modal-meta">
             <div>
               <span class="label">DATES</span>
-              <span class="value">{{ fmtDates(campaignStartDate(activeCampaign), campaignEndDate(activeCampaign)) }}</span>
+              <span class="value">{{ fmtDates(activeCampaign.startDate, activeCampaign.endDate) }}</span>
             </div>
 </div>
 
@@ -352,15 +352,24 @@ function parseDateCell(raw) {
 
   // ISO-ish: YYYY-MM-DD
   let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  if (m) {
+    const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    return isNaN(dt.getTime()) ? null : dt;
+  }
 
   // UK-ish: DD/MM/YYYY
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) return new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+  if (m) {
+    const dt = new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+    return isNaN(dt.getTime()) ? null : dt;
+  }
 
   // DD-MM-YYYY
   m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-  if (m) return new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+  if (m) {
+    const dt = new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+    return isNaN(dt.getTime()) ? null : dt;
+  }
 
   const dt = new Date(s);
   return isNaN(dt.getTime()) ? null : dt;
@@ -372,6 +381,26 @@ function formatIsoDate(dt) {
   const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
   const d = String(dt.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+function deriveDateRangeFromOps(ops) {
+  const list = Array.isArray(ops) ? ops : [];
+  if (!list.length) return { start: "", end: "" };
+
+  let minDt = null;
+  let maxDt = null;
+
+  for (const op of list) {
+    const dt = parseDateCell(op?.date);
+    if (!dt) continue;
+    if (!minDt || dt.getTime() < minDt.getTime()) minDt = dt;
+    if (!maxDt || dt.getTime() > maxDt.getTime()) maxDt = dt;
+  }
+
+  return {
+    start: minDt ? formatIsoDate(minDt) : "",
+    end: maxDt ? formatIsoDate(maxDt) : "",
+  };
 }
 
 function normToken(s) {
@@ -830,14 +859,20 @@ export default {
       const opsByCampaign = await loadOperationsFromCsv(csvUrl);
       if (!opsByCampaign) return;
 
-      this.campaigns = (this.campaigns || []).map((c) => {
+            this.campaigns = (this.campaigns || []).map((c) => {
         const key = normKey(c.name || c.id || "");
         const ops = opsByCampaign[key];
         if (!ops || !ops.length) return c;
-        return { ...c, operations: ops };
-      });
 
-      this._opsCsvLoaded = true;
+        const range = deriveDateRangeFromOps(ops);
+
+        return {
+          ...c,
+          operations: ops,
+          startDate: range.start || c.startDate || "",
+          endDate: range.end || c.endDate || "",
+        };
+      });this._opsCsvLoaded = true;
     } catch (e) {
       // Silent fallback to campaign.json ops
       // (You can surface this in UI later if you want)
