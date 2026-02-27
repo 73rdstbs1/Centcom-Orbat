@@ -166,13 +166,16 @@
                   <span class="muted">COMMANDER:</span>
                   <span class="value">{{ activeCampaign.command.commander.name || "—" }}</span>
                 </div>
+
+                <div v-if="activeCampaign.command?.subCommanders?.length" class="node-sub">
+                  <span class="muted">XO:</span>
+                  <span class="value">{{ (activeCampaign.command.subCommanders && activeCampaign.command.subCommanders[0] && activeCampaign.command.subCommanders[0].name) || "—" }}</span>
+                  <span class="muted">2IC:</span>
+                  <span class="value">{{ (activeCampaign.command.subCommanders && activeCampaign.command.subCommanders[1] && activeCampaign.command.subCommanders[1].name) || "—" }}</span>
+                </div>
                 <div class="node-sub">
                   <span class="muted">HQ:</span>
                   <span class="value">{{ activeCampaign.orgChart.taskForceHQ?.name || "—" }}</span>
-                  <span class="muted">COMMANDER:</span>
-                  <span class="value">
-                    {{ commanderLabel(activeCampaign, activeCampaign.orgChart.taskForceHQ?.commanderId) }}
-                  </span>
                 </div>
               </div>
 
