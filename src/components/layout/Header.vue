@@ -1,676 +1,1305 @@
-<!-- /src/components/layout/Header.vue -->
+<!-- /src/App.vue -->
 <template>
-  <div
-    class="header-wrap"
-    :style="{ '--auth-x': authOffsetX + 'px', '--auth-y': authOffsetY + 'px' }"
-  >
-    <header>
-      <!-- LEFT: Unit logos (from /public/faction-logos/) -->
-      <div class="logo-strip" aria-label="Unit logos">
-        <img
-          v-for="(src, i) in unitLogoSrcs"
-          :key="src"
-          class="unit-logo"
-          :src="src"
-          alt="Unit Logo"
-          loading="eager"
-          decoding="async"
-          :fetchpriority="i < 2 ? 'high' : 'auto'"
-        />
+  <div v-show="showLogin" class="login-overlay" :class="{ fading: isFading }">
+    <div class="term">
+      <div class="term-hdr">
+        <span class="hdr-icon" aria-hidden="true"></span>
+        <div class="term-title">{{ branding.loginTerminalTitle }}</div>
+        <div class="term-stamp">{{ stamp }}</div>
       </div>
 
-      <div class="rhombus" aria-hidden="true"></div>
+      <div class="term-body">
+        <div class="scanlines" aria-hidden="true"></div>
+        <div class="flicker" aria-hidden="true"></div>
 
-      <!-- CENTER: Title + status pill stacked -->
-      <div class="center-block" aria-label="CENTCOM header">
-        <div class="title-container">
-          <div id="title-first-line" class="title-row">
-            <span id="title-header">UNSC CENTRAL COMMAND</span>
-          </div>
+        <div class="logo-ghost" aria-hidden="true">
+          <img :src="branding.ghostLogo" alt="" />
         </div>
 
-        <div class="header-status" aria-label="Current CENTCOM status">
-          <div class="status-pill-lg" :data-status="normalizedHeaderStatus">
-            <span class="status-label">{{ headerStatusLabel }}</span>
-          </div>
+        <!-- Ambient terminal feed (scrolls after 5 lines) -->
+        <div class="typed-window">
+          <div class="typed" v-html="typedHtml"></div>
         </div>
-      </div>
 
-      <!-- RIGHT: Active campaign details (from Operations CSV -> campaign.json) -->
-      <div v-if="showCampaignPanel" class="planet-location-container">
-        <div class="location-info" aria-label="Current AO details">
-          <div class="meta-grid">
-            <div class="meta-tile">
-              <h4>SYSTEM</h4>
-              <span class="subtitle">{{ campaignHeader.system }}</span>
-            </div>
+        <div class="gate">
+  <div class="gate-title">{{ gateTitle }}</div>
 
-            <div class="meta-tile">
-              <h4>PLANET</h4>
-              <span class="subtitle">{{ campaignHeader.planet }}</span>
-            </div>
+  <div class="hint dim">
+    {{ gateBody }}
+  </div>
 
-            <div class="meta-tile meta-tile--ao">
-              <h4>AO</h4>
-              <span class="subtitle">{{ campaignHeader.ao }}</span>
-            </div>
+  <div class="login-options-wrap">
+    <div class="login-options">
+      <button
+        class="login-option"
+        :disabled="isFading || (gateClicked && !bootReady)"
+        @click="onGateClick"
+      >
+        <div class="opt-title">{{ gateButtonTitle }}</div>
+        <div class="opt-desc">{{ gateButtonDesc }}</div>
+      </button>
+    </div>
+  </div>
 
-            <div class="meta-tile">
-              <h4>YEAR</h4>
-              <span class="subtitle">{{ campaignHeader.year }}</span>
-            </div>
+  <div class="progress-wrap">
+    <div class="progress-top dim">
+      <span>{{ progressText }}</span>
+      <span>{{ progressPercent }}%</span>
+    </div>
 
-            <div class="meta-tile">
-              <h4>STATUS</h4>
-              <span class="subtitle">{{ campaignHeader.status }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <!-- Continuous Marquee News Ticker -->
     <div
-      v-if="newsEnabled && normalizedNewsItems.length"
-      class="news-ticker"
-      aria-label="UNSC News Ticker"
+      class="progress-bar"
+      role="progressbar"
+      :aria-valuenow="progressPercent"
+      aria-valuemin="0"
+      aria-valuemax="100"
     >
-      <div class="news-label">BROADCAST</div>
+      <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+    </div>
 
-      <div class="news-viewport">
-        <div
-          class="news-track"
-          :key="tickerKey"
-          :style="{ '--ticker-duration': tickerDuration + 's' }"
-        >
-          <span class="news-seq" ref="seq">{{ tickerSequence }}</span>
-          <span class="news-seq" aria-hidden="true">{{ tickerSequence }}</span>
-        </div>
+    <div class="progress-sub dim">
+      <span v-if="bootError">{{ bootError }}</span>
+      <span v-else>{{ bootReady ? "SYSTEMS: READY" : "SYSTEMS: LOADING…" }}</span>
+    </div>
+  </div>
+</div>
+
+      </div>
+
+      <div class="term-ftr dim">
+        <span>{{ loginFooter[0] }}</span>
+        <span>{{ loginFooter[1] }}</span>
+        <span>{{ loginFooter[2] }}</span>
+        <span>{{ loginFooter[3] }}</span>
       </div>
     </div>
   </div>
+
+    <div ref="appRoot" class="app-shell" :class="{ 'app-hidden': showLogin }">
+<div class="page-wrapper">
+        <Header :planet-path="planetPath" :class="{ animate: animate && revealAnimate }" :header="header" />
+        <Sidebar :animate="animate && revealAnimate" :class="{ animate: animate && revealAnimate }" />
+      </div>
+  
+      <div id="router-view-container">
+        <!-- transition intentionally removed -->
+        <router-view
+          :key="$route.fullPath"
+          :animate="animate && revealAnimate"
+          :initial-slug="initialSlug"
+          :missions="missions"
+          :events="events"
+          :members="members"
+          :orbat="orbat"
+          :reserves="reserves"
+        />
+      </div>
+  </div>
+
+  <audio ref="startupAudio" preload="auto">
+    <source src="/sound/startup.ogg" type="audio/ogg" />
+  </audio>
 </template>
 
 <script>
-/**
- * Header.vue
- *
- * Data sources:
- * - RefData CSV: reads "Header details:" cell (expects Active | Training | Rearming)
- * - Operations CSV: finds first row with STATUS == "Active"
- *     -> links to CAMPAIGN NAME by carrying-forward the last non-empty CAMPAIGN NAME above
- *     -> loads matching src/campaigns/<campaign>/campaign.json (matches by id/name/folder)
- *
- * Notes:
- * - Vite 6: use import.meta.glob with query '?raw' (NOT `as: 'raw'`)
- */
-import { getConfig } from "../../config/runtimeConfig";
-import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
-
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
-  eager: true,
-  query: "?raw",
-  import: "default",
-});
-
-const defaultNewsItems = [
-  "TACTICAL UPDATE: Slipspace comms stable across local AO. Maintain emission control.",
-  "FLEETCOM: UNSC logistics convoy rerouted. Expect delayed resupply window.",
-  "ONI ADVISORY: OPSEC reminders in effect. Avoid publishing mission details outside TACNET.",
-  "SITREP: Patrol activity increased near contested sectors. Proceed with caution.",
-  "SYSTEM NOTICE: Training rotations updated. Check your squad channel for timings.",
-  "BREAKING: Marine promoted after surviving three drops and one briefing.",
-];
-
-function safeJson(raw) {
-  try {
-    return JSON.parse(String(raw || ""));
-  } catch {
-    return null;
-  }
-}
-
-function csvSplit(line) {
-  const out = [];
-  let cur = "";
-  let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQ && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else {
-        inQ = !inQ;
-      }
-      continue;
-    }
-    if (ch === "," && !inQ) {
-      out.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += ch;
-  }
-  out.push(cur);
-  return out.map((s) => String(s ?? "").trim());
-}
-
-function parseCsv(raw) {
-  const text = String(raw || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = text.split("\n").filter((l) => l.trim().length);
-  if (!lines.length) return [];
-  const header = csvSplit(lines[0]).map((h) => h.trim());
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = csvSplit(lines[i]);
-    const obj = {};
-    for (let j = 0; j < header.length; j++) obj[header[j]] = cols[j] ?? "";
-    rows.push(obj);
-  }
-  return rows;
-}
-
-function norm(s) {
-  return String(s || "").trim().toLowerCase();
-}
-
-function normMatch(s) {
-  return String(s || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]+/g, "")
-    .replace(/[^a-z0-9]/g, "");
-}
-
-function headerKeyMatch(h) {
-  return String(h || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .replace(/[^\w\s:-]/g, "");
-}
-
-function folderFromCampaignPath(path) {
-  const parts = String(path || "").split("/campaigns/");
-  if (parts.length < 2) return "";
-  return parts[1].split("/")[0] || "";
-}
-
-function loadAllCampaigns() {
-  const out = [];
-  for (const [path, raw] of Object.entries(CAMPAIGN_JSON)) {
-    const json = safeJson(raw);
-    if (!json) continue;
-    out.push({
-      __path: path,
-      __folder: folderFromCampaignPath(path),
-      ...json,
-    });
-  }
-  return out;
-}
-
-function findCampaignByName(all, campaignName) {
-  const q = normMatch(campaignName);
-  if (!q) return null;
-
-  const exact =
-    all.find((c) => normMatch(c.id) === q) ||
-    all.find((c) => normMatch(c.name) === q) ||
-    all.find((c) => normMatch(c.__folder) === q);
-  if (exact) return exact;
-
-  const contains =
-    all.find((c) => normMatch(c.name).includes(q)) ||
-    all.find((c) => normMatch(c.__folder).includes(q)) ||
-    all.find((c) => q.includes(normMatch(c.__folder))) ||
-    all.find((c) => q.includes(normMatch(c.id)));
-  return contains || null;
-}
-
-async function fetchText(url) {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-  return await res.text();
-}
-
-async function readHeaderStatusFromRefData(refDataCsvUrl) {
-  if (!refDataCsvUrl) return "";
-  try {
-    const raw = await fetchText(refDataCsvUrl);
-    const rows = parseCsv(raw);
-    if (!rows.length) return "";
-
-    const headers = Object.keys(rows[0] || {});
-    const col = headers.find(
-      (h) => headerKeyMatch(h) === "header details:" || headerKeyMatch(h) === "header details",
-    );
-    if (!col) return "";
-
-    for (const r of rows) {
-      const v = String(r[col] || "").trim();
-      if (v) return v;
-    }
-    return "";
-  } catch {
-    return "";
-  }
-}
-
-function getAny(obj, paths) {
-  const o = obj && typeof obj === "object" ? obj : null;
-  if (!o) return "";
-  for (const p of paths) {
-    const parts = String(p || "").split(".").filter(Boolean);
-    let cur = o;
-    for (const k of parts) {
-      if (!cur || typeof cur !== "object") {
-        cur = null;
-        break;
-      }
-      cur = cur[k];
-    }
-    const v = String(cur ?? "").trim();
-    if (v) return v;
-  }
-  return "";
-}
-
-function normalizeActiveStatus(s) {
-  const v = norm(s);
-  if (!v) return "";
-  if (v === "active") return "active";
-  if (v.startsWith("active")) return "active";
-  if (v === "in progress" || v === "ongoing") return "active";
-  return v;
-}
-
-function mergeCampaignWithMeta(campaign, meta) {
-  if (!campaign) return campaign;
-  const merged = { ...campaign };
-
-  if (!getAny(merged, ["system", "System", "header.system"]) && meta.system) merged.system = meta.system;
-  if (!getAny(merged, ["planet", "Planet", "header.planet"]) && meta.planet) merged.planet = meta.planet;
-  if (!getAny(merged, ["ao", "AO", "header.ao", "header.AO"]) && meta.ao) merged.ao = meta.ao;
-  if (!getAny(merged, ["year", "Year", "header.year", "quarter", "Quarter"]) && meta.year) merged.year = meta.year;
-  if (!getAny(merged, ["status", "Status", "header.status"]) && meta.status) merged.status = meta.status;
-
-  return merged;
-}
-
-async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
-  if (!operationsCsvUrl) return null;
-
-  try {
-    const raw = await fetchText(operationsCsvUrl);
-    const rows = parseCsv(raw);
-    if (!rows.length) return null;
-
-    const headers = Object.keys(rows[0] || {});
-    const findCol = (labels) =>
-      headers.find((h) => labels.some((lbl) => headerKeyMatch(h) === headerKeyMatch(lbl))) || null;
-
-    const colCampaign = findCol(["campaign name", "campaign", "campaign_name"]);
-    const colStatus = findCol(["status", "op status", "operation status"]);
-    if (!colCampaign || !colStatus) return null;
-
-    const colSystem = findCol(["system"]);
-    const colPlanet = findCol(["planet"]);
-    const colAo = findCol(["ao", "a.o."]);
-    const colYear = findCol(["year"]);
-
-    let lastCampaign = "";
-    const lastMeta = { system: "", planet: "", ao: "", year: "", status: "" };
-
-    for (const r of rows) {
-      const campCell = String(r[colCampaign] || "").trim();
-      if (campCell) lastCampaign = campCell;
-
-      const sys = colSystem ? String(r[colSystem] || "").trim() : "";
-      const pla = colPlanet ? String(r[colPlanet] || "").trim() : "";
-      const ao = colAo ? String(r[colAo] || "").trim() : "";
-      const yr = colYear ? String(r[colYear] || "").trim() : "";
-
-      if (sys) lastMeta.system = sys;
-      if (pla) lastMeta.planet = pla;
-      if (ao) lastMeta.ao = ao;
-      if (yr) lastMeta.year = yr;
-
-      const st = normalizeActiveStatus(r[colStatus]);
-      if (st === "active") {
-        lastMeta.status = "active";
-
-        const campaignName = lastCampaign || campCell;
-        if (!campaignName) return null;
-
-        const allCampaigns = loadAllCampaigns();
-        const campaign = findCampaignByName(allCampaigns, campaignName);
-        if (!campaign) return null;
-
-        return mergeCampaignWithMeta(campaign, lastMeta);
-      }
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function resolveLogoSrc(entry) {
-  const v = String(entry || "").trim();
-  if (!v) return "";
-  if (v.startsWith("/")) return v;
-  return `/faction-logos/${v}`;
-}
+import Header from "./components/layout/Header.vue";
+import Sidebar from "./components/layout/Sidebar.vue";
+import Config from "@/config/unit-config.json";
+import { getSheetUrls, getTerminalFeed } from "@/config/runtimeConfig";
+import Papa from "papaparse";
 
 export default {
-  name: "Header",
-  inject: ["activeCampaignStore"],
-  props: {
-    header: { type: Object, required: true },
-    authOffsetX: { type: Number, default: 330 },
-    authOffsetY: { type: Number, default: 10 },
-
-    newsEnabled: { type: Boolean, default: true },
-    newsItems: { type: Array, default: () => defaultNewsItems },
-
-    tickerItemsPerLoop: { type: Number, default: 10 },
-    tickerSeparator: { type: String, default: " // " },
-    tickerSeparatorToken: { type: String, default: "//" },
-    tickerSeparatorPad: { type: Number, default: 10 },
-
-    tickerPxPerSecond: { type: Number, default: 45 },
-    sequenceRefreshMs: { type: Number, default: 45000 },
+  name: "App",
+  components: { Header, Sidebar },
+  provide() {
+    return {
+      activeCampaignStore: this.activeCampaignStore,
+    };
   },
   data() {
     return {
-      role: null,
-      staffUser: null,
-      unsub: null,
+      // Global: active campaign context (set by Campaign Log view)
+      activeCampaignStore: { activeCampaign: null },
 
-      headerStatus: "",
+      // --- existing (working) auth overlay state ---
+      showLogin: true,
+      isFading: false,
+      gateClicked: false,
+      bootReady: false,
+      bootError: "",
+      bootSteps: [],
 
-      tickerKey: 0,
-      tickerSequence: "",
-      tickerDuration: 28,
+      
+      revealAnimate: false,
+      gateClickAt: 0,
+// --- added: terminal ambience state (NO changes to data loading logic) ---
+      feedPool: getTerminalFeed(),
+      typedLines: [],
+      currentTarget: "",
+      currentText: "",
+      currentCharIndex: 0,
+      bootTimer: null,
+      stamp: "",
+      maxLines: 5,              // start scrolling after first 5 committed lines
+      interLinePauseMs: 320,    // slightly longer line pause to match slower typing
+      blankLineChance: 0.08,
+      lineRepeatAvoid: 6,
+      lastPickIndices: [],
 
-      _sequenceTimer: null,
-      _resizeTimer: null,
-      _lastPick: -1,
+      // --- existing (working) config/data ---
+      animate: Config.animate,
+      initialSlug: Config.initialSlug,
+      planetPath: Config.planetPath,
+      header: Config.header,
+
+      missions: [],
+      events: [],
+      members: [],
+      orbat: [],
+      reserves: []
     };
   },
+
   computed: {
-    unitLogoSrcs() {
-      const branding = getConfig().header?.branding || {};
-      const unitLogos = Array.isArray(branding.unitLogos) ? branding.unitLogos : [];
-      const list = unitLogos.map(resolveLogoSrc).filter(Boolean);
+    branding() {
+      return Config.branding || {};
+    },
+    loginUi() {
+      return Config.ui?.login || {};
+    },
+    loginFooter() {
+      const f = Config.ui?.login?.footer;
+      return Array.isArray(f) && f.length ? f : ["SYS: OK","IFF: VALID","NET: LINK","SEC: GREEN"];
+    },
+    documentTitleSuffix() {
+      return Config.branding?.documentTitleSuffix || "BRIEFING";
+    },
+    gateTitle() {
+  return Config.ui?.login?.subtitle || "AUDIO HANDSHAKE REQUIRED";
+},
+gateBody() {
+  return (
+    Config.ui?.login?.hint ||
+    "Click to authorize audio output and synchronize TACNET briefing systems. Stand by while datasets and interface assets are initialized."
+  );
+},
+gateButtonTitle() {
+  if (!this.gateClicked) return "AUTHORIZE & SYNC";
+  if (this.gateClicked && !this.bootReady) return "SYNCHRONIZING…";
+  return "ENTER TACNET";
+},
+gateButtonDesc() {
+  if (!this.gateClicked) return "Single-click authorization required by UNSC protocol.";
+  if (this.gateClicked && !this.bootReady) return "Loading feeds, roster data, and operation archives…";
+  return "All systems green. Proceed.";
+},
+progressTotal() {
+  return Array.isArray(this.bootSteps) ? this.bootSteps.length : 0;
+},
+progressDone() {
+  const steps = Array.isArray(this.bootSteps) ? this.bootSteps : [];
+  return steps.filter((s) => s.status === "success" || s.status === "fail").length;
+},
+progressPercent() {
+  const total = this.progressTotal || 0;
+  if (!total) return this.bootReady ? 100 : 0;
+  return Math.min(100, Math.round((this.progressDone / total) * 100));
+},
+progressText() {
+  const total = this.progressTotal || 0;
+  if (!total) return this.bootReady ? "SYNC COMPLETE" : "SYNC 0/0";
+  return this.bootReady ? "SYNC COMPLETE" : `SYNC ${this.progressDone}/${total}`;
+},
 
-      if (list.length) return list;
+    // caret is inline on the active typing line (not floating on its own line)
+    typedHtml() {
+      const escape = (s) =>
+        String(s)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
 
-      const fallback = String(branding.headerLogo || "").trim();
-      return fallback ? [fallback] : [];
-    },
+      const lineClass = (l) => (String(l || "").trim().startsWith("»") ? "line dim" : "line");
 
-    authLogoutLabel() {
-      return getConfig().ui?.auth?.logoutLabel || "Logout";
-    },
+      const committed = this.typedLines
+        .map((l) => {
+          if (l === "") return `<div class="line spacer"></div>`;
+          return `<div class="${lineClass(l)}">${escape(l)}</div>`;
+        })
+        .join("");
 
-    isLoggedIn() {
-      return this.role === "member" || this.isStaff;
-    },
-    isStaff() {
-      return isAdmin();
-    },
-    authVariant() {
-      return this.isStaff ? "staff" : "member";
-    },
-    authLabel() {
-      return this.isStaff ? "Staff" : "Member";
-    },
-    displayName() {
-      if (!this.isStaff) return "";
-      return (this.staffUser && this.staffUser.displayName) || "";
-    },
+      // If we deliberately picked a blank spacer as the next target, show caret alone.
+      if (this.currentTarget === "") {
+        return `${committed}<div class="line dim"><span class="caret"></span></div>`;
+      }
 
-    normalizedHeaderStatus() {
-      const v = norm(this.headerStatus);
-      if (v === "training") return "training";
-      if (v === "rearming") return "rearming";
-      return "active";
-    },
-    headerStatusLabel() {
-      const v = this.normalizedHeaderStatus;
-      if (v === "training") return "STATUS: TRAINING";
-      if (v === "rearming") return "STATUS: REARMING";
-      return "STATUS: ACTIVE";
-    },
-
-    activeCampaign() {
-      return this.activeCampaignStore?.activeCampaign || null;
-    },
-    showCampaignPanel() {
-      return !!this.activeCampaign;
-    },
-    campaignHeader() {
-      const c = this.activeCampaign || {};
-
-      const system = getAny(c, ["system", "System", "header.system"]) || this.header?.system || "—";
-      const planet = getAny(c, ["planet", "Planet", "header.planet"]) || this.header?.planet || "—";
-      const ao = getAny(c, ["ao", "AO", "header.ao", "header.AO"]) || this.header?.AO || "—";
-
-      const year =
-        getAny(c, ["year", "Year", "header.year", "quarter", "Quarter"]) ||
-        String(getAny(c, ["startDate", "StartDate", "header.startDate"]) || "").slice(0, 4) ||
-        String(getAny(c, ["endDate", "EndDate", "header.endDate"]) || "").slice(0, 4) ||
-        "—";
-
-      const status = (getAny(c, ["status", "Status", "header.status"]) || "—").toUpperCase();
-
-      return { system, planet, ao, year, status };
-    },
-
-    normalizedNewsItems() {
-      const items = Array.isArray(this.newsItems) ? this.newsItems : [];
-      return items
-        .map((x) => (typeof x === "string" ? x : String(x?.text || x || "")))
-        .map((s) => s.trim())
-        .filter(Boolean);
-    },
+      // Live typing line + caret appended inline
+      const liveText = escape(this.currentText || "");
+      const liveCls = lineClass(this.currentTarget);
+      return `${committed}<div class="${liveCls}">${liveText}<span class="caret"></span></div>`;
+    }
   },
-  async created() {
-    this.readAuth();
-    this.unsub = authSubscribe(() => this.readAuth());
-    window.addEventListener("storage", this.onStorage);
 
-    const refUrl = getConfig().sheets?.refDataCsvUrl;
-    this.headerStatus = await readHeaderStatusFromRefData(refUrl);
+  created() {
+    // --- untouched: your working init logic ---
+    this.setTitleFavicon(`${Config.defaultTitle} ${this.documentTitleSuffix}`.trim(), Config.icon);
 
-    const operationsUrl =
-      getConfig().sheets?.operationsCsvUrl ||
-      getConfig().sheets?.opsCsvUrl ||
-      getConfig().sheets?.operationsPageCsvUrl ||
-      "";
-    const activeCampaign = await detectActiveCampaignFromOperationsCsv(operationsUrl);
-    if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = activeCampaign;
-
-    this.startTicker();
-    window.addEventListener("resize", this.onResize);
+    // Start background bootstrap immediately; gate will not dismiss until ready.
+    this.bootstrapGate();
+    
   },
+
   mounted() {
-    this.preloadUnitLogos();
-    this.recalcTickerDuration();
+    // --- added: terminal ambience start (does not touch app data loading) ---
+    this.updateStamp();
+    this.seedInitialFeed();
+    this.startAmbientFeed();
   },
+
   beforeUnmount() {
-    if (this.unsub) this.unsub();
-    window.removeEventListener("storage", this.onStorage);
-    window.removeEventListener("resize", this.onResize);
-    this.stopTicker();
+    if (this.bootTimer) window.clearTimeout(this.bootTimer);
   },
-  watch: {
-    unitLogoSrcs() {
-      this.preloadUnitLogos();
-    },
-    newsEnabled() {
-      this.startTicker();
-    },
-    normalizedNewsItems() {
-      this.startTicker();
-    },
-    tickerPxPerSecond() {
-      this.recalcTickerDuration();
-    },
-    tickerItemsPerLoop() {
-      this.startTicker();
-    },
-    tickerSeparator() {
-      this.startTicker();
-    },
-    tickerSeparatorToken() {
-      this.startTicker();
-    },
-    tickerSeparatorPad() {
-      this.startTicker();
-    },
-  },
+
   methods: {
-    preloadUnitLogos() {
-      const srcs = Array.isArray(this.unitLogoSrcs) ? this.unitLogoSrcs : [];
-      srcs.forEach((s) => {
-        const url = String(s || "").trim();
-        if (!url) return;
-        const img = new Image();
-        img.decoding = "async";
-        img.src = url;
+    // --- added: ambience helpers ---
+    updateStamp() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      this.stamp = `UTC ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+    },
+
+    initBootSteps() {
+  this.bootSteps = [
+    { id: "fonts", label: "FONTS", status: "pending" },
+    { id: "missions", label: "ARCHIVE", status: "pending" },
+    { id: "events", label: "BROADCASTS", status: "pending" },
+    { id: "members", label: "ROSTER", status: "pending" },
+    { id: "refdata", label: "REFDATA", status: "pending" },
+    { id: "ops", label: "OPERATIONS", status: "pending" },
+    { id: "paint", label: "RENDER", status: "pending" },
+  ];
+},
+
+setStepStatus(id, status) {
+  const steps = Array.isArray(this.bootSteps) ? this.bootSteps : [];
+  const idx = steps.findIndex((s) => s.id === id);
+  if (idx < 0) return;
+  this.bootSteps[idx] = { ...steps[idx], status };
+},
+
+withTimeout(promise, timeoutMs) {
+  const ms = Math.max(1, Number(timeoutMs) || 1);
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
+},
+
+async runStep(id, fn, opts = {}) {
+  const timeoutMs = Number(opts.timeoutMs) || 20000;
+  const allowFail = opts.allowFail !== false; // default true
+  this.setStepStatus(id, "running");
+
+  try {
+    await this.withTimeout(Promise.resolve().then(fn), timeoutMs);
+    this.setStepStatus(id, "success");
+    return true;
+  } catch (e) {
+    this.setStepStatus(id, "fail");
+    if (!this.bootError) this.bootError = allowFail ? "DATA LINK DEGRADED (OFFLINE MODE)" : "SYNC FAILED";
+    if (!allowFail) throw e;
+    return false;
+  }
+},
+
+waitForPaint() {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+},
+
+async bootstrapGate() {
+  this.bootReady = false;
+  this.bootError = "";
+  this.initBootSteps();
+
+  const tasks = [];
+
+  tasks.push(
+    this.runStep("fonts", () => (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()), {
+      timeoutMs: 15000,
+      allowFail: true,
+    }),
+  );
+
+  tasks.push(
+    this.runStep(
+      "missions",
+      () => this.importMissions(import.meta.glob("@/assets/missions/**/*.md", { query: "?raw", import: "default" })),
+      { timeoutMs: 20000, allowFail: true },
+    ),
+  );
+
+  tasks.push(
+    this.runStep("events", () => this.importEvents(import.meta.glob("@/assets/events/*.md", { query: "?raw", import: "default" })), {
+      timeoutMs: 20000,
+      allowFail: true,
+    }),
+  );
+
+  // CSV chain (members -> refdata -> ops)
+  const { membersCsvUrl: membersUrl, refDataCsvUrl: refDataUrl, opsCsvUrl: opsUrl } = getSheetUrls();
+
+  tasks.push(
+    (async () => {
+      await this.runStep("members", () => this.loadMembersCSV(membersUrl), { timeoutMs: 20000, allowFail: true });
+      await this.runStep("refdata", () => this.loadRefDataCSV(refDataUrl), { timeoutMs: 20000, allowFail: true });
+      await this.runStep("ops", () => this.loadOpsCSV(opsUrl), { timeoutMs: 20000, allowFail: true });
+    })(),
+  );
+
+  tasks.push(this.runStep("paint", () => this.waitForPaint(), { timeoutMs: 8000, allowFail: true }));
+
+  await Promise.all(tasks);
+
+  this.bootReady = true;
+  this.maybeEnter();
+},
+
+onGateClick() {
+  if (this.isFading) return;
+
+  this.gateClicked = true;
+
+  
+
+  this.gateClickAt = Date.now();
+// Keep "member" role for UI elements expecting it
+  try {
+    sessionStorage.setItem("authRole", "member");
+  } catch {}
+
+  // Enable audio (user gesture)
+  const a = this.$refs.startupAudio;
+  if (a && typeof a.play === "function") {
+    try {
+      a.currentTime = 0;
+      a.play().catch(() => {});
+    } catch {}
+  }
+
+  this.maybeEnter();
+},
+    maybeEnter() {
+      if (this.isFading) return;
+      if (!this.gateClicked) return;
+      if (!this.bootReady) return;
+
+      const curr = this.$router?.currentRoute?.value?.path || "/";
+      const target = curr === "/" ? "/status" : curr;
+
+      this.enterAndReveal(target);
+    },
+
+    // Start typing from the very beginning (no pre-seeded lines)
+    seedInitialFeed() {
+      if (!this.showLogin) return;
+
+      this.typedLines = [];
+      this.currentText = "";
+      this.currentCharIndex = 0;
+
+      // Force the very first line to begin at character 1
+      this.currentTarget = this.feedPool[0] || "SECURE MILNET // READY";
+
+      // reset recent picks
+      this.lastPickIndices = [];
+    },
+
+    pickNextTarget() {
+      if (Math.random() < this.blankLineChance) {
+        this.currentTarget = "";
+        this.currentText = "";
+        this.currentCharIndex = 0;
+        return;
+      }
+
+      const poolLen = this.feedPool.length;
+      let idx = Math.floor(Math.random() * poolLen);
+      let guard = 0;
+      while (this.lastPickIndices.includes(idx) && guard < 20) {
+        idx = Math.floor(Math.random() * poolLen);
+        guard += 1;
+      }
+
+      this.lastPickIndices.push(idx);
+      if (this.lastPickIndices.length > this.lineRepeatAvoid) this.lastPickIndices.shift();
+
+      const base = this.feedPool[idx];
+      this.currentTarget = this.withTelemetry(base);
+      this.currentText = "";
+      this.currentCharIndex = 0;
+    },
+
+    withTelemetry(line) {
+      const pad = (n) => String(n).padStart(2, "0");
+      const now = new Date();
+      const t = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}`;
+      const hex = () => Math.floor(Math.random() * 0xffff).toString(16).toUpperCase().padStart(4, "0");
+      const pct = () => `${Math.floor(80 + Math.random() * 20)}%`;
+
+      if (line.includes("TELEMETRY")) return `» TELEMETRY: SYNCHRONIZED // ${pct()} // T+${t}`;
+      if (line.includes("SATCOM")) return `» SATCOM: UPLINK STABLE // CH-${1 + Math.floor(Math.random() * 6)} // ${t}`;
+      if (line.includes("PACKET INTEGRITY")) return `» PACKET INTEGRITY: PASS // CRC ${hex()}-${hex()} // ${t}`;
+      if (line.includes("EDGE CACHE")) return `» EDGE CACHE: PRIMED // SECTOR ${hex()} // ${t}`;
+      if (line.includes("INTRUSION MONITOR")) return `» INTRUSION MONITOR: ARMED // WATCH ${hex()} // ${t}`;
+      if (line.includes("IFF PACKET")) return `» IFF PACKET: RECEIVED // TAG ${hex()} // ${t}`;
+      return line;
+    },
+
+    trimToWindow() {
+      // start "scrolling" immediately after first 5 committed lines
+      if (this.typedLines.length > this.maxLines) {
+        this.typedLines.splice(0, this.typedLines.length - this.maxLines);
+      }
+    },
+
+    commitCurrentLine() {
+      this.typedLines.push(this.currentTarget === "" ? "" : this.currentTarget);
+      this.trimToWindow();
+    },
+
+    startAmbientFeed() {
+      if (!this.showLogin) return;
+
+      // half-speed typing (increase delays)
+      const minDelay = 24;
+      const maxDelay = 60;
+
+      const tick = () => {
+        this.updateStamp();
+
+        if (!this.showLogin) {
+          this.bootTimer = null;
+          return;
+        }
+
+        if (this.currentTarget === "") {
+          this.commitCurrentLine();
+          this.pickNextTarget();
+          this.bootTimer = window.setTimeout(tick, Math.max(180, this.interLinePauseMs));
+          return;
+        }
+
+        this.currentText = this.currentTarget.slice(0, this.currentCharIndex + 1);
+        this.currentCharIndex += 1;
+
+        if (this.currentCharIndex >= (this.currentTarget || "").length) {
+          this.commitCurrentLine();
+          this.pickNextTarget();
+          this.bootTimer = window.setTimeout(tick, this.interLinePauseMs);
+          return;
+        }
+
+        const jitter = Math.floor(minDelay + Math.random() * (maxDelay - minDelay));
+        const extra = Math.random() < 0.06 ? 140 : 0;
+        this.bootTimer = window.setTimeout(tick, jitter + extra);
+      };
+
+      tick();
+    },
+
+    async enterAndReveal(targetPath) {
+      if (this.isFading) return;
+
+      // Navigate while the gate is still visible so the app can mount/hydrate underneath.
+      try {
+        const curr = this.$router?.currentRoute?.value?.path;
+        if (targetPath && curr !== targetPath) await this.$router.push(targetPath);
+        if (typeof this.$router?.isReady === "function") await this.$router.isReady();
+      } catch {}
+
+      try {
+        await this.$nextTick();
+      } catch {}
+
+      await this.waitForPaint();
+      await this.waitForPaint();
+
+      // Best-effort: let key images settle so the reveal looks smooth.
+      await this.waitForImages(this.$refs.appRoot, 4500);
+
+      await this.waitMinReveal(Config.ui?.login?.minGateMs || 1200);
+
+      this.fadeOutGate();
+    },
+
+    waitForImages(rootEl, timeoutMs) {
+      const root = rootEl && rootEl.querySelectorAll ? rootEl : document;
+      const imgs = Array.from(root.querySelectorAll ? root.querySelectorAll("img") : []);
+      if (!imgs.length) return Promise.resolve();
+
+      const pending = imgs.filter((img) => !img.complete);
+      if (!pending.length) return Promise.resolve();
+
+      const ms = Math.max(500, Number(timeoutMs) || 4500);
+
+      return new Promise((resolve) => {
+        let done = 0;
+        const total = pending.length;
+
+        const timer = setTimeout(() => resolve(), ms);
+
+        const onDone = () => {
+          done += 1;
+          if (done >= total) {
+            clearTimeout(timer);
+            resolve();
+          }
+        };
+
+        pending.forEach((img) => {
+          img.addEventListener("load", onDone, { once: true });
+          img.addEventListener("error", onDone, { once: true });
+        });
+
+        // In case some completed between filtering and listener attachment.
+        pending.forEach((img) => {
+          if (img.complete) onDone();
+        });
       });
     },
 
-    readAuth() {
-      this.role = sessionStorage.getItem("authRole") || null;
-      this.staffUser = adminUser();
-    },
-    onStorage(e) {
-      if (!e) return;
-      if (["admin:user", "admin:role", "admin:token", "admin:exp", "authRole"].includes(e.key)) {
-        this.readAuth();
-      }
-    },
-    async onLogout() {
-      try {
-        adminLogout();
-      } catch {}
-      try {
-        sessionStorage.removeItem("authRole");
-      } catch {}
-      this.readAuth();
-      if (this.$router?.currentRoute?.value?.path !== "/status") {
-        this.$router.push("/status");
-      }
+    waitMinReveal(minMs) {
+      const ms = Math.max(0, Number(minMs) || 0);
+      if (!ms) return Promise.resolve();
+
+      const started = Number(this.gateClickAt) || 0;
+      if (!started) return Promise.resolve();
+
+      const elapsed = Date.now() - started;
+      const remaining = ms - elapsed;
+      if (remaining <= 0) return Promise.resolve();
+
+      return new Promise((resolve) => setTimeout(resolve, remaining));
     },
 
-    onResize() {
-      if (this._resizeTimer) clearTimeout(this._resizeTimer);
-      this._resizeTimer = setTimeout(() => this.recalcTickerDuration(), 120);
-    },
+    fadeOutGate() {
+      this.isFading = true;
 
-    startTicker() {
-      this.stopTicker();
-      if (!this.newsEnabled) return;
-      if (!this.normalizedNewsItems.length) return;
-
-      this.buildNewSequence();
-      this._sequenceTimer = setInterval(
-        () => this.buildNewSequence(),
-        Math.max(5000, Number(this.sequenceRefreshMs) || 45000),
-      );
-    },
-    stopTicker() {
-      if (this._sequenceTimer) clearInterval(this._sequenceTimer);
-      this._sequenceTimer = null;
-      if (this._resizeTimer) clearTimeout(this._resizeTimer);
-      this._resizeTimer = null;
-    },
-
-    buildNewSequence() {
-      const items = this.normalizedNewsItems;
-      const n = items.length;
-      const k = Math.max(2, Number(this.tickerItemsPerLoop) || 10);
-
-      const padCount = Math.max(0, Number(this.tickerSeparatorPad) || 0);
-      const pad = "\u00A0".repeat(padCount);
-      const token = String(this.tickerSeparatorToken || "//").trim() || "//";
-      const sep = `${pad}${token}${pad}`;
-
-      const baseSep = String(this.tickerSeparator ?? " // ");
-      const effectiveSep = padCount > 0 ? `${pad}${baseSep.trim() || token}${pad}` : baseSep;
-
-      const picks = [];
-      let last = this._lastPick;
-
-      for (let i = 0; i < k; i++) {
-        const idx = this.randomIndex(n, last);
-        last = idx;
-        picks.push(items[idx]);
+      // stop ambience loop cleanly once we commit to leaving the gate overlay
+      if (this.bootTimer) {
+        window.clearTimeout(this.bootTimer);
+        this.bootTimer = null;
       }
 
-      this._lastPick = last;
-
-      const sequenceSep = effectiveSep || sep;
-      const seq = picks.join(sequenceSep) + sequenceSep;
-
-      this.tickerSequence = seq;
-      this.tickerKey += 1;
-      this.$nextTick(() => this.recalcTickerDuration());
+      setTimeout(() => {
+        this.showLogin = false;
+        this.isFading = false;
+        this.revealAnimate = true;
+      }, 800);
     },
 
-    recalcTickerDuration() {
-      const seqEl = this.$refs.seq;
-      if (!seqEl || !seqEl.scrollWidth) return;
 
-      const widthPx = seqEl.scrollWidth;
-      const speed = Math.max(10, Number(this.tickerPxPerSecond) || 45);
-      const seconds = widthPx / speed;
+    fadeAndEnter(targetPath) {
+      this.isFading = true;
 
-      this.tickerDuration = Math.max(12, Math.round(seconds * 10) / 10);
+      // stop ambience loop cleanly once we commit to leaving the login overlay
+      if (this.bootTimer) {
+        window.clearTimeout(this.bootTimer);
+        this.bootTimer = null;
+      }
+
+      setTimeout(() => {
+        this.showLogin = false;
+        this.isFading = false;
+        const curr = this.$router?.currentRoute?.value?.path;
+        if (curr !== targetPath) this.$router.push(targetPath);
+      }, 800);
     },
 
-    randomIndex(n, avoid) {
-      if (n <= 1) return 0;
-      let idx = Math.floor(Math.random() * n);
-      if (idx === avoid) idx = (idx + 1 + Math.floor(Math.random() * (n - 1))) % n;
-      return idx;
+    // --- everything below is your working version (UNCHANGED) ---
+    normalize(str) {
+      return String(str || "").replace(/"/g, "").replace(/\s+/g, " ").trim().toLowerCase();
     },
-  },
+    setTitleFavicon(title, favicon) {
+      document.title = title;
+      let link = document.querySelector('link[rel="icon"]');
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = favicon;
+    },
+
+    loadOpsCSV(opsUrl) {
+      return new Promise((resolve) => {
+        Papa.parse(opsUrl, {
+          download: true,
+          skipEmptyLines: true,
+          header: false,
+          complete: (results) => {
+            const rows = (results.data || []).slice(1);
+            const opsMap = {};
+            rows.forEach((row) => {
+              const rawName = String(row[0] || "").trim();
+              const rawOps = String(row[2] || "").trim();
+              if (!rawName) return;
+              const ops = Number(rawOps);
+              if (Number.isNaN(ops)) return;
+              const quoted = rawName.match(/"([^"]+)"/);
+              const nameCore = quoted ? quoted[1] : rawName;
+              const key = String(nameCore).replace(/"/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+              opsMap[key] = ops;
+            });
+            (this.members || []).forEach((m) => {
+              const key = String(m.name || "").replace(/"/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+              m.opsAttended = opsMap[key] ?? null;
+            });
+            resolve();
+          },
+          error: () => resolve()
+        });
+      });
+    },
+
+    rankKey(rank) { return String(rank || "").trim().toUpperCase().replace(/\s+/g, ""); },
+    promotionLadderFor(rank) {
+      const r = this.rankKey(rank);
+      return ({
+        PVT:  { nextAt: 2,  nextRank: "PFC" },
+        PFC:  { nextAt: 10, nextRank: "SPC" },
+        SPC:  { nextAt: 20, nextRank: "SPC2" },
+        SPC2: { nextAt: 30, nextRank: "SPC3" },
+        SPC3: { nextAt: 40, nextRank: "SPC4" },
+        SPC4: { nextAt: 50, nextRank: null },
+        HA:   { nextAt: 2,  nextRank: "HN" },
+        HN:   { nextAt: 10, nextRank: "HM3" },
+        HM3:  { nextAt: 20, nextRank: "HM2" },
+        HM2:  { nextAt: 30, nextRank: null },
+        CWO2: { nextAt: 10, nextRank: "CWO3" },
+        CWO3: { nextAt: 20, nextRank: "CWO4" },
+        CWO4: { nextAt: 30, nextRank: null }
+      })[r] || null;
+    },
+    opsToNextPromotion(member) {
+      const ops = Number(member?.opsAttended);
+      if (!Number.isFinite(ops)) return null;
+      const ladder = this.promotionLadderFor(member?.rank);
+      if (!ladder || !ladder.nextAt) return null;
+      return Math.max(0, ladder.nextAt - ops);
+    },
+    nextPromotionRank(member) {
+      const ladder = this.promotionLadderFor(member?.rank);
+      return ladder?.nextRank || null;
+    },
+
+    loadMembersCSV(csvUrl) {
+      return new Promise((resolve, reject) => {
+        Papa.parse(csvUrl, {
+          download: true,
+          skipEmptyLines: true,
+          header: false,
+          complete: (results) => {
+            const rows = (results.data || []).slice(2);
+            const CERT_COLUMNS = 13;
+            const usedUNSCIds = new Set();
+            this.members = rows
+              .map((row) => {
+                const name = String(row[1] || "").trim();
+                if (!name) return null;
+                const oldId = String(row[4] || "").trim();
+                return {
+                  rank: String(row[0] || "").trim(),
+                  name,
+                  joinDate: String(row[3] || "").trim(),
+                  id: this.makeUNSCId(oldId, name, usedUNSCIds),
+                  certifications: row
+                    .slice(5, 5 + CERT_COLUMNS)
+                    .map((c) => (String(c || "").trim().toUpperCase() === "Y" ? "Y" : "N")),
+                  squad: "",
+                  fireteam: "",
+                  slot: "",
+                  opsAttended: 0
+                };
+              })
+              .filter(Boolean);
+            resolve(this.members);
+          },
+          error: reject
+        });
+      });
+    },
+
+    loadRefDataCSV(csvUrl) {
+      return new Promise((resolve, reject) => {
+        Papa.parse(csvUrl, {
+          download: true,
+          skipEmptyLines: false,
+          header: false,
+          complete: (results) => {
+            const rows = results.data || [];
+            const findCol = (row, names) => {
+              const wanted = names.map((n) => this.normalize(n));
+              return row.findIndex((c) => wanted.includes(this.normalize(c)));
+            };
+
+            let membershipHeaderRowIndex = -1, memberCol = -1, squadCol = -1;
+            for (let i = 0; i < 2; i++) {
+              const r = rows[i] || [];
+              const m = findCol(r, ["Squad Member"]);
+              const s = findCol(r, ["Squads"]);
+              if (m !== -1 && s !== -1) { membershipHeaderRowIndex = i; memberCol = m; squadCol = s; break; }
+            }
+            if (membershipHeaderRowIndex === -1) { resolve([]); return; }
+
+            const KNOWN_ROLE_HEADER_HINTS = [
+              "squad roles","role","chalk 1 fireteam 1","chalk 2 fireteam 1","chalk 3 fireteam 1","chalk 4 fireteam 1",
+              "broadsword","wyvern","caladrius","ifrit","chalk actual"
+            ];
+
+            let slotHeaderRowIndex = -1, slotCol = -1, roleCol = -1;
+            for (let i = 0; i < 4; i++) {
+              const r = rows[i] || [];
+              const sl = findCol(r, ["Squad Slots", "Slot"]);
+              if (sl === -1) continue;
+              let rc = findCol(r, ["Squad Roles", "Role"]);
+              if (rc === -1) {
+                rc = r.findIndex((c) => {
+                  const n = this.normalize(c);
+                  if (!n) return false;
+                  if (n.includes("fireteam")) return true;
+                  return KNOWN_ROLE_HEADER_HINTS.includes(n);
+                });
+              }
+              if (sl !== -1 && rc !== -1) { slotHeaderRowIndex = i; slotCol = sl; roleCol = rc; break; }
+            }
+            const slottingAvailable = slotHeaderRowIndex !== -1 && slotCol !== -1 && roleCol !== -1;
+
+            const findMemberByLabel = (label) => {
+              const labelNorm = this.normalize(label);
+              if (!labelNorm) return null;
+
+              let m = this.members.find((mem) => labelNorm.includes(this.normalize(mem.name)));
+              if (m) return m;
+
+              const parts = labelNorm.split(" ");
+              const surname = parts[parts.length - 1] || "";
+              const initialMatch = labelNorm.match(/\b([a-z])\./i);
+              const initial = initialMatch ? initialMatch[1].toLowerCase() : "";
+
+              m = this.members.find((mem) => {
+                const n = this.normalize(mem.name);
+                const np = n.split(" ");
+                const memSurname = np[np.length - 1] || "";
+                const memInitial = (np[0] || "").charAt(0);
+                if (!surname || memSurname !== surname) return false;
+                if (initial && memInitial !== initial) return false;
+                return true;
+              }) || null;
+
+              return m;
+            };
+
+            const membershipRows = rows
+              .slice(membershipHeaderRowIndex + 1)
+              .map((r) => {
+                const label = String(r[memberCol] || "").trim();
+                const squad = String(r[squadCol] || "").trim();
+                if (!label || !squad) return null;
+                return { label, squad };
+              })
+              .filter(Boolean);
+
+            membershipRows.forEach(({ label, squad }) => {
+              const mem = findMemberByLabel(label);
+              if (!mem) return;
+              if (!mem.squad) mem.squad = squad;
+            });
+
+            const slotEntries = [];
+            const parseHeading = (txt) => {
+              const raw = String(txt || "").trim();
+              if (!raw) return null;
+              const ft = raw.match(/^(.*?)(?:\s+)?fireteam\s*(\d+)\s*$/i);
+              if (ft) return { squad: ft[1].trim(), fireteam: `Fireteam ${ft[2].trim()}` };
+              const n = this.normalize(raw);
+              const singles = ["broadsword","broadsword command","ifrit","wyvern","wyvern air wing","caladrius","chalk actual"];
+              if (singles.includes(n)) return { squad: raw.trim(), fireteam: "Element" };
+              return null;
+            };
+
+            if (slottingAvailable) {
+              let currentSquad = "", currentFireteam = "Element";
+              for (let i = slotHeaderRowIndex + 1; i < rows.length; i++) {
+                const r = rows[i] || [];
+                const slotTxt = String(r[slotCol] || "").trim();
+                const roleTxt = String(r[roleCol] || "").trim();
+                const heading = parseHeading(roleTxt);
+                if (heading) { currentSquad = heading.squad; currentFireteam = heading.fireteam || "Element"; continue; }
+                if (!currentSquad || !roleTxt) continue;
+
+                const slotNorm = this.normalize(slotTxt);
+                if (slotNorm === "vacant" || slotNorm === "closed") {
+                  slotEntries.push({ squad: currentSquad, fireteam: currentFireteam, role: roleTxt, status: slotNorm.toUpperCase(), member: null });
+                  continue;
+                }
+
+                const mem = slotTxt ? findMemberByLabel(slotTxt) : null;
+                if (!mem) continue;
+                mem.squad = currentSquad; mem.fireteam = currentFireteam; mem.slot = roleTxt;
+                slotEntries.push({ squad: currentSquad, fireteam: currentFireteam, role: roleTxt, status: "FILLED", member: mem });
+              }
+            }
+
+            const ALWAYS_SQUADS = ["Chalk Actual","Chalk 1","Chalk 2","Chalk 3","Chalk 4","Broadsword Command","Wyvern","Caladrius","Fillers","Recruit","Reserves"];
+            const orbatMap = {};
+            ALWAYS_SQUADS.forEach((s) => { orbatMap[s] = { squad: s, members: [], fireteams: {} }; });
+
+            this.members.forEach((m) => {
+              if (!m.squad) return;
+              if (!orbatMap[m.squad]) { orbatMap[m.squad] = { squad: m.squad, members: [], fireteams: {} }; }
+              orbatMap[m.squad].members.push(m);
+              const ft = (m.fireteam || "").trim();
+              const role = (m.slot || "").trim();
+              if (ft && role) {
+                orbatMap[m.squad].fireteams[ft] ??= { name: ft, slots: [] };
+                const exists = orbatMap[m.squad].fireteams[ft].slots.some(
+                  (s) => s.status === "FILLED" && s.member?.id && s.member.id === m.id && s.role === role
+                );
+                if (!exists) {
+                  orbatMap[m.squad].fireteams[ft].slots.push({ role, status: "FILLED", member: m });
+                }
+              }
+            });
+
+            slotEntries.forEach((e) => {
+              if (!orbatMap[e.squad]) { orbatMap[e.squad] = { squad: e.squad, members: [], fireteams: {} }; }
+              const ftName = e.fireteam || "Element";
+              orbatMap[e.squad].fireteams[ftName] ??= { name: ftName, slots: [] };
+              if (e.status === "FILLED" && e.member?.id) {
+                const exists = orbatMap[e.squad].fireteams[ftName].slots.some(
+                  (s) => s.status === "FILLED" && s.member?.id === e.member.id && s.role === e.role
+                );
+                if (exists) return;
+              }
+              orbatMap[e.squad].fireteams[ftName].slots.push({ role: e.role, status: e.status, member: e.member });
+            });
+
+            this.orbat = Object.values(orbatMap).map((s) => ({
+              squad: s.squad,
+              members: (s.members || []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+              fireteams: Object.values(s.fireteams || {}).map((ft) => ({ name: ft.name, slots: (ft.slots || []).slice() }))
+            }));
+
+            resolve(this.orbat);
+          },
+          error: reject
+        });
+      });
+    },
+
+    // IMPORTANT: keep your working mission/event import exactly as-is
+    async importMissions(files) {
+      const entries = Object.entries(files);
+      const contents = await Promise.all(entries.map(([, f]) => f()));
+
+      const knownStatuses = new Set(["start", "partial-success", "success", "failure"]);
+
+      const toTitle = (s) =>
+        String(s || "")
+          .replace(/[-_]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+
+      const inferCampaignFromPath = (path) => {
+        const p = String(path || "");
+        const parts = p.split("/missions/");
+        if (parts.length < 2) return { key: "UNASSIGNED", name: "Unassigned" };
+        const after = parts[1];
+        const segs = after.split("/").filter(Boolean);
+        if (segs.length <= 1) return { key: "UNASSIGNED", name: "Unassigned" };
+        const slug = segs[0];
+        return { key: slug.toUpperCase(), name: toTitle(slug) };
+      };
+
+      const parseHeader = (lines) => {
+        const slug = String(lines[0] || "").trim();
+        let cursor = 1;
+
+        let title = "";
+        let status = "start";
+
+        const l1 = String(lines[1] || "").trim();
+        const l2 = String(lines[2] || "").trim();
+
+        if (knownStatuses.has(l1)) {
+          status = l1;
+          cursor = 2;
+        } else if (knownStatuses.has(l2)) {
+          title = l1;
+          status = l2;
+          cursor = 3;
+        } else if (l1 && !l1.startsWith("@")) {
+          title = l1;
+          cursor = 2;
+        }
+
+        return { slug, title, status, cursor };
+      };
+
+      const parseDirectives = (lines, startIdx) => {
+        let i = startIdx;
+        const meta = {};
+        while (i < lines.length) {
+          const raw = String(lines[i] || "");
+          const line = raw.trim();
+          if (!line.startsWith("@")) break;
+
+          const [tag, ...rest] = line.split(" ");
+          const payload = rest.join(" ").trim();
+
+          if (tag === "@campaign") {
+            meta.campaign = payload.replace(/^"(.*)"$/, "$1").trim();
+          } else if (tag === "@order") {
+            const n = Number(payload);
+            if (Number.isFinite(n)) meta.order = n;
+          } else if (tag === "@theme") {
+            try {
+              meta.theme = payload ? JSON.parse(payload) : {};
+            } catch (e) {
+              console.warn(`Invalid @theme JSON for mission; ignoring.`, e);
+            }
+          }
+
+          i += 1;
+        }
+        return { meta, cursor: i };
+      };
+
+      const parseNumeric = (s) => {
+        const m = String(s || "").match(/(\d+)/);
+        return m ? Number(m[1]) : NaN;
+      };
+
+      contents.forEach((c, idx) => {
+        const path = entries[idx][0];
+        const lines = String(c || "").split(/\r?\n/);
+
+        const inferred = inferCampaignFromPath(path);
+        const { slug, title, status, cursor: afterHeader } = parseHeader(lines);
+        const { meta, cursor: afterMeta } = parseDirectives(lines, afterHeader);
+
+        let order = Number(meta.order);
+        if (!Number.isFinite(order)) {
+          const fileBase = String(path || "").split("/").pop()?.replace(/\.md$/i, "") || "";
+          const orderFromSlug = parseNumeric(slug);
+          const orderFromFile = parseNumeric(fileBase);
+          order = Number.isFinite(orderFromSlug) ? orderFromSlug : orderFromFile;
+        }
+
+        const content = lines.slice(afterMeta).join("\n");
+
+        const campaignName = meta.campaign ? meta.campaign : inferred.name;
+        const campaignKey = meta.campaign ? String(meta.campaign).toUpperCase() : inferred.key;
+
+        this.missions.push({
+          slug,
+          name: title,
+          status: knownStatuses.has(status) ? status : "start",
+          content,
+          campaign: campaignName,
+          campaignKey,
+          order,
+          theme: meta.theme || {},
+          sourcePath: path
+        });
+      });
+    },
+
+    async importEvents(files) {
+      const contents = await Promise.all(Object.values(files).map((f) => f()));
+      contents.forEach((c) => {
+        const l = c.split("\n");
+        this.events.push({
+          title: l[0],
+          location: l[1],
+          time: l[2],
+          thumbnail: l[3],
+          content: l.slice(4).join("\n")
+        });
+      });
+    },
+
+    makeInitials(name) {
+      const parts = String(name || "").trim().toUpperCase().split(/\s+/).filter(Boolean);
+      if (!parts.length) return "XX";
+      const first = parts[0]?.[0] || "X";
+      const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] || "X") : "X";
+      return `${first}${last}`;
+    },
+    hash32(str) {
+      let h = 2166136261;
+      const s = String(str || "");
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return h >>> 0;
+    },
+    pad5(n) { return String(n).padStart(5, "0"); },
+    makeUNSCId(oldId, name, used) {
+      const initials = this.makeInitials(name);
+      let seed = this.hash32(`${oldId}::${name}`);
+      let a = seed % 100000;
+      let b = ((seed / 100000) >>> 0) % 100000;
+      let candidate = `${this.pad5(a)}-${this.pad5(b)}-${initials}`;
+      while (used.has(candidate)) {
+        seed = (seed + 1) >>> 0; a = seed % 100000; b = ((seed / 100000) >>> 0) % 100000;
+        candidate = `${this.pad5(a)}-${this.pad5(b)}-${initials}`;
+      }
+      used.add(candidate);
+      return candidate;
+    }
+  }
 };
 </script>
 
-<style scoped>
-.header-wrap {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
+<style>.app-shell {
+  opacity: 1;
+  transition: opacity 420ms ease;
 }
 
-header {
-  position: relative;
-  border-radius: 0 !important;
+.app-shell.app-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+#app { min-height: 100vh; overflow: hidden !important; }
+
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at center, rgba(6, 12, 18, 0.96), rgba(0, 0, 0, 0.985));
+  opacity: 1;
+  transition: opacity 0.8s ease;
+}
+.login-overlay.fading { opacity: 0; pointer-events: none; }
+
+.term {
+  width: min(920px, 94vw);
+  border-radius: 16px;
   border: 1px solid rgba(170, 220, 255, 0.22);
-  background: linear-gradient(180deg, rgba(8, 14, 20, 0.9), rgba(3, 6, 10, 0.94));
+  background: linear-gradient(180deg, rgba(8, 14, 20, 0.92), rgba(3, 6, 10, 0.95));
+  overflow: hidden;
   box-shadow:
     0 0 0 1px rgba(170, 220, 255, 0.06) inset,
-    0 0 26px rgba(120, 180, 255, 0.1),
-    0 0 110px rgba(0, 0, 0, 0.55);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
+    0 0 26px rgba(120, 180, 255, 0.10),
+    0 0 110px rgba(0, 0, 0, 0.6);
+  color: rgba(190, 230, 255, 0.92);
+  font-family: "Titillium Web", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
-header::before {
-  content: "";
-  position: absolute;
+.term-hdr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(170, 220, 255, 0.12);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+
+/* Header icon shell (UNSC) */
+.hdr-icon{
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: rgba(170, 220, 255, 0.18);
+  border: 1px solid rgba(170, 220, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.18) inset, 0 0 16px rgba(120,180,255,0.10);
+  background-image: url("/icons/squad.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 28px 28px;
+  flex: 0 0 auto;
+  opacity: .95;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(170, 220, 255, 0.22);
+  box-shadow: 0 0 8px rgba(120, 180, 255, 0.12);
+}
+.term-title { font-size: 12px; opacity: 0.9; }
+.term-stamp { margin-left: auto; font-size: 12px; opacity: 0.6; letter-spacing: .12em; }
+
+.term-body {
+  position: relative;
+  padding: 26px 20px 18px;
+  min-height: 380px;
+}
+
+.logo-ghost{
+  position: fixed;
   inset: 0;
   pointer-events: none;
+  display: grid;
+  place-items: center;
+  z-index: -1; /* behind UI chrome */
+}
+
+
+
+.logo-ghost img { width: min(520px, 74vw); height: auto; }
+
+.typed-window {
+  position: relative;
+  z-index: 2;
+  height: 190px;
+  overflow: hidden;
+  padding-right: 6px;
+
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 78%, rgba(0,0,0,0) 100%);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 78%, rgba(0,0,0,0) 100%);
+}
+
+.typed {
+  font-size: 14px;
+  line-height: 1.7;
+  text-shadow: 0 0 10px rgba(120, 180, 255, 0.10);
+}
+
+.line { margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dim { opacity: 0.7; }
+.line.spacer { height: 10px; }
+
+/* caret sits inline at end of active line */
+.caret {
+  display: inline-block;
+  width: 10px;
+  height: 14px;
+  margin-left: 8px;
+  border-left: 2px solid rgba(190, 230, 255, 0.9);
+  animation: blink 1.1s infinite;
+  transform: translateY(2px);
+}
+@keyframes blink {
+  0%, 45% { opacity: 1; }
+  46%, 100% { opacity: 0; }
+}
+
+.gate {
+  position: relative;
+  z-index: 2;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(170, 220, 255, 0.14);
+}
+
+.gate-title {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-bottom: 10px;
+  letter-spacing: .16em;
+}
+
+.login-options-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.login-options {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  width: min(760px, 100%);
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+
+.login-option {
+  flex: 1 1 280px;
+  max-width: 360px;
+
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid rgba(170, 220, 255, 0.26);
+  border-radius: 14px;
+  padding: 16px 18px;
+  cursor: pointer;
+  color: rgba(190, 230, 255, 0.92);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  transition: transform 120ms ease, border-color 140ms ease, opacity 140ms ease;
+}
+.login-option:hover { border-color: rgba(170, 220, 255, 0.9); transform: translateY(-1px); }
+.login-option:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+.opt-title { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
+.opt-desc { font-size: 12px; opacity: .8; letter-spacing: .08em; }
+
+.hint { margin-top: 12px; font-size: 11px; letter-spacing: .14em; line-height: 1.7; }
+
+.term-ftr {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(170, 220, 255, 0.12);
+  background: rgba(0, 0, 0, 0.16);
+  font-size: 12px;
+}
+
+/* FX */
+
+/* Gate progress bar */
+.progress-wrap {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(170, 220, 255, 0.12);
+}
+
+.progress-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  margin-bottom: 8px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(170, 220, 255, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(120, 255, 190, 0.85), rgba(120, 180, 255, 0.75));
+  transition: width 240ms ease;
+}
+
+.progress-sub {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  line-height: 1.6;
+}
+  
+.scanlines {
+  position: absolute;
+  inset: 0;
   background: repeating-linear-gradient(
     to bottom,
     rgba(255, 255, 255, 0.02),
@@ -679,325 +1308,43 @@ header::before {
     rgba(0, 0, 0, 0) 6px
   );
   mix-blend-mode: overlay;
-  opacity: 0.22;
-  z-index: 0;
+  opacity: 0.35;
+  pointer-events: none;
 }
-header::after {
-  content: "";
+
+.flicker {
   position: absolute;
   inset: -20%;
+  background: radial-gradient(circle at 30% 20%, rgba(120, 180, 255, 0.07), transparent 55%);
+  animation: flicker 2.6s infinite;
   pointer-events: none;
-  background: radial-gradient(circle at 30% 20%, rgba(120, 180, 255, 0.07), transparent 58%);
-  opacity: 0.85;
-  animation: headerFlicker 3.1s infinite;
-  z-index: 0;
+  opacity: 0.9;
 }
-@keyframes headerFlicker {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-    opacity: 0.7;
-  }
-  12% {
-    transform: translate3d(-1px, 1px, 0);
-    opacity: 0.86;
-  }
-  25% {
-    transform: translate3d(1px, -1px, 0);
-    opacity: 0.68;
-  }
-  42% {
-    transform: translate3d(0, 2px, 0);
-    opacity: 0.9;
-  }
-  70% {
-    transform: translate3d(2px, 0, 0);
-    opacity: 0.76;
-  }
+
+@keyframes flicker {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.75; }
+  10% { transform: translate3d(-1px, 1px, 0); opacity: 0.85; }
+  20% { transform: translate3d(1px, -1px, 0); opacity: 0.7; }
+  35% { transform: translate3d(0px, 2px, 0); opacity: 0.9; }
+  60% { transform: translate3d(2px, 0px, 0); opacity: 0.78; }
 }
-header > * {
+
+/* Ensure UI chrome stays above the background watermark */
+.boot-shell, .login-shell, .gate, .access-shell, .terminal-shell, .app-shell{
   position: relative;
   z-index: 1;
 }
 
-.rhombus {
-  opacity: 0.18;
-}
 
-/* LEFT logos */
-.logo-strip {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-}
-.unit-logo {
-  width: 90px;
-  height: 90px;
-  object-fit: contain;
-  flex: 0 0 auto;
-}
-
-/* CENTER block */
-.center-block {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(720px, 52vw);
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 14px;
-}.title-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-}
-.title-row {
-  width: 100%;
-}
-#title-first-line {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.55);
-  padding-bottom: 2px;
-  margin-bottom: 2px;
-}
-
-#title-header {
-  font-size: 32px;
-  font-family: "Big Shoulders Display", cursive;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: rgba(230, 251, 255, 0.95);
-  white-space: nowrap;
-}
-
-/* Status pill (shrink ~10% to avoid clipping) */
-.header-status {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-width: 0;
-}
-.status-pill-lg {
-  transform: scale(0.9);
-  transform-origin: center;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 260px;
-  padding: 12px 22px;
-  border-radius: 999px;
-  border: 1px solid rgba(90, 220, 255, 0.22);
-  background: rgba(0, 0, 0, 0.22);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  font-family: "Titillium Web", sans-serif;
-  font-weight: 800;
-  font-size: 14px;
-  box-shadow:
-    0 0 0 1px rgba(170, 220, 255, 0.06) inset,
-    0 0 28px rgba(120, 180, 255, 0.08);
-}
-
-.status-pill-lg[data-status="active"] {
-  border-color: rgba(120, 255, 190, 0.55);
-  color: rgba(120, 255, 190, 0.95);
-  box-shadow:
-    0 0 0 1px rgba(120, 255, 190, 0.12) inset,
-    0 0 26px rgba(120, 255, 190, 0.08);
-}
-.status-pill-lg[data-status="training"] {
-  border-color: rgba(255, 210, 90, 0.55);
-  color: rgba(255, 210, 90, 0.95);
-  box-shadow:
-    0 0 0 1px rgba(255, 210, 90, 0.12) inset,
-    0 0 26px rgba(255, 210, 90, 0.08);
-}
-.status-pill-lg[data-status="rearming"] {
-  border-color: rgba(255, 90, 90, 0.55);
-  color: rgba(255, 90, 90, 0.95);
-  box-shadow:
-    0 0 0 1px rgba(255, 90, 90, 0.12) inset,
-    0 0 26px rgba(255, 90, 90, 0.08);
-}
-
-/* RIGHT details + vertical divider like OG header */
-header .planet-location-container {
-  margin-left: auto !important;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-
-  padding-left: 16px;
-  padding-right: 12px;
-  border-left: 1px solid rgba(170, 220, 255, 0.22);
-}
-
-.location-info {
-  min-width: 0;
-  width: max-content;
-  max-width: min(1120px, 46vw);
-}
-
-.meta-grid {
-  display: grid;
-  grid-template-columns: max-content max-content minmax(220px, 420px);
-  grid-template-rows: auto auto;
-  gap: 10px 14px;
-  justify-content: end;
-  align-items: end;
-}
-
-.meta-tile {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-  align-content: start;
-}
-.meta-tile--ao {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-}
-
-.meta-tile h4 {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.78rem;
-  margin: 0;
-  color: rgba(214, 241, 255, 0.75);
-}
-
-.subtitle {
-  display: block;
-  font-size: 0.95rem;
-  letter-spacing: 0.1em;
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: rgba(230, 251, 255, 0.92);
-}
-
-/* AUTH: right edge */
-.auth-indicator {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid rgba(170, 255, 210, 0.35);
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.35);
-  color: rgba(170, 255, 210, 0.92);
-  font-family: "Titillium Web", sans-serif;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  line-height: 1;
+/* Keep all primary chrome above the watermark */
+.section-container, .terminal-window, .deployment-window, .window, .app-window{
+  position: relative;
   z-index: 2;
-}.auth-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.auth-role {
-  font-weight: 800;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(170, 255, 210, 0.35);
-}
-.auth-role[data-variant="member"] {
-  opacity: 0.9;
-}
-.auth-role[data-variant="staff"] {
-  border-color: rgba(30, 144, 255, 0.75);
-}
-.auth-name {
-  font-size: 12px;
-  opacity: 0.9;
-}
-.auth-logout {
-  background: transparent;
-  border: 1px solid rgba(170, 255, 210, 0.35);
-  border-radius: 999px;
-  padding: 2px 10px;
-  color: rgba(170, 255, 210, 0.92);
-  cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.auth-logout:hover {
-  border-color: rgba(170, 255, 210, 0.9);
 }
 
-/* News Ticker */
-.news-ticker {
-  height: 32px;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  border: 1px solid rgba(170, 220, 255, 0.14);
-  border-top: none;
-  background: linear-gradient(180deg, rgba(8, 14, 20, 0.75), rgba(3, 6, 10, 0.88));
-  box-shadow: 0 0 0 1px rgba(170, 220, 255, 0.06) inset, 0 0 26px rgba(120, 180, 255, 0.08);
+/* Prevent stacking surprises */
+.app-shell, .boot-shell, .login-shell, .gate, .access-shell, .terminal-shell{
+  isolation: isolate;
 }
 
-.news-label {
-  font-family: "Titillium Web", sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(190, 230, 255, 0.92);
-  border: 1px solid rgba(170, 220, 255, 0.18);
-  background: rgba(0, 0, 0, 0.18);
-  border-radius: 999px;
-  padding: 3px 10px;
-  white-space: nowrap;
-}
-
-.news-viewport {
-  overflow: hidden;
-  width: 100%;
-  mask-image: linear-gradient(to right, transparent 0%, black 7%, black 93%, transparent 100%);
-}
-
-.news-track {
-  --ticker-duration: 28s;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-  will-change: transform;
-  animation: tickerLoop var(--ticker-duration) linear infinite;
-}
-
-.news-seq {
-  font-family: "Titillium Web", sans-serif;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  color: rgba(226, 243, 255, 0.92);
-  text-transform: uppercase;
-  text-shadow: 0 0 14px rgba(120, 180, 255, 0.1);
-  padding-right: 48px;
-}
-
-@keyframes tickerLoop {
-  0% {
-    transform: translate3d(0, 0, 0);
-  }
-  100% {
-    transform: translate3d(-50%, 0, 0);
-  }
-}
 </style>
