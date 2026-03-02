@@ -64,6 +64,8 @@
   </div>
 </div>
 
+      </div>
+
       <div class="term-ftr dim">
         <span>{{ loginFooter[0] }}</span>
         <span>{{ loginFooter[1] }}</span>
@@ -71,6 +73,7 @@
         <span>{{ loginFooter[3] }}</span>
       </div>
     </div>
+  </div>
 
   <template v-else>
     <div class="page-wrapper">
@@ -107,7 +110,7 @@ import Papa from "papaparse";
 
 export default {
   name: "App",
-  components: { Header, Sidebar, },
+  components: { Header, Sidebar },
   provide() {
     return {
       activeCampaignStore: this.activeCampaignStore,
