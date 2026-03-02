@@ -77,15 +77,15 @@
 
     <div ref="appRoot" class="app-shell" :class="{ 'app-hidden': showLogin }">
 <div class="page-wrapper">
-        <Header :planet-path="planetPath" :class="{ animate: animate }" :header="header" />
-        <Sidebar :animate="animate" :class="{ animate: animate }" />
+        <Header :planet-path="planetPath" :class="{ animate: animate && revealAnimate }" :header="header" />
+        <Sidebar :animate="animate && revealAnimate" :class="{ animate: animate && revealAnimate }" />
       </div>
   
       <div id="router-view-container">
         <!-- transition intentionally removed -->
         <router-view
           :key="$route.fullPath"
-          :animate="animate"
+          :animate="animate && revealAnimate"
           :initial-slug="initialSlug"
           :missions="missions"
           :events="events"
@@ -129,7 +129,10 @@ export default {
       bootError: "",
       bootSteps: [],
 
-      // --- added: terminal ambience state (NO changes to data loading logic) ---
+      
+      revealAnimate: false,
+      gateClickAt: 0,
+// --- added: terminal ambience state (NO changes to data loading logic) ---
       feedPool: getTerminalFeed(),
       typedLines: [],
       currentTarget: "",
@@ -366,7 +369,10 @@ onGateClick() {
 
   this.gateClicked = true;
 
-  // Keep "member" role for UI elements expecting it
+  
+
+  this.gateClickAt = Date.now();
+// Keep "member" role for UI elements expecting it
   try {
     sessionStorage.setItem("authRole", "member");
   } catch {}
@@ -521,6 +527,8 @@ onGateClick() {
       // Best-effort: let key images settle so the reveal looks smooth.
       await this.waitForImages(this.$refs.appRoot, 4500);
 
+      await this.waitMinReveal(Config.ui?.login?.minGateMs || 1200);
+
       this.fadeOutGate();
     },
 
@@ -560,6 +568,20 @@ onGateClick() {
       });
     },
 
+    waitMinReveal(minMs) {
+      const ms = Math.max(0, Number(minMs) || 0);
+      if (!ms) return Promise.resolve();
+
+      const started = Number(this.gateClickAt) || 0;
+      if (!started) return Promise.resolve();
+
+      const elapsed = Date.now() - started;
+      const remaining = ms - elapsed;
+      if (remaining <= 0) return Promise.resolve();
+
+      return new Promise((resolve) => setTimeout(resolve, remaining));
+    },
+
     fadeOutGate() {
       this.isFading = true;
 
@@ -572,6 +594,7 @@ onGateClick() {
       setTimeout(() => {
         this.showLogin = false;
         this.isFading = false;
+        this.revealAnimate = true;
       }, 800);
     },
 
