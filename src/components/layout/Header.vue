@@ -9,12 +9,13 @@
       <div class="logo-strip" aria-label="Unit logos">
         <img
           v-for="(src, i) in unitLogoSrcs"
-          :key="i"
+          :key="src"
           class="unit-logo"
           :src="src"
           alt="Unit Logo"
-          loading="lazy"
+          loading="eager"
           decoding="async"
+          :fetchpriority="i < 2 ? 'high' : 'auto'"
         />
       </div>
 
@@ -66,14 +67,7 @@
           </div>
         </div>
       </div>
-
-      <!-- AUTH (right edge, themed) -->
-      <div class="auth-indicator" v-if="isLoggedIn">
-        <div class="auth-line">
-          <span class="auth-role" :data-variant="authVariant">{{ authLabel }}</span>
-          <span v-if="displayName" class="auth-name">· {{ displayName }}</span>
-        </div>
-        <button class="auth-logout" @click="onLogout">{{ authLogoutLabel }}</button>
+<button class="auth-logout" @click="onLogout">{{ authLogoutLabel }}</button>
       </div>
     </header>
 
@@ -507,6 +501,7 @@ export default {
     window.addEventListener("resize", this.onResize);
   },
   mounted() {
+    this.preloadUnitLogos();
     this.recalcTickerDuration();
   },
   beforeUnmount() {
@@ -516,6 +511,9 @@ export default {
     this.stopTicker();
   },
   watch: {
+    unitLogoSrcs() {
+      this.preloadUnitLogos();
+    },
     newsEnabled() {
       this.startTicker();
     },
@@ -539,6 +537,17 @@ export default {
     },
   },
   methods: {
+    preloadUnitLogos() {
+      const srcs = Array.isArray(this.unitLogoSrcs) ? this.unitLogoSrcs : [];
+      srcs.forEach((s) => {
+        const url = String(s || "").trim();
+        if (!url) return;
+        const img = new Image();
+        img.decoding = "async";
+        img.src = url;
+      });
+    },
+
     readAuth() {
       this.role = sessionStorage.getItem("authRole") || null;
       this.staffUser = adminUser();
