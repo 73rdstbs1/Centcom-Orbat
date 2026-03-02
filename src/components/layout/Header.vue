@@ -799,12 +799,18 @@ header > * {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
+
+  transform: translateZ(0);
+  will-change: transform;
 }
 .unit-logo {
   width: 90px;
   height: 90px;
   object-fit: contain;
   flex: 0 0 auto;
+
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 /* CENTER block */
