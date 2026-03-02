@@ -114,6 +114,7 @@
  */
 
 import { getConfig } from "@/config/runtimeConfig";
+import { mergeAwardsText, normalizePersonKey, parseAwardsCell } from "@/utils/awards";
 
 function normalizeStr(v) {
   return String(v ?? "").trim();
@@ -245,6 +246,110 @@ function buildGroups(rows) {
   return groups.filter((g) => (g.members || []).length > 0);
 }
 
+async function loadAwardsIndexFromOperationsCsv(csvUrl) {
+  if (!csvUrl) return {};
+
+  try {
+    const res = await fetch(csvUrl, { cache: "no-store" });
+    if (!res.ok) return {};
+
+    const text = await res.text();
+    const rows = parseCsv(text);
+    if (!rows.length) return {};
+
+    const headerRow = rows[0] || [];
+    const headerMap = {};
+    headerRow.forEach((h, i) => {
+      const key = normalizeStr(h).toLowerCase();
+      if (key) headerMap[key] = i;
+    });
+
+    const iAwards = headerMap["awards"];
+    if (iAwards === undefined) return {};
+
+    const iCampaign = headerMap["campaign name"];
+    const iOp = headerMap["operations"];
+
+    let currentCampaign = "";
+    const out = {};
+
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r] || [];
+
+      const campaignCell = iCampaign !== undefined ? normalizeStr(row[iCampaign]) : "";
+      if (campaignCell) currentCampaign = campaignCell;
+
+      const opTitle = iOp !== undefined ? normalizeStr(row[iOp]) : "";
+      const awardsCell = normalizeStr(row[iAwards]);
+      if (!awardsCell) continue;
+
+      const entries = parseAwardsCell(awardsCell);
+      for (const e of entries) {
+        const pKey = normalizePersonKey(e.trooper);
+        if (!pKey) continue;
+
+        if (!out[pKey]) out[pKey] = [];
+        out[pKey].push({
+          trooper: e.trooper,
+          award: e.award,
+          campaign: currentCampaign,
+          operation: opTitle,
+        });
+      }
+    }
+
+    // De-dupe per person by award+op+campaign
+    for (const k of Object.keys(out)) {
+      const seen = new Set();
+      out[k] = (out[k] || []).filter((x) => {
+        const kk = `${String(x.award || "").toLowerCase()}|${String(x.operation || "").toLowerCase()}|${String(x.campaign || "").toLowerCase()}`;
+        if (seen.has(kk)) return false;
+        seen.add(kk);
+        return true;
+      });
+    }
+
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function formatDerivedAwards(entries) {
+  const list = Array.isArray(entries) ? entries : [];
+  if (!list.length) return "";
+
+  const parts = list.map((x) => {
+    const award = String(x.award || "").trim();
+    const op = String(x.operation || "").trim();
+    if (!award) return "";
+    return op ? `${award} (${op})` : award;
+  });
+
+  return parts.filter(Boolean).join(" / ");
+}
+
+function mergeOpsAwardsIntoGroups(groups, awardsIndex) {
+  const idx = awardsIndex || {};
+  return (groups || []).map((g) => {
+    const members = (g.members || []).map((m) => {
+      const key = normalizePersonKey(m.name);
+      const derived = idx[key] || [];
+      const derivedText = formatDerivedAwards(derived);
+      const merged = mergeAwardsText(m.awards, derivedText);
+
+      return {
+        ...m,
+        awards: merged || m.awards || "",
+        _awardsDerived: derived,
+      };
+    });
+
+    return { ...g, members };
+  });
+}
+
+
 export default {
   name: "BackendRosterView",
   data() {
@@ -331,10 +436,13 @@ export default {
         const rows = rowsToObjects(csvText);
         const groups = buildGroups(rows);
 
-        this.groups = groups;
+        // Optional: auto-derive awards from Operations CSV (AWARDS column)
+        const opsAwards = await loadAwardsIndexFromOperationsCsv(cfg?.sheets?.operationsCsvUrl || "");
+        this.groups = mergeOpsAwardsIntoGroups(groups, opsAwards);
 
         // If unit filter doesn't exist, clear it (fallback behavior requested)
-        if (this.unitFilter && !groups.some((g) => g.label === this.unitFilter)) {
+        const finalGroups = this.groups || [];
+        if (this.unitFilter && !finalGroups.some((g) => g.label === this.unitFilter)) {
           this.unitFilter = "";
         }
       } catch (e) {
