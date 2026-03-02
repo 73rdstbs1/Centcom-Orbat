@@ -67,8 +67,6 @@
           </div>
         </div>
       </div>
-<button class="auth-logout" @click="onLogout">{{ authLogoutLabel }}</button>
-      </div>
     </header>
 
     <!-- Continuous Marquee News Ticker -->
