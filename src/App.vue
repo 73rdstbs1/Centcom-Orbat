@@ -96,7 +96,8 @@
       </div>
   </div>
 
-  <audio ref="startupAudio" preload="au<script> <source src="/sound/startup.ogg" type="audio/ogg" />
+  <audio ref="startupAudio" preload="auto">
+    <source src="/sound/startup.ogg" type="audio/ogg" />
   </audio>
 </template>
 
