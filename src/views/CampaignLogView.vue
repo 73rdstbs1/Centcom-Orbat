@@ -203,6 +203,18 @@
             <div v-else class="muted">No org chart data yet.</div>
           </section>
 
+          <section class="modal-section" v-if="(campaignAwards(activeCampaign) || []).length">
+            <div class="section-label">AWARDS</div>
+
+            <ul class="mini-list">
+              <li v-for="a in campaignAwards(activeCampaign)" :key="a._key">
+                <div class="op-date">{{ a.trooper }}</div>
+                <div class="op-title">{{ a.award }}</div>
+                <div class="op-status">{{ a.operation || "—" }}</div>
+              </li>
+            </ul>
+          </section>
+
           <section class="modal-section">
             <div class="section-label">OPERATIONS</div>
 
@@ -270,12 +282,22 @@
                   <div v-if="op.summary || op.opordSummary" class="opord-summary">
                     {{ op.summary || op.opordSummary }}
                   </div>
+                  <div v-if="(op.awards || []).length" class="op-awards">
+                    <div class="op-awards-label">AWARDS</div>
+                    <ul class="op-awards-list">
+                      <li v-for="(a, ai) in op.awards" :key="(a.trooper || '') + (a.award || '') + ai">
+                        <span class="award-trooper">{{ a.trooper }}</span>
+                        <span class="award-dash">—</span>
+                        <span class="award-name">{{ a.award }}</span>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
                 </div>
               </div>
 
               <div class="ops-help muted">
-                Tip: “COMMAND” and “AWARDS” are linked by simple IDs in campaign.json so they’re easy to swap.
+                Tip: Add an “AWARDS” column in the Operations sheet using “Name - Award / Name - Award” to auto-render.
               </div>
             </div>
 
@@ -295,6 +317,7 @@
 
 <script>
 import { getConfig } from "@/config/runtimeConfig";
+import { normalizePersonKey, parseAwardsCell } from "@/utils/awards";
 
 /**
  * Content-driven campaign loader.
@@ -307,7 +330,7 @@ import { getConfig } from "@/config/runtimeConfig";
  * Operations (NEW):
  * - Prefer Google Sheets CSV (config: sheets.operationsCsvUrl)
  *   Columns expected (case-insensitive):
- *     CAMPAIGN NAME | OPERATIONS | OP LINKS | STATUS | SUMMARY | DATE (optional)
+ *     CAMPAIGN NAME | OPERATIONS | OP LINKS | STATUS | SUMMARY | DATE (optional) | AWARDS (optional)
  * - Rows are grouped by campaign: when CAMPAIGN NAME cell is non-empty, it becomes the current campaign group.
  *   Subsequent rows belong to that campaign until the next CAMPAIGN NAME appears.
  *
@@ -715,6 +738,7 @@ async function loadOperationsFromCsv(csvUrl) {
   const kStatus = headerMap["status"] !== undefined ? "status" : null;
   const kSummary = headerMap["summary"] !== undefined ? "summary" : null;
   const kDate = headerMap["date"] !== undefined ? "date" : null;
+  const kAwards = headerMap["awards"] !== undefined ? "awards" : null;
 
   const out = {};
   let current = "";
@@ -733,6 +757,8 @@ async function loadOperationsFromCsv(csvUrl) {
     const statusCell = kStatus ? getCell(row, headerMap, kStatus) : "";
     const summaryCell = kSummary ? getCell(row, headerMap, kSummary) : "";
     const dateCell = kDate ? getCell(row, headerMap, kDate) : "";
+    const awardsCell = kAwards ? getCell(row, headerMap, kAwards) : "";
+    const awards = awardsCell ? parseAwardsCell(awardsCell) : [];
 
     const key = normKey(current);
     if (!out[key]) out[key] = [];
@@ -744,6 +770,8 @@ async function loadOperationsFromCsv(csvUrl) {
       status: normalizeStatus(statusCell || "pending"),
       summary: summaryCell,
       links: parseLinks(linksCell),
+      awards,
+      awardsRaw: awardsCell,
       // keep these for backwards compatibility with the view template
       opordTitle: "",
       opordUrl: "",
@@ -888,6 +916,45 @@ export default {
       if (start && !end) return start;
       if (!start && end) return end;
       return `${start} → ${end}`;
+    },
+    campaignAwards(campaign) {
+      const ops = Array.isArray(campaign?.operations) ? campaign.operations : [];
+      const seen = new Set();
+      const out = [];
+
+      for (const op of ops) {
+        const entries = Array.isArray(op?.awards) ? op.awards : [];
+        const opTitle = String(op?.title || "").trim();
+
+        for (const e of entries) {
+          const trooper = String(e?.trooper || "").trim();
+          const award = String(e?.award || "").trim();
+          if (!trooper || !award) continue;
+
+          const key = `${normalizePersonKey(trooper)}|${award.toLowerCase()}|${opTitle.toLowerCase()}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+
+          out.push({
+            _key: key,
+            trooper,
+            award,
+            operation: opTitle,
+          });
+        }
+      }
+
+      out.sort((a, b) => {
+        const ta = a.trooper.toLowerCase();
+        const tb = b.trooper.toLowerCase();
+        if (ta < tb) return -1;
+        if (ta > tb) return 1;
+        const aa = a.award.toLowerCase();
+        const ab = b.award.toLowerCase();
+        return aa < ab ? -1 : aa > ab ? 1 : 0;
+      });
+
+      return out;
     },
     openCampaign(c) {
       this.activeCampaign = c;
@@ -1584,6 +1651,31 @@ export default {
   color: rgba(214, 241, 255, 0.72);
   line-height: 1.25;
 }
+
+.op-awards{
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(90, 220, 255, 0.18);
+}
+.op-awards-label{
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(214, 241, 255, 0.72);
+  margin-bottom: 4px;
+}
+.op-awards-list{
+  margin: 0;
+  padding: 0 0 0 16px;
+}
+.op-awards-list li{
+  margin: 2px 0;
+  color: rgba(230, 251, 255, 0.92);
+  line-height: 1.25;
+}
+.award-trooper{ font-weight: 600; }
+.award-dash{ padding: 0 6px; opacity: 0.85; }
+.award-name{ opacity: 0.92; }
 
 /* Responsive */
 @media (max-width: 980px) {
