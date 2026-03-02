@@ -1,6 +1,6 @@
 <!-- /src/App.vue -->
 <template>
-  <div v-if="showLogin" class="login-overlay" :class="{ fading: isFading }">
+  <div v-show="showLogin" class="login-overlay" :class="{ fading: isFading }">
     <div class="term">
       <div class="term-hdr">
         <span class="hdr-icon" aria-hidden="true"></span>
@@ -75,29 +75,28 @@
     </div>
   </div>
 
-  <template v-else>
-    <div class="page-wrapper">
-      <Header :planet-path="planetPath" :class="{ animate: animate }" :header="header" />
-      <Sidebar :animate="animate" :class="{ animate: animate }" />
-    </div>
+    <div ref="appRoot" class="app-shell" :class="{ 'app-hidden': showLogin }">
+<div class="page-wrapper">
+        <Header :planet-path="planetPath" :class="{ animate: animate }" :header="header" />
+        <Sidebar :animate="animate" :class="{ animate: animate }" />
+      </div>
+  
+      <div id="router-view-container">
+        <!-- transition intentionally removed -->
+        <router-view
+          :key="$route.fullPath"
+          :animate="animate"
+          :initial-slug="initialSlug"
+          :missions="missions"
+          :events="events"
+          :members="members"
+          :orbat="orbat"
+          :reserves="reserves"
+        />
+      </div>
+  </div>
 
-    <div id="router-view-container">
-      <!-- transition intentionally removed -->
-      <router-view
-        :key="$route.fullPath"
-        :animate="animate"
-        :initial-slug="initialSlug"
-        :missions="missions"
-        :events="events"
-        :members="members"
-        :orbat="orbat"
-        :reserves="reserves"
-      />
-    </div>
-  </template>
-
-  <audio ref="startupAudio" preload="auto">
-    <source src="/sound/startup.ogg" type="audio/ogg" />
+  <audio ref="startupAudio" preload="au<script> <source src="/sound/startup.ogg" type="audio/ogg" />
   </audio>
 </template>
 
@@ -382,16 +381,16 @@ onGateClick() {
 
   this.maybeEnter();
 },
+    maybeEnter() {
+      if (this.isFading) return;
+      if (!this.gateClicked) return;
+      if (!this.bootReady) return;
 
-maybeEnter() {
-  if (this.isFading) return;
-  if (!this.gateClicked) return;
-  if (!this.bootReady) return;
+      const curr = this.$router?.currentRoute?.value?.path || "/";
+      const target = curr === "/" ? "/status" : curr;
 
-  const curr = this.$router?.currentRoute?.value?.path || "/";
-  const target = curr === "/" ? "/status" : curr;
-  this.fadeAndEnter(target);
-},
+      this.enterAndReveal(target);
+    },
 
     // Start typing from the very beginning (no pre-seeded lines)
     seedInitialFeed() {
@@ -500,6 +499,81 @@ maybeEnter() {
 
       tick();
     },
+
+    async enterAndReveal(targetPath) {
+      if (this.isFading) return;
+
+      // Navigate while the gate is still visible so the app can mount/hydrate underneath.
+      try {
+        const curr = this.$router?.currentRoute?.value?.path;
+        if (targetPath && curr !== targetPath) await this.$router.push(targetPath);
+        if (typeof this.$router?.isReady === "function") await this.$router.isReady();
+      } catch {}
+
+      try {
+        await this.$nextTick();
+      } catch {}
+
+      await this.waitForPaint();
+      await this.waitForPaint();
+
+      // Best-effort: let key images settle so the reveal looks smooth.
+      await this.waitForImages(this.$refs.appRoot, 4500);
+
+      this.fadeOutGate();
+    },
+
+    waitForImages(rootEl, timeoutMs) {
+      const root = rootEl && rootEl.querySelectorAll ? rootEl : document;
+      const imgs = Array.from(root.querySelectorAll ? root.querySelectorAll("img") : []);
+      if (!imgs.length) return Promise.resolve();
+
+      const pending = imgs.filter((img) => !img.complete);
+      if (!pending.length) return Promise.resolve();
+
+      const ms = Math.max(500, Number(timeoutMs) || 4500);
+
+      return new Promise((resolve) => {
+        let done = 0;
+        const total = pending.length;
+
+        const timer = setTimeout(() => resolve(), ms);
+
+        const onDone = () => {
+          done += 1;
+          if (done >= total) {
+            clearTimeout(timer);
+            resolve();
+          }
+        };
+
+        pending.forEach((img) => {
+          img.addEventListener("load", onDone, { once: true });
+          img.addEventListener("error", onDone, { once: true });
+        });
+
+        // In case some completed between filtering and listener attachment.
+        pending.forEach((img) => {
+          if (img.complete) onDone();
+        });
+      });
+    },
+
+    fadeOutGate() {
+      this.isFading = true;
+
+      // stop ambience loop cleanly once we commit to leaving the gate overlay
+      if (this.bootTimer) {
+        window.clearTimeout(this.bootTimer);
+        this.bootTimer = null;
+      }
+
+      setTimeout(() => {
+        this.showLogin = false;
+        this.isFading = false;
+      }, 800);
+    },
+
 
     fadeAndEnter(targetPath) {
       this.isFading = true;
@@ -964,7 +1038,18 @@ maybeEnter() {
 };
 </script>
 
-<style>
+<style>.app-shell {
+  opacity: 1;
+  transition: opacity 420ms ease;
+}
+
+.app-shell.app-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+
 #app { min-height: 100vh; overflow: hidden !important; }
 
 .login-overlay {
