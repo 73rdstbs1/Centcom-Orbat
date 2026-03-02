@@ -595,8 +595,34 @@ onGateClick() {
         this.showLogin = false;
         this.isFading = false;
         this.revealAnimate = true;
+
+        // Force a repaint similar to a real window resize (fixes intermittent "loaded but not drawn" logos).
+        try {
+          this.$nextTick(() => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                try {
+                  window.dispatchEvent(new Event("resize"));
+                } catch {}
+                try {
+                  void document.body.offsetHeight;
+                } catch {}
+              });
+            });
+
+            // One more nudge after opacity transitions have progressed.
+            setTimeout(() => {
+              try {
+                window.dispatchEvent(new Event("resize"));
+              } catch {}
+              try {
+                void document.body.offsetHeight;
+              } catch {}
+            }, 350);
+          });
+        } catch {}
       }, 800);
-    },
+},
 
 
     fadeAndEnter(targetPath) {
