@@ -321,7 +321,7 @@
 import { getConfig } from "@/config/runtimeConfig";
 import AwardRender from "@/components/AwardRender.vue";
 import { normalizePersonKey, parseAwardsCell } from "@/utils/awards";
-import { playMenuBrowse } from "@/utils/sfx";
+import { playMenuClick } from "@/utils/sfx";
 
 /**
  * Content-driven campaign loader.
@@ -1117,7 +1117,7 @@ export default {
     },
 
     openCampaign(c) {
-      playMenuBrowse();
+      playMenuClick();
       this.activeCampaign = c;
       this.$nextTick(() => {
         if (this.$refs.modalRef) this.$refs.modalRef.focus();
