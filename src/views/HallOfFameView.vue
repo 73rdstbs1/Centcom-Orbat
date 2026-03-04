@@ -14,7 +14,7 @@
 
         <div class="terminal-right">
           <div class="stamp">SECURE TERMINAL</div>
-          <div class="stamp subtle">POC BUILD</div>
+          <div class="stamp subtle">LIVE SHEETS</div>
         </div>
       </header>
 
@@ -22,49 +22,76 @@
         <div class="filters">
           <div class="filter-block">
             <div class="filter-label">SEARCH</div>
-            <input v-model="search" class="term-input" type="text" placeholder="Member / unit / award…" />
+            <input v-model="search" class="term-input" type="text" placeholder="Trooper / unit / award / campaign / operation…" />
           </div>
 
           <div class="filter-block">
-            <div class="filter-label">MIN AWARD LEVEL</div>
-            <select v-model.number="minLevel" class="term-select">
-              <option v-for="n in levelOptions" :key="n" :value="n">{{ n }}</option>
+            <div class="filter-label">AWARD CODE</div>
+            <select v-model="awardCode" class="term-select">
+              <option value="">All</option>
+              <option v-for="c in awardOptions" :key="c" :value="c">{{ c }}</option>
+            </select>
+          </div>
+
+          <div class="filter-block">
+            <div class="filter-label">CAMPAIGN</div>
+            <select v-model="campaignName" class="term-select">
+              <option value="">All</option>
+              <option v-for="c in campaignOptions" :key="c" :value="c">{{ c }}</option>
             </select>
           </div>
 
           <div class="filter-block meta-block">
-            <div class="filter-label">INDUCTEES</div>
-            <div class="meta-chip">{{ filteredInductees.length }}</div>
+            <div class="filter-label">ENTRIES</div>
+            <div class="meta-chip">{{ filteredEntries.length }}</div>
           </div>
         </div>
 
-        <div class="grid">
-          <article v-for="m in filteredInductees" :key="m.id" class="card">
+        <div v-if="loading" class="empty">
+          <div class="muted">Loading awards from Operations sheet…</div>
+        </div>
+
+        <div v-else-if="error" class="empty">
+          <div class="muted">{{ error }}</div>
+        </div>
+
+        <div v-else class="grid">
+          <article v-for="e in filteredEntries" :key="e.id" class="card award-card">
             <div class="card-topline"></div>
 
             <header class="card-head">
-              <div class="name">{{ m.name }}</div>
-              <div class="unit">{{ m.unit || "—" }}</div>
+              <div class="name">{{ e.trooper }}</div>
+              <div class="unit">{{ e.unit || "—" }}</div>
             </header>
 
             <div class="card-body">
-              <div class="section-label">QUALIFYING AWARDS</div>
-              <div class="panel">
-                <div v-if="qualifyingAwards(m).length" class="text">
-                  {{ qualifyingAwards(m).join(", ") }}
-                </div>
-                <div v-else class="muted">—</div>
+              <div class="section-label">AWARD</div>
+              <div class="panel award-panel">
+                <AwardRender :value="e.award" />
+                <span v-if="e.awardText" class="award-text muted">{{ e.awardText }}</span>
               </div>
 
-              <div class="section-label" style="margin-top:12px;">CAMPAIGNS</div>
+              <div class="section-label" style="margin-top:12px;">EARNED IN</div>
               <div class="panel">
-                <div class="muted">{{ listOrDash(campaignsFor(m)) }}</div>
+                <button class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
+                <button class="link-chip" @click="openCampaign(e)">{{ e.operation }}</button>
+              </div>
+
+              <div class="meta-row">
+                <div class="meta-cell">
+                  <div class="meta-label">DATE</div>
+                  <div class="meta-value">{{ e.date || "—" }}</div>
+                </div>
+                <div class="meta-cell">
+                  <div class="meta-label">SOURCE</div>
+                  <div class="meta-value">OPS.AWARDS</div>
+                </div>
               </div>
             </div>
           </article>
 
-          <div v-if="!filteredInductees.length" class="empty">
-            <div class="muted">No inductees match the current filters.</div>
+          <div v-if="!filteredEntries.length" class="empty">
+            <div class="muted">No awards match the current filters.</div>
           </div>
         </div>
       </div>
@@ -73,68 +100,309 @@
 </template>
 
 <script>
-import { pocConfig, membersCatalog, awardsCatalog, awardById, campaignById } from "@/data/pocData";
+import { getConfig } from "@/config/runtimeConfig";
+import AwardRender from "@/components/AwardRender.vue";
+import { extractAwardCodes, normalizePersonKey, parseAwardsCell } from "@/utils/awards";
+
+function normalizeStr(v) {
+  return String(v ?? "").trim();
+}
+
+function parseCsv(text) {
+  const out = [];
+  let row = [];
+  let cur = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+
+    if (ch === '"') {
+      if (inQuotes && text[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && ch === ",") {
+      row.push(cur);
+      cur = "";
+      continue;
+    }
+
+    if (!inQuotes && (ch === "\n" || ch === "\r")) {
+      if (ch === "\r" && text[i + 1] === "\n") i += 1;
+      row.push(cur);
+      out.push(row);
+      row = [];
+      cur = "";
+      continue;
+    }
+
+    cur += ch;
+  }
+
+  row.push(cur);
+  out.push(row);
+
+  return out;
+}
+
+function buildHeaderMap(headerRow) {
+  const idx = {};
+  (headerRow || []).forEach((h, i) => {
+    const key = normalizeStr(h).toLowerCase();
+    if (key) idx[key] = i;
+  });
+  return idx;
+}
+
+function getCell(row, headerMap, key) {
+  const i = headerMap[key];
+  if (i === undefined) return "";
+  return normalizeStr((row || [])[i]);
+}
+
+function toTs(dateStr) {
+  const s = normalizeStr(dateStr);
+  if (!s) return 0;
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? t : 0;
+}
+
+async function loadRosterUnitMap(csvUrl) {
+  if (!csvUrl) return {};
+  try {
+    const res = await fetch(csvUrl, { cache: "no-store" });
+    if (!res.ok) return {};
+    const text = await res.text();
+    const rows = parseCsv(text);
+    if (!rows.length) return {};
+
+    const header = rows[0] || [];
+    const headerMap = buildHeaderMap(header);
+
+    const kName =
+      headerMap["name"] !== undefined
+        ? "name"
+        : headerMap["trooper"] !== undefined
+          ? "trooper"
+          : headerMap["member"] !== undefined
+            ? "member"
+            : null;
+
+    const kUnit =
+      headerMap["unit"] !== undefined
+        ? "unit"
+        : headerMap["subunit"] !== undefined
+          ? "subunit"
+          : headerMap["squad"] !== undefined
+            ? "squad"
+            : null;
+
+    if (!kName || !kUnit) return {};
+
+    const out = {};
+    for (let r = 1; r < rows.length; r += 1) {
+      const row = rows[r] || [];
+      const name = getCell(row, headerMap, kName);
+      const unit = getCell(row, headerMap, kUnit);
+      const key = normalizePersonKey(name);
+      if (key && unit) out[key] = unit;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap) {
+  if (!csvUrl) return [];
+  const res = await fetch(csvUrl, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to fetch operations CSV (${res.status})`);
+
+  const text = await res.text();
+  const rows = parseCsv(text);
+  if (!rows.length) return [];
+
+  const headerMap = buildHeaderMap(rows[0]);
+  const kCampaign = headerMap["campaign name"] !== undefined ? "campaign name" : null;
+  const kOp = headerMap["operations"] !== undefined ? "operations" : null;
+  const kAwards = headerMap["awards"] !== undefined ? "awards" : null;
+  const kDate = headerMap["date"] !== undefined ? "date" : null;
+
+  if (!kCampaign || !kOp || !kAwards) return [];
+
+  let currentCampaign = "";
+  const out = [];
+
+  for (let r = 1; r < rows.length; r += 1) {
+    const row = rows[r] || [];
+
+    const campaignCell = getCell(row, headerMap, kCampaign);
+    if (campaignCell) currentCampaign = campaignCell;
+
+    const opTitle = getCell(row, headerMap, kOp);
+    const awardsCell = getCell(row, headerMap, kAwards);
+    const dateCell = kDate ? getCell(row, headerMap, kDate) : "";
+
+    if (!currentCampaign || !opTitle || !awardsCell) continue;
+
+    const key = normalizeStr(currentCampaign).toLowerCase().replace(/\s+/g, " ").trim();
+    const entries = parseAwardsCell(awardsCell);
+
+    for (let i = 0; i < entries.length; i += 1) {
+      const e = entries[i] || {};
+      const trooper = normalizeStr(e.trooper);
+      const award = normalizeStr(e.award);
+      if (!trooper || !award) continue;
+
+      const nameKey = normalizePersonKey(trooper);
+      const unit = normalizeStr(e.unit) || normalizeStr(rosterUnitMap?.[nameKey] || "");
+
+      const codes = extractAwardCodes(award);
+      const awardText = codes.length ? codes.join(" / ") : award;
+
+      out.push({
+        id: `${key}__${r}__${i}`,
+        campaign: currentCampaign,
+        operation: opTitle,
+        date: dateCell,
+        ts: toTs(dateCell),
+        unit,
+        trooper,
+        award,
+        awardText,
+        codes,
+        opId: `${key}__${r}`,
+      });
+    }
+  }
+
+  out.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+  return out;
+}
 
 export default {
   name: "HallOfFameView",
+  components: { AwardRender },
   data() {
-    const max = Math.max(1, ...(awardsCatalog || []).map((a) => Number(a.level || 1)));
-    const min = Number(pocConfig?.minHallOfFameAwardLevel || 3);
-
     return {
-      members: membersCatalog,
+      loading: true,
+      error: "",
+      entries: [],
       search: "",
-      minLevel: min,
-      maxLevel: max,
+      awardCode: "",
+      campaignName: "",
+      rosterUnitMap: {},
     };
   },
   computed: {
-    levelOptions() {
+    awardOptions() {
+      const seen = new Set();
       const out = [];
-      for (let i = 1; i <= this.maxLevel; i += 1) out.push(i);
-      return out;
+
+      for (const e of this.entries || []) {
+        for (const c of e.codes || []) {
+          if (seen.has(c)) continue;
+          seen.add(c);
+          out.push(c);
+        }
+      }
+
+      return out.sort();
     },
-    filteredInductees() {
+    campaignOptions() {
+      const seen = new Set();
+      const out = [];
+
+      for (const e of this.entries || []) {
+        const c = String(e.campaign || "").trim();
+        if (!c || seen.has(c)) continue;
+        seen.add(c);
+        out.push(c);
+      }
+
+      return out.sort((a, b) => a.localeCompare(b));
+    },
+    filteredEntries() {
       const q = this.search.trim().toLowerCase();
+      const award = String(this.awardCode || "").trim().toUpperCase();
+      const campaign = String(this.campaignName || "").trim();
 
-      return (this.members || [])
-        .filter((m) => this.hasQualifyingAward(m))
-        .filter((m) => {
-          if (!q) return true;
+      return (this.entries || []).filter((e) => {
+        if (award && !(e.codes || []).includes(award)) return false;
+        if (campaign && String(e.campaign || "") !== campaign) return false;
 
-          const inName = (m.name || "").toLowerCase().includes(q);
-          const inUnit = (m.unit || "").toLowerCase().includes(q);
+        if (!q) return true;
 
-          const inAwards = this.qualifyingAwards(m).some((a) => String(a).toLowerCase().includes(q));
+        const hay = [
+          e.trooper,
+          e.unit,
+          e.award,
+          e.campaign,
+          e.operation,
+          e.date,
+          (e.codes || []).join(" "),
+        ]
+          .map((x) => String(x || "").toLowerCase())
+          .join(" | ");
 
-          return inName || inUnit || inAwards;
-        });
+        return hay.includes(q);
+      });
+    },
+  },
+  async mounted() {
+    const cfg = getConfig() || {};
+    const opsUrl = cfg?.sheets?.operationsCsvUrl || "";
+
+    try {
+      const rosterUrl =
+        cfg?.sheets?.rosterPageCsvUrl ||
+        cfg?.sheets?.backendRosterCsvUrl ||
+        cfg?.sheets?.membersCsvUrl ||
+        "";
+
+      this.rosterUnitMap = await loadRosterUnitMap(rosterUrl);
+      this.entries = await loadAwardsFromOperationsCsv(opsUrl, this.rosterUnitMap);
+
+      this.applyRouteFilters();
+      this.loading = false;
+    } catch (e) {
+      this.loading = false;
+      this.error = String(e?.message || e || "Failed to load awards.");
+    }
+  },
+  watch: {
+    "$route.query": {
+      deep: true,
+      handler() {
+        this.applyRouteFilters();
+      },
     },
   },
   methods: {
-    hasQualifyingAward(m) {
-      return this.qualifyingAwards(m).length > 0;
-    },
-    qualifyingAwards(m) {
-      const raw = m?.awards || [];
-      const qualifying = raw
-        .map((x) => awardById?.[x] || (typeof x === "string" ? awardById?.[x] : null))
-        .filter(Boolean)
-        .filter((a) => Number(a.level || 0) >= Number(this.minLevel || 0))
-        .map((a) => a.name)
-        .filter(Boolean);
+    applyRouteFilters() {
+      const q = this.$route?.query || {};
+      const camp = String(q.campaign || "").trim();
+      const op = String(q.operation || "").trim();
 
-      return Array.from(new Set(qualifying));
+      if (camp && this.campaignOptions.includes(camp)) this.campaignName = camp;
+      if (op) this.search = op;
     },
-    campaignsFor(m) {
-      const raw = m?.campaigns || [];
-      const names = raw.map((cid) => campaignById?.[cid]?.name || cid).filter(Boolean);
-      return names.length ? names : null;
-    },
-    listOrDash(v) {
-      if (!v) return "—";
-      if (Array.isArray(v)) return v.length ? v.join(", ") : "—";
-      return String(v);
+    openCampaign(e) {
+      this.$router.push({
+        name: "CampaignLog",
+        query: {
+          campaign: e?.campaign || undefined,
+          operation: e?.operation || undefined,
+          opId: e?.opId || undefined,
+        },
+      });
     },
   },
 };
@@ -189,143 +457,152 @@ export default {
   color: var(--text-pilot-header, rgba(214,241,255,0.75));
 }
 .terminal-title .title{
-  margin-top:2px; font-size:16px; letter-spacing:0.14em; text-transform:uppercase;
-  color: var(--text-location, #e6fbff);
+  font-size:24px; letter-spacing:0.04em; font-weight:700;
 }
-.terminal-right{ display:grid; justify-items:end; gap:4px; }
+.terminal-right{ display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
 .stamp{
-  font-size:10px; letter-spacing:0.2em; text-transform:uppercase;
-  color: rgba(214,241,255,0.9);
-  border:1px solid rgba(90,220,255,0.18);
-  padding:4px 8px; border-radius:999px;
-  background: rgba(0,0,0,0.22);
+  font-size:10px; letter-spacing:0.18em; text-transform:uppercase;
+  padding:6px 8px; border-radius:10px;
+  border:1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.28);
 }
 .stamp.subtle{ opacity:0.7; }
 
 .terminal-body{ position:relative; z-index:1; padding:16px; }
 
-/* Filters */
 .filters{
   display:grid;
-  grid-template-columns: 1.4fr 0.8fr 0.3fr;
+  grid-template-columns: 1.4fr 0.7fr 0.8fr 120px;
   gap:12px;
-  align-items:end;
-  margin-bottom:14px;
+  margin-bottom: 14px;
 }
+.filter-block{ min-width:0; }
 .filter-label{
-  font-size:10px; letter-spacing:0.22em; text-transform:uppercase;
+  font-size:10px; letter-spacing:0.16em; text-transform:uppercase;
+  color: rgba(214,241,255,0.72);
   margin-bottom:6px;
-  color: var(--text-pilot-header, rgba(214,241,255,0.75));
 }
-.meta-chip{
-  display:inline-flex; align-items:center; justify-content:center;
-  min-height:38px; padding:0 12px;
-  border-radius:10px;
-  border:1px solid rgba(90,220,255,0.18);
+.term-input, .term-select{
+  width:100%;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,0.14);
   background: rgba(0,0,0,0.22);
-  color: var(--text-location, #e6fbff);
-  letter-spacing:0.08em;
+  color: rgba(230,251,255,0.92);
+  outline:none;
 }
-.term-input,
-.term-select {
-  width: 100%;
-  min-height: 38px;
-  border-radius: 10px;
-  border: 1px solid rgba(90, 220, 255, 0.22);
-  background: linear-gradient(180deg, rgba(8, 14, 20, 0.78), rgba(0, 0, 0, 0.28));
-  color: var(--text-location, #e6fbff);
-  padding: 10px 12px;
-  outline: none;
-  color-scheme: dark;
+.meta-block{ display:flex; flex-direction:column; align-items:flex-end; justify-content:flex-end; }
+.meta-chip{
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(90,220,255,0.22);
+  background: rgba(90,220,255,0.10);
+  font-weight:700;
+  min-width:72px;
+  text-align:center;
 }
 
-.term-input::placeholder {
-  color: rgba(214, 241, 255, 0.58);
-}
-
-.term-select {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  padding-right: 38px;
-
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='rgba(214,241,255,0.85)' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-}
-
-.term-input:focus,
-.term-select:focus {
-  box-shadow: 0 0 0 2px rgba(90, 220, 255, 0.18);
-  border-color: rgba(90, 220, 255, 0.34);
-}
-
-:deep(select.term-select option) {
-  background: rgba(5, 15, 22, 0.98);
-  color: rgba(230, 251, 255, 0.92);
-}
-
-/* Grid of inductees */
 .grid{
   display:grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap:12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
 }
 .card{
   position:relative;
   border-radius:14px;
-  overflow:hidden;
-  border:1px solid rgba(255,255,255,0.12);
-  background:
-    linear-gradient(180deg, rgba(0,0,0,0.22), rgba(0,0,0,0.32)),
-    radial-gradient(900px 260px at 20% 0%, rgba(90,220,255,0.06), transparent 60%);
-}
-.card-topline{ height:2px; background: linear-gradient(90deg, rgba(90,220,255,0.5), transparent 70%); }
-.card::after{
-  content:""; position:absolute; inset:0; pointer-events:none;
-  opacity:0.35; background: linear-gradient(transparent 65%, rgba(0,0,0,0.28));
-}
-.card > *{ position:relative; z-index:1; }
-
-.card-head{
-  padding:12px 12px 0;
-}
-.name{
-  font-size:14px;
-  letter-spacing:0.12em;
-  text-transform:uppercase;
-  color: var(--text-location, #e6fbff);
-}
-.unit{
-  margin-top:6px;
-  color: var(--text-pilot-header, rgba(214,241,255,0.7));
-  font-size:12px;
-}
-
-.card-body{ padding:12px; }
-
-.section-label{
-  color: var(--text-pilot-header, rgba(214,241,255,0.75));
-  margin-bottom:8px;
-  font-size:10px; letter-spacing:0.22em; text-transform:uppercase;
-}
-.panel{
-  border-radius:14px;
   border:1px solid rgba(255,255,255,0.12);
   background: rgba(0,0,0,0.22);
-  padding:12px;
+  overflow:hidden;
+  box-shadow: 0 0 0 1px rgba(90,220,255,0.06);
 }
-.text{ color: var(--text-pilot-value, #d6f1ff); line-height:1.35; }
-.muted{ color: var(--text-pilot-header, rgba(214,241,255,0.7)); }
-
-.empty{ grid-column: 1 / -1; padding:16px; }
-
-/* Responsive */
-@media (max-width: 1200px){
-  .grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.card-topline{
+  height:3px;
+  background: linear-gradient(90deg, rgba(90,220,255,0.55), rgba(90,220,255,0.10), transparent 80%);
 }
-@media (max-width: 820px){
-  .filters{ grid-template-columns:1fr; }
-  .grid{ grid-template-columns: 1fr; }
+.card-head{
+  padding:12px 12px 10px 12px;
+  border-bottom:1px solid rgba(255,255,255,0.10);
+}
+.name{ font-size:16px; font-weight:800; letter-spacing:0.02em; }
+.unit{ margin-top:4px; font-size:12px; opacity:0.78; }
+
+.card-body{ padding:12px; }
+.section-label{
+  font-size:10px;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color: rgba(214,241,255,0.72);
+  margin-bottom:6px;
+}
+.panel{
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.18);
+  padding:10px 10px;
+}
+.award-panel{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.award-text{ font-size:12px; }
+
+.link-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 10px;
+  margin-right:8px;
+  margin-top:2px;
+  border-radius:999px;
+  border:1px solid rgba(90,220,255,0.24);
+  background: rgba(90,220,255,0.10);
+  color: rgba(230,251,255,0.95);
+  cursor:pointer;
+  font-family: inherit;
+}
+.link-chip:hover{
+  background: rgba(90,220,255,0.14);
+  border-color: rgba(90,220,255,0.35);
+}
+
+.meta-row{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+  margin-top:10px;
+}
+.meta-cell{
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.14);
+  padding:10px;
+}
+.meta-label{
+  font-size:10px;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color: rgba(214,241,255,0.64);
+  margin-bottom:4px;
+}
+.meta-value{
+  font-size:12px;
+  color: rgba(230,251,255,0.92);
+}
+
+.empty{
+  padding: 26px 10px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+.muted{ color: rgba(214,241,255,0.68); }
+
+@media (max-width: 980px){
+  .filters{
+    grid-template-columns: 1fr 1fr;
+  }
+  .meta-block{ align-items:flex-start; }
 }
 </style>
