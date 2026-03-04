@@ -57,7 +57,7 @@
 
 <script>
 import { useAdminAuth } from "@/composables/useAdminAuth";
-import { playMenuClick } from "@/utils/sfx";
+import { playMenuBrowse } from "@/utils/sfx";
 
 export default {
   name: "Sidebar",
@@ -71,7 +71,7 @@ export default {
   },
   methods: {
     playClick() {
-      playMenuClick();
+      playMenuBrowse();
     },
   },
 };
