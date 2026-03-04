@@ -218,7 +218,7 @@
           <section class="modal-section">
             <div class="section-label">OPERATIONS</div>
 
-            <div v-if="(activeCampaign.operations || []).length" class="ops-table">
+            <div v-if="(activeCampaign.operations || []).length" class="ops-table" ref="opsTableRef">
               <div class="ops-row ops-head">
                 <div>DATE</div>
                 <div>OPERATION</div>
@@ -226,7 +226,7 @@
                 <div>LINKS</div>
               </div>
 
-              <div v-for="op in activeCampaign.operations" :key="op.id" class="ops-row">
+              <div v-for="op in activeCampaign.operations" :key="op.id" class="ops-row" :data-op-id="op.id" :data-op-title="op.title">
                 <div class="op-date">{{ op.date || "—" }}</div>
 
                 <div class="op-title-wrap">
@@ -898,8 +898,18 @@ export default {
       activeCampaign: null,
       rosterUnitMap: {},
       _opsCsvLoaded: false,
+      _routeFocusKey: "",
     };
   },
+  watch: {
+    "$route.query": {
+      deep: true,
+      handler() {
+        this.applyRouteFocus();
+      },
+    },
+  },
+
   computed: {
     filteredCampaigns() {
       const q = this.search.trim().toLowerCase();
@@ -934,7 +944,10 @@ export default {
 
     // NEW: load operations from sheets and merge into campaigns
     const csvUrl = getConfig()?.sheets?.operationsCsvUrl || "";
-    if (!csvUrl) return;
+    if (!csvUrl) {
+      this.applyRouteFocus();
+      return;
+    }
 
     try {
       const opsByCampaign = await loadOperationsFromCsv(csvUrl);
@@ -968,16 +981,79 @@ export default {
         };
       });
       this._opsCsvLoaded = true;
+      this.applyRouteFocus();
     } catch (e) {
       // Silent fallback to campaign.json ops
       // (You can surface this in UI later if you want)
       this._opsCsvLoaded = false;
+      this.applyRouteFocus();
     }
   },
   beforeUnmount() {
     window.removeEventListener("keydown", this.onKeydown);
   },
   methods: {
+    applyRouteFocus() {
+      const q = this.$route?.query || {};
+      const campQ = String(q.campaign || "").trim();
+      const opTitleQ = String(q.operation || "").trim();
+      const opIdQ = String(q.opId || q.op || "").trim();
+
+      if (!campQ) return;
+
+      const focusKey = `${campQ}||${opTitleQ}||${opIdQ}`;
+      if (focusKey === this._routeFocusKey) return;
+      this._routeFocusKey = focusKey;
+
+      const wantKey = normKey(campQ);
+      const found = (this.campaigns || []).find((c) => {
+        const nameKey = normKey(c?.name || "");
+        const idKey = normKey(c?.id || "");
+        return wantKey === nameKey || wantKey === idKey;
+      });
+
+      if (!found) return;
+
+      this.openCampaign(found);
+
+      this.$nextTick(() => {
+        this.scrollToOperation(opTitleQ, opIdQ);
+      });
+    },
+
+    scrollToOperation(opTitle, opId) {
+      const titleQ = String(opTitle || "").trim().toLowerCase();
+      const idQ = String(opId || "").trim();
+      if (!titleQ && !idQ) return;
+
+      const el = this.$refs?.opsTableRef;
+      if (!el || !(el instanceof HTMLElement)) return;
+
+      const rows = el.querySelectorAll(".ops-row:not(.ops-head)");
+      let target = null;
+
+      for (const r of rows) {
+        const rid = r.dataset?.opId || "";
+        const rtitle = (r.dataset?.opTitle || "").toLowerCase();
+
+        if (idQ && rid === idQ) {
+          target = r;
+          break;
+        }
+        if (!idQ && titleQ && rtitle === titleQ) {
+          target = r;
+          break;
+        }
+      }
+
+      if (!target) return;
+
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+
+      target.classList.add("op-flash");
+      window.setTimeout(() => target.classList.remove("op-flash"), 1400);
+    },
+
     fmtDates(start, end) {
       if (!start && !end) return "—";
       if (start && !end) return start;
@@ -1101,16 +1177,15 @@ export default {
     },
 
     openHallOfFame(campaign, op) {
-      const campaignId = campaign?.id || "";
-      const opId = op?.id || "";
-      const ref = op?.hallOfFameRef || "";
+      const campaignName = String(campaign?.name || campaign?.id || "").trim();
+      const opTitle = String(op?.title || "").trim();
 
       this.$router.push({
         path: "/hall-of-fame",
         query: {
-          campaign: campaignId,
-          op: opId,
-          fame: ref || undefined,
+          campaign: campaignName || undefined,
+          operation: opTitle || undefined,
+          opId: op?.id || undefined,
         },
       });
     },
