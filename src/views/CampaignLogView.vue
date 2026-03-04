@@ -1199,7 +1199,7 @@ export default {
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
-  padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
+  padding: calc(24px + var(--app-ticker-height, 32px)) 24px 24px 24px;
   color: var(--text-pilot-value, #d6f1ff);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
