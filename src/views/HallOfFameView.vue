@@ -505,7 +505,7 @@ export default {
   min-width: 0;
   box-sizing: border-box;
 
-  padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
+  padding: calc(24px + var(--app-ticker-height, 32px)) 24px 24px 24px;
 
   height: 100%;
   min-height: 0;
