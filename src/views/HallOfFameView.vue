@@ -490,6 +490,13 @@ export default {
   background: rgba(0,0,0,0.22);
   color: rgba(230,251,255,0.92);
   outline:none;
+  color-scheme: dark;
+}
+
+.term-select option,
+.term-select optgroup{
+  background: rgba(3,10,16,0.98);
+  color: rgba(230,251,255,0.92);
 }
 .meta-block{ display:flex; flex-direction:column; align-items:flex-end; justify-content:flex-end; }
 .meta-chip{
