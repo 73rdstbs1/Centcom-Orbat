@@ -22,7 +22,12 @@
         <div class="filters">
           <div class="filter-block">
             <div class="filter-label">SEARCH</div>
-            <input v-model="search" class="term-input" type="text" placeholder="Trooper / unit / award / campaign / operation…" />
+            <input
+              v-model="search"
+              class="term-input"
+              type="text"
+              placeholder="Trooper / unit / award / campaign / operation…"
+            />
           </div>
 
           <div class="filter-block">
@@ -47,65 +52,73 @@
           </div>
         </div>
 
-        <div v-if="loading" class="empty">
-          <div class="muted">Loading awards from Operations sheet…</div>
-        </div>
+        <div class="hof-scroll">
+          <div v-if="loading" class="empty">
+            <div class="muted">Loading awards from Operations sheet…</div>
+          </div>
 
-        <div v-else-if="error" class="empty">
-          <div class="muted">{{ error }}</div>
-        </div>
+          <div v-else-if="error" class="empty">
+            <div class="muted">{{ error }}</div>
+          </div>
 
-        <div v-else class="grid">
-          <article v-for="e in filteredEntries" :key="e.id" class="card award-card">
-            <div class="card-topline"></div>
+          <div v-else>
+            <div v-if="filteredEntries.length" class="grid">
+              <article v-for="e in filteredEntries" :key="e.id" class="card award-card">
+                          <div class="card-topline"></div>
 
-            <header class="card-head">
-              <div class="name">{{ e.trooper }}</div>
-              <div class="unit">{{ e.unit || "—" }}</div>
-            </header>
+                          <header class="card-head">
+                            <div class="identity">
+                              <div class="unit-chip">{{ e.unit || "—" }}</div>
+                              <div class="name">{{ e.trooper }}</div>
+                            </div>
 
-            <div class="card-body">
-              <div class="section-label">AWARD</div>
-              <div class="panel award-panel">
-  <AwardRender :value="e.award" />
+                            <div class="award-icons">
+                              <AwardRender :value="e.award" />
+                            </div>
+                          </header>
 
-  <div v-if="(e.codes || []).length" class="award-codes">
-    <span v-for="c in e.codes" :key="c" class="meta-chip">{{ c }}</span>
-  </div>
-  <span v-else-if="e.award" class="award-text muted">{{ e.award }}</span>
-
-  <div v-if="awardInfos(e).length" class="award-details">
-    <div v-for="i in awardInfos(e)" :key="i.code" class="award-detail">
-      <div class="award-full">
-        {{ i.name }}
-        <span class="muted">({{ i.code }})</span>
-      </div>
-      <div class="award-criteria muted">{{ i.criteria }}</div>
-    </div>
-  </div>
-</div>
-
-              <div class="section-label" style="margin-top:12px;">EARNED IN</div>
-              <div class="panel">
-                <button class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
-                <button class="link-chip" @click="openCampaign(e)">{{ e.operation }}</button>
-              </div>
-
-              <div class="meta-row">
-                <div class="meta-cell">
-                  <div class="meta-label">DATE</div>
-                  <div class="meta-value">{{ e.date || "—" }}</div>
+                          <div class="card-body">
+                            <div class="section-label">AWARD</div>
+                            <div class="panel award-panel">
+                <div v-if="(e.codes || []).length" class="award-codes">
+                  <span v-for="c in e.codes" :key="c" class="meta-chip">{{ c }}</span>
                 </div>
-                <div class="meta-cell">
-                  <div class="meta-label">SOURCE</div>
-                  <div class="meta-value">OPS.AWARDS</div>
+                <span v-else-if="e.award" class="award-text muted">{{ e.award }}</span>
+
+                <div v-if="awardInfos(e).length" class="award-details">
+                  <div v-for="i in awardInfos(e)" :key="i.code" class="award-detail">
+                    <div class="award-full">
+                      {{ i.name }}
+                      <span class="muted">({{ i.code }})</span>
+                    </div>
+                    <div class="award-criteria muted">{{ i.criteria }}</div>
+                  </div>
                 </div>
               </div>
+
+                            <div class="section-label" style="margin-top:12px;">EARNED IN</div>
+                            <div class="panel earned-panel">
+                              <button class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
+                              <button class="link-chip op-chip" @click="openCampaign(e)">{{ e.operation }}</button>
+                            </div>
+
+                            <div class="meta-row">
+                              <div class="meta-cell">
+                                <div class="meta-label">DATE</div>
+                                <div class="meta-value">{{ e.date || "—" }}</div>
+                              </div>
+                              <div class="meta-cell">
+                                <div class="meta-label">SOURCE</div>
+                                <div class="meta-value">OPS.AWARDS</div>
+                              </div>
+                            </div>
+                          </div>
+                        </article>
             </div>
-          </article>
 
-          <div v-if="!filteredEntries.length" class="empty">
-            <div class="muted">No awards match the current filters.</div>
+            <div v-else class="empty">
+              <div class="muted">No awards match the current filters.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -488,14 +501,29 @@ export default {
 
 <style scoped>
 #hallOfFame{
-  flex:1; min-width:0; box-sizing:border-box;
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+
   padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
+
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
   color: var(--text-pilot-value, #d6f1ff);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
 }
 
 .terminal-shell{
   width:100%; max-width:none; margin:0; position:relative; overflow:hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   border-radius:14px; border:1px solid rgba(255,255,255,0.14);
   box-shadow: 0 0 0 1px rgba(150,240,255,0.08), 0 12px 40px rgba(0,0,0,0.55);
   background:
@@ -546,13 +574,34 @@ export default {
 }
 .stamp.subtle{ opacity:0.7; }
 
-.terminal-body{ position:relative; z-index:1; padding:16px; }
+.terminal-body{
+  position: relative;
+  z-index: 1;
+  padding: 16px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  flex: 1 1 auto;
+  min-height: 0; /* critical so scroll child can shrink */
+  overflow: hidden; /* keep header + filters fixed */
+}
 
 .filters{
   display:grid;
   grid-template-columns: 1.4fr 0.7fr 0.8fr 120px;
   gap:12px;
   margin-bottom: 14px;
+}
+
+.hof-scroll{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+
+  padding-right: 6px; /* room for scrollbar */
+  scrollbar-gutter: stable;
 }
 .filter-block{ min-width:0; }
 .filter-label{
@@ -588,9 +637,11 @@ export default {
 }
 
 .grid{
-  display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 14px;
+  align-content: start;
+  padding-bottom: 8px;
 }
 .card{
   position:relative;
@@ -605,11 +656,55 @@ export default {
   background: linear-gradient(90deg, rgba(90,220,255,0.55), rgba(90,220,255,0.10), transparent 80%);
 }
 .card-head{
-  padding:12px 12px 10px 12px;
-  border-bottom:1px solid rgba(255,255,255,0.10);
+  padding: 12px 12px 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
-.name{ font-size:16px; font-weight:800; letter-spacing:0.02em; }
-.unit{ margin-top:4px; font-size:12px; opacity:0.78; }
+.identity{ min-width: 0; }
+.unit-chip{
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(90,220,255,0.18);
+  background: rgba(90,220,255,0.08);
+  color: rgba(230,251,255,0.88);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.award-icons{
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 2px;
+  flex: 0 0 auto;
+}
+.award-icons :deep(.award-icon){
+  width: 20px;
+  height: 20px;
+}
+.award-icons :deep(.award-render){
+  gap: 6px;
+}
+
+.name{
+  margin-top: 8px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: rgba(230,251,255,0.95);
+  word-break: break-word;
+}
 
 .card-body{ padding:12px; }
 .section-label{
@@ -619,6 +714,13 @@ export default {
   color: rgba(214,241,255,0.72);
   margin-bottom:6px;
 }
+.earned-panel{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.op-chip{ max-width: 100%; }
+
 .panel{
   border-radius:12px;
   border:1px solid rgba(255,255,255,0.10);
@@ -663,8 +765,7 @@ export default {
   align-items:center;
   gap:8px;
   padding:8px 10px;
-  margin-right:8px;
-  margin-top:2px;
+  margin: 0;
   border-radius:999px;
   border:1px solid rgba(90,220,255,0.24);
   background: rgba(90,220,255,0.10);
@@ -703,9 +804,10 @@ export default {
 
 .empty{
   padding: 26px 10px;
-  display:flex;
-  justify-content:center;
-  align-items:center;
+  min-height: 220px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .muted{ color: rgba(214,241,255,0.68); }
