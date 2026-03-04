@@ -12,22 +12,22 @@
         open
       >
 
-        <router-link class="clipped-bottom-right" to="/campaigns" @click.native="playBrowse">
+        <router-link class="clipped-bottom-right" to="/campaigns" @mouseenter.native="playBrowse" @focus.native="playBrowse" @click.native="playClick">
           <img src="/icons/Campaigns.png" />
           <span>Campaigns</span>
         </router-link>
 
-        <router-link class="clipped-bottom-right" to="/commanders" @click.native="playBrowse">
+        <router-link class="clipped-bottom-right" to="/commanders" @mouseenter.native="playBrowse" @focus.native="playBrowse" @click.native="playClick">
           <img src="/icons/Hall_of_Commanders_Icon.png" />
           <span>Hall of Command</span>
         </router-link>
 
-        <router-link class="clipped-bottom-right" to="/backend-roster" @click.native="playBrowse">
+        <router-link class="clipped-bottom-right" to="/backend-roster" @mouseenter.native="playBrowse" @focus.native="playBrowse" @click.native="playClick">
           <img src="/icons/Roster.png" />
           <span>Backend Roster</span>
         </router-link>
 
-        <router-link class="clipped-bottom-right" to="/hall-of-fame" @click.native="playBrowse">
+        <router-link class="clipped-bottom-right" to="/hall-of-fame" @mouseenter.native="playBrowse" @focus.native="playBrowse" @click.native="playClick">
           <img src="/icons/mission-success.svg" />
           <span>Hall of Fame</span>
         </router-link>
@@ -37,7 +37,7 @@
           v-if="isOfficerOrStaff"
           class="clipped-bottom-right"
           to="/deployment"
-          @click.native="playBrowse"
+          @mouseenter.native="playBrowse" @focus.native="playBrowse" @click.native="playClick"
         >
           <img src="/icons/deployable.svg" />
           <span>Deployment</span>
@@ -47,7 +47,7 @@
           v-if="isOfficerOrStaff"
           class="clipped-bottom-right"
           to="/admin"
-          @click.native="playBrowse"
+          @mouseenter.native="playBrowse" @focus.native="playBrowse" @click.native="playClick"
         >
           <img src="/icons/protocol.svg" />
           <span>Admin</span>
@@ -60,6 +60,7 @@
 <script>
 import { useAdminAuth } from "@/composables/useAdminAuth";
 let browseAudio;
+let clickAudio;
 
 export default {
   name: "Sidebar",
@@ -74,11 +75,18 @@ export default {
   mounted() {
     browseAudio = new Audio("/sound/Orbat Main Menu Browse.ogg");
     browseAudio.volume = 0.6;
+
+    clickAudio = new Audio("/sound/Orbat Main Menu Click.ogg");
+    clickAudio.volume = 0.7;
   },
   methods: {
     playBrowse() {
       if (!browseAudio) return;
       try { browseAudio.currentTime = 0; browseAudio.play().catch(() => {}); } catch {}
+    },
+    playClick() {
+      if (!clickAudio) return;
+      try { clickAudio.currentTime = 0; clickAudio.play().catch(() => {}); } catch {}
     },
   },
 };
