@@ -208,9 +208,9 @@
 
             <ul class="mini-list">
               <li v-for="a in campaignAwards(activeCampaign)" :key="a._key">
-                <div class="op-date">{{ a.trooper }}</div>
-                <div class="op-title">{{ a.award }}</div>
-                <div class="op-status">{{ a.operation || "—" }}</div>
+                <span class="op-date">{{ a.unit || "—" }}</span>
+                <span class="op-title">{{ a.trooper }}</span>
+                <span class="op-status"><AwardRender :value="a.awardsText" /></span>
               </li>
             </ul>
           </section>
@@ -286,9 +286,11 @@
                     <div class="op-awards-label">AWARDS</div>
                     <ul class="op-awards-list">
                       <li v-for="(a, ai) in op.awards" :key="(a.trooper || '') + (a.award || '') + ai">
+                        <span class="award-unit">{{ unitForTrooper(a.trooper) || "—" }}</span>
+                        <span class="award-sep">-</span>
                         <span class="award-trooper">{{ a.trooper }}</span>
-                        <span class="award-dash">—</span>
-                        <span class="award-name">{{ a.award }}</span>
+                        <span class="award-sep">-</span>
+                        <AwardRender :value="a.award" />
                       </li>
                     </ul>
                   </div>
@@ -297,7 +299,7 @@
               </div>
 
               <div class="ops-help muted">
-                Tip: Add an “AWARDS” column in the Operations sheet using “Name - Award / Name - Award” to auto-render.
+                Tip: “COMMAND” and “AWARDS” are linked by simple IDs in campaign.json so they’re easy to swap.
               </div>
             </div>
 
@@ -317,6 +319,7 @@
 
 <script>
 import { getConfig } from "@/config/runtimeConfig";
+import AwardRender from "@/components/AwardRender.vue";
 import { normalizePersonKey, parseAwardsCell } from "@/utils/awards";
 
 /**
@@ -330,7 +333,7 @@ import { normalizePersonKey, parseAwardsCell } from "@/utils/awards";
  * Operations (NEW):
  * - Prefer Google Sheets CSV (config: sheets.operationsCsvUrl)
  *   Columns expected (case-insensitive):
- *     CAMPAIGN NAME | OPERATIONS | OP LINKS | STATUS | SUMMARY | DATE (optional) | AWARDS (optional)
+ *     CAMPAIGN NAME | OPERATIONS | OP LINKS | STATUS | SUMMARY | DATE (optional)
  * - Rows are grouped by campaign: when CAMPAIGN NAME cell is non-empty, it becomes the current campaign group.
  *   Subsequent rows belong to that campaign until the next CAMPAIGN NAME appears.
  *
@@ -785,6 +788,53 @@ async function loadOperationsFromCsv(csvUrl) {
   return out;
 }
 
+async function loadRosterUnitMap(csvUrl) {
+  if (!csvUrl) return {};
+
+  const res = await fetch(csvUrl, { cache: "no-store" });
+  if (!res.ok) return {};
+
+  const text = await res.text();
+  const rows = parseCsv(text);
+  if (!rows.length) return {};
+
+  const header = rows[0] || [];
+  const idx = {};
+  header.forEach((h, i) => {
+    const k = String(h || "").trim().toUpperCase();
+    if (k) idx[k] = i;
+  });
+
+  const iNames = idx["NAMES"] ?? idx["NAME"] ?? idx["MEMBER"] ?? undefined;
+  const iRank = idx["RANK / POSITION"] ?? idx["RANK"] ?? undefined;
+
+  if (iNames === undefined) return {};
+
+  const out = {};
+  let currentUnit = "";
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const nameCell = String(row[iNames] ?? "").trim();
+    const rankCell = iRank !== undefined ? String(row[iRank] ?? "").trim() : "";
+
+    const isHeaderRow = nameCell && !rankCell && nameCell.toUpperCase() === nameCell;
+    if (isHeaderRow) {
+      currentUnit = nameCell;
+      continue;
+    }
+
+    if (!nameCell) continue;
+
+    const key = normalizePersonKey(nameCell);
+    if (!key) continue;
+
+    if (currentUnit) out[key] = currentUnit;
+  }
+
+  return out;
+}
+
 function loadCampaignsFromContent() {
   const mdIndex = buildOpMdIndex();
 
@@ -839,12 +889,14 @@ function loadCampaignsFromContent() {
 
 export default {
   name: "CampaignLogView",
+  components: { AwardRender },
   data() {
     return {
       campaigns: loadCampaignsFromContent(),
       search: "",
       statusFilter: "",
       activeCampaign: null,
+      rosterUnitMap: {},
       _opsCsvLoaded: false,
     };
   },
@@ -868,7 +920,8 @@ export default {
         const inOps = (c.operations || []).some((op) => {
           return (
             (op.title || "").toLowerCase().includes(q) ||
-            (op.summary || op.opordSummary || "").toLowerCase().includes(q)
+            (op.summary || op.opordSummary || "").toLowerCase().includes(q) ||
+            (op.awardsRaw || "").toLowerCase().includes(q)
           );
         });
 
@@ -887,6 +940,19 @@ export default {
       const opsByCampaign = await loadOperationsFromCsv(csvUrl);
       if (!opsByCampaign) return;
 
+      // Optional: map trooper name -> unit label (for "Unit - Trooper - Award")
+      try {
+        const cfg = getConfig() || {};
+        const rosterUrl =
+          cfg?.sheets?.rosterPageCsvUrl ||
+          cfg?.sheets?.backendRosterCsvUrl ||
+          cfg?.sheets?.membersCsvUrl ||
+          "";
+        this.rosterUnitMap = await loadRosterUnitMap(rosterUrl);
+      } catch {
+        this.rosterUnitMap = {};
+      }
+
             this.campaigns = (this.campaigns || []).map((c) => {
         const key = normKey(c.name || c.id || "");
         const ops = opsByCampaign[key];
@@ -900,7 +966,8 @@ export default {
           startDate: range.start || c.startDate || "",
           endDate: range.end || c.endDate || "",
         };
-      });this._opsCsvLoaded = true;
+      });
+      this._opsCsvLoaded = true;
     } catch (e) {
       // Silent fallback to campaign.json ops
       // (You can surface this in UI later if you want)
@@ -917,45 +984,58 @@ export default {
       if (!start && end) return end;
       return `${start} → ${end}`;
     },
+
+    unitForTrooper(name) {
+      const key = normalizePersonKey(name);
+      return (this.rosterUnitMap && this.rosterUnitMap[key]) || "";
+    },
     campaignAwards(campaign) {
       const ops = Array.isArray(campaign?.operations) ? campaign.operations : [];
-      const seen = new Set();
-      const out = [];
+      const byPerson = new Map();
 
       for (const op of ops) {
         const entries = Array.isArray(op?.awards) ? op.awards : [];
-        const opTitle = String(op?.title || "").trim();
-
         for (const e of entries) {
           const trooper = String(e?.trooper || "").trim();
           const award = String(e?.award || "").trim();
           if (!trooper || !award) continue;
 
-          const key = `${normalizePersonKey(trooper)}|${award.toLowerCase()}|${opTitle.toLowerCase()}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
+          const pKey = normalizePersonKey(trooper);
+          if (!pKey) continue;
 
-          out.push({
-            _key: key,
-            trooper,
-            award,
-            operation: opTitle,
-          });
+          if (!byPerson.has(pKey)) {
+            byPerson.set(pKey, {
+              _key: pKey,
+              unit: this.unitForTrooper(trooper),
+              trooper,
+              _awardSet: new Set(),
+            });
+          }
+
+          byPerson.get(pKey)._awardSet.add(award);
         }
       }
 
+      const out = Array.from(byPerson.values()).map((x) => ({
+        _key: x._key,
+        unit: x.unit,
+        trooper: x.trooper,
+        awardsText: Array.from(x._awardSet.values()).join(" / "),
+      }));
+
       out.sort((a, b) => {
+        const ua = (a.unit || "").toLowerCase();
+        const ub = (b.unit || "").toLowerCase();
+        if (ua < ub) return -1;
+        if (ua > ub) return 1;
         const ta = a.trooper.toLowerCase();
         const tb = b.trooper.toLowerCase();
-        if (ta < tb) return -1;
-        if (ta > tb) return 1;
-        const aa = a.award.toLowerCase();
-        const ab = b.award.toLowerCase();
-        return aa < ab ? -1 : aa > ab ? 1 : 0;
+        return ta < tb ? -1 : ta > tb ? 1 : 0;
       });
 
       return out;
     },
+
     openCampaign(c) {
       this.activeCampaign = c;
       this.$nextTick(() => {
@@ -1672,10 +1752,14 @@ export default {
   margin: 2px 0;
   color: rgba(230, 251, 255, 0.92);
   line-height: 1.25;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
+.award-unit{ font-weight: 600; opacity: 0.92; }
 .award-trooper{ font-weight: 600; }
-.award-dash{ padding: 0 6px; opacity: 0.85; }
-.award-name{ opacity: 0.92; }
+.award-sep{ opacity: 0.75; }
 
 /* Responsive */
 @media (max-width: 980px) {
