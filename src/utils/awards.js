@@ -74,16 +74,32 @@ export function parseAwardsCell(raw) {
   const out = [];
 
   for (const chunk of chunks) {
-    // Prefer spaced separators so award names can include hyphens.
-    const spacedSep = chunk.match(/\s[-–—]\s/);
+    // Split on spaced separators so award names can still contain hyphens.
+    const parts = chunk.split(/\s[-–—]\s/).map((x) => x.trim()).filter(Boolean);
+
+    let unit = "";
     let trooper = "";
     let award = "";
 
-    if (spacedSep && typeof spacedSep.index === "number") {
-      const idx = spacedSep.index;
-      trooper = chunk.slice(0, idx).trim();
-      award = chunk.slice(idx + spacedSep[0].length).trim();
+    if (parts.length >= 3) {
+      // Heuristic: if the last part contains a known award code, treat as "Unit - Trooper - Award".
+      // Otherwise treat as "Trooper - Award with - inside".
+      const last = parts[parts.length - 1];
+      const looksLikeCode = extractAwardCodes(last).length > 0 || /^[A-Za-z]{2,6}$/.test(last);
+
+      if (looksLikeCode) {
+        unit = parts[0];
+        trooper = parts[1];
+        award = parts.slice(2).join(" - ");
+      } else {
+        trooper = parts[0];
+        award = parts.slice(1).join(" - ");
+      }
+    } else if (parts.length === 2) {
+      trooper = parts[0];
+      award = parts[1];
     } else {
+      // Fallback to the first "-" if user omitted spaces: "Name-AWARD"
       const idx = chunk.indexOf("-");
       if (idx > 0) {
         trooper = chunk.slice(0, idx).trim();
@@ -92,7 +108,7 @@ export function parseAwardsCell(raw) {
     }
 
     if (!trooper || !award) continue;
-    out.push({ trooper, award });
+    out.push({ unit, trooper, award });
   }
 
   return dedupeAwards(out);
@@ -103,14 +119,16 @@ export function dedupeAwards(entries) {
   const out = [];
 
   for (const e of Array.isArray(entries) ? entries : []) {
+    const unit = String(e?.unit ?? "").trim();
     const trooper = String(e?.trooper ?? "").trim();
     const award = String(e?.award ?? "").trim();
     if (!trooper || !award) continue;
 
-    const key = `${normalizePersonKey(trooper)}|${award.toLowerCase()}`;
+    const key = `${normalizePersonKey(trooper)}|${award.toLowerCase()}|${unit.toLowerCase()}`;
     if (seen.has(key)) continue;
+
     seen.add(key);
-    out.push({ trooper, award });
+    out.push({ unit, trooper, award });
   }
 
   return out;
