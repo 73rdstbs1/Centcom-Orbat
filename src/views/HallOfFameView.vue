@@ -67,9 +67,23 @@
             <div class="card-body">
               <div class="section-label">AWARD</div>
               <div class="panel award-panel">
-                <AwardRender :value="e.award" />
-                <span v-if="e.awardText" class="award-text muted">{{ e.awardText }}</span>
-              </div>
+  <AwardRender :value="e.award" />
+
+  <div v-if="(e.codes || []).length" class="award-codes">
+    <span v-for="c in e.codes" :key="c" class="meta-chip">{{ c }}</span>
+  </div>
+  <span v-else-if="e.award" class="award-text muted">{{ e.award }}</span>
+
+  <div v-if="awardInfos(e).length" class="award-details">
+    <div v-for="i in awardInfos(e)" :key="i.code" class="award-detail">
+      <div class="award-full">
+        {{ i.name }}
+        <span class="muted">({{ i.code }})</span>
+      </div>
+      <div class="award-criteria muted">{{ i.criteria }}</div>
+    </div>
+  </div>
+</div>
 
               <div class="section-label" style="margin-top:12px;">EARNED IN</div>
               <div class="panel">
@@ -103,6 +117,59 @@
 import { getConfig } from "@/config/runtimeConfig";
 import AwardRender from "@/components/AwardRender.vue";
 import { extractAwardCodes, normalizePersonKey, parseAwardsCell } from "@/utils/awards";
+
+const AWARD_INFO = {
+  JMUA: {
+    name: "Joint Meritorious Unit Ribbon",
+    criteria: "50%+ Attendance",
+  },
+  CSA: {
+    name: "Community Service Achievement",
+    criteria: "Commendable service within an S/J/N-Shop",
+  },
+  JSAM: {
+    name: "Joint Service Achievement",
+    criteria: "Meritorious service or achievement during a Joint Op",
+  },
+  JCOM: {
+    name: "Joint Service Commendation",
+    criteria: "Significant impact upon a Joint Op in a combat environment",
+  },
+  BS: {
+    name: "Bronze Star",
+    criteria: "Heroic service. Actions impacted eventual outcome of the joint op",
+  },
+  DFC: {
+    name: "Distinguished Flying Cross",
+    criteria: "Heroic service in flight. Actions impacted eventual outcome of the joint op",
+  },
+  DMSM: {
+    name: "Defense Meritorious Service Ribbon",
+    criteria: "Extraordinary meritorious service in or out of a joint combat environment",
+  },
+  SS: {
+    name: "Silver Star",
+    criteria: "Heroic gallantry in combat. Actions of the member must be above and beyond their job.",
+  },
+  LOM: {
+    name: "Legion of Merit",
+    criteria: "If not for the action, the unit would not see success effectively. In or out of operation",
+  },
+  CC: {
+    name: "Colonial Cross",
+    criteria: "Heroic gallantry in combat. If not for action, the operation would have failed.",
+  },
+  MOH: {
+    name: "Medal of Honor",
+    criteria: "We all know this one.",
+  },
+};
+
+function getAwardInfo(code) {
+  const c = String(code || "").toUpperCase().trim();
+  const info = AWARD_INFO[c];
+  return info ? { code: c, ...info } : null;
+}
 
 function normalizeStr(v) {
   return String(v ?? "").trim();
@@ -386,6 +453,17 @@ export default {
     },
   },
   methods: {
+    awardInfos(entry) {
+  const codes = Array.isArray(entry?.codes) ? entry.codes : [];
+  const out = [];
+
+  for (const c of codes) {
+    const info = getAwardInfo(c);
+    if (info) out.push(info);
+  }
+
+  return out;
+},
     applyRouteFilters() {
       const q = this.$route?.query || {};
       const camp = String(q.campaign || "").trim();
@@ -551,6 +629,32 @@ export default {
   display:flex;
   flex-direction:column;
   gap:8px;
+}
+
+.award-codes{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.award-details{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  margin-top: 2px;
+}
+
+.award-full{
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: rgba(230,251,255,0.92);
+}
+
+.award-criteria{
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(214,241,255,0.72);
 }
 .award-text{ font-size:12px; }
 
