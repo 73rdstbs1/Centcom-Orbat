@@ -82,17 +82,21 @@
       </div>
   
       <div id="router-view-container">
-        <!-- transition intentionally removed -->
-        <router-view
-          :key="$route.fullPath"
-          :animate="animate && revealAnimate"
-          :initial-slug="initialSlug"
-          :missions="missions"
-          :events="events"
-          :members="members"
-          :orbat="orbat"
-          :reserves="reserves"
-        />
+        <router-view v-slot="{ Component }">
+          <Transition name="page" mode="out-in" appear>
+            <component
+              :is="Component"
+              :key="$route.fullPath"
+              :animate="animate && revealAnimate"
+              :initial-slug="initialSlug"
+              :missions="missions"
+              :events="events"
+              :members="members"
+              :orbat="orbat"
+              :reserves="reserves"
+            />
+          </Transition>
+        </router-view>
       </div>
   </div>
 
@@ -1373,4 +1377,36 @@ onGateClick() {
   isolation: isolate;
 }
 
+
+
+/* Route transitions (sidebar navigation) */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 160ms ease, transform 180ms ease;
+  will-change: opacity, transform;
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-enter-to,
+.page-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active,
+  .page-leave-active {
+    transition: none !important;
+  }
+  .page-enter-from,
+  .page-leave-to {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
 </style>
