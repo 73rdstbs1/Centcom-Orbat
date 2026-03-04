@@ -71,7 +71,7 @@
               <div v-for="(m, idx) in g.members" :key="m._key || idx" class="row">
                 <div class="cell name">{{ m.name || "—" }}</div>
                 <div class="cell rank">{{ m.rank || "—" }}</div>
-                <div class="cell awards">{{ m.awards || "—" }}</div>
+                <div class="cell awards"><AwardRender :value="m.awards" /></div>
                 <div class="cell details">{{ m.details || "—" }}</div>
               </div>
             </div>
@@ -114,6 +114,7 @@
  */
 
 import { getConfig } from "@/config/runtimeConfig";
+import AwardRender from "@/components/AwardRender.vue";
 import { mergeAwardsText, normalizePersonKey, parseAwardsCell } from "@/utils/awards";
 
 function normalizeStr(v) {
@@ -298,7 +299,6 @@ async function loadAwardsIndexFromOperationsCsv(csvUrl) {
       }
     }
 
-    // De-dupe per person by award+op+campaign
     for (const k of Object.keys(out)) {
       const seen = new Set();
       out[k] = (out[k] || []).filter((x) => {
@@ -349,9 +349,9 @@ function mergeOpsAwardsIntoGroups(groups, awardsIndex) {
   });
 }
 
-
 export default {
   name: "BackendRosterView",
+  components: { AwardRender },
   data() {
     return {
       loading: true,
@@ -435,13 +435,12 @@ export default {
         const csvText = await res.text();
         const rows = rowsToObjects(csvText);
         const groups = buildGroups(rows);
-
-        // Optional: auto-derive awards from Operations CSV (AWARDS column)
         const opsAwards = await loadAwardsIndexFromOperationsCsv(cfg?.sheets?.operationsCsvUrl || "");
         this.groups = mergeOpsAwardsIntoGroups(groups, opsAwards);
 
-        // If unit filter doesn't exist, clear it (fallback behavior requested)
         const finalGroups = this.groups || [];
+
+        // If unit filter doesn't exist, clear it (fallback behavior requested)
         if (this.unitFilter && !finalGroups.some((g) => g.label === this.unitFilter)) {
           this.unitFilter = "";
         }
