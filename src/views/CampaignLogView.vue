@@ -1199,7 +1199,7 @@ export default {
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
-  padding: calc(24px + var(--app-ticker-height, 32px)) 24px 24px 24px;
+  padding: calc(var(--app-header-height, 72px) + 24px) 24px 24px 24px;
   color: var(--text-pilot-value, #d6f1ff);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
@@ -1544,8 +1544,19 @@ export default {
   box-shadow: 0 0 18px rgba(90, 220, 255, 0.12);
 }
 
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalPopIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* Modal */
 .modal-overlay {
+  animation: modalFadeIn 160ms ease-out;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.72);
@@ -1556,6 +1567,7 @@ export default {
 }
 
 .modal {
+  animation: modalPopIn 180ms ease-out;
   width: min(1200px, 100%);
   max-height: 90vh;
   overflow: auto;
@@ -1862,6 +1874,13 @@ export default {
   }
   .ops-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay,
+  .modal {
+    animation: none !important;
   }
 }
 </style>
