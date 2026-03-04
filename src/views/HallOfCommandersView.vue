@@ -282,7 +282,7 @@
 </template>
 
 <script>
-import { playMenuBrowse } from "@/utils/sfx";
+import { playMenuClick } from "@/utils/sfx";
 
 const PLACEHOLDER_PORTRAIT =
   "data:image/svg+xml;charset=utf-8," +
@@ -677,7 +677,7 @@ export default {
     },
 
     openDetails(c) {
-      playMenuBrowse();
+      playMenuClick();
       // Ensure we open the MAIN commander record for the campaign tile.
       const camp = this.campaignById?.[c?.campaignId];
       this.activeCommander = camp ? this.mainCommanderForCampaign(camp) : c;
