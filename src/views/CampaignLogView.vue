@@ -286,7 +286,7 @@
                     <div class="op-awards-label">AWARDS</div>
                     <ul class="op-awards-list">
                       <li v-for="(a, ai) in op.awards" :key="(a.trooper || '') + (a.award || '') + ai">
-                        <span class="award-unit">{{ unitForTrooper(a.trooper) || "—" }}</span>
+                        <span class="award-unit">{{ a.unit || unitForTrooper(a.trooper) || "—" }}</span>
                         <span class="award-sep">-</span>
                         <span class="award-trooper">{{ a.trooper }}</span>
                         <span class="award-sep">-</span>
@@ -996,6 +996,7 @@ export default {
       for (const op of ops) {
         const entries = Array.isArray(op?.awards) ? op.awards : [];
         for (const e of entries) {
+          const unit = String(e?.unit || "").trim();
           const trooper = String(e?.trooper || "").trim();
           const award = String(e?.award || "").trim();
           if (!trooper || !award) continue;
@@ -1006,10 +1007,12 @@ export default {
           if (!byPerson.has(pKey)) {
             byPerson.set(pKey, {
               _key: pKey,
-              unit: this.unitForTrooper(trooper),
+              unit: unit || this.unitForTrooper(trooper),
               trooper,
               _awardSet: new Set(),
             });
+          } else if (unit && !byPerson.get(pKey).unit) {
+            byPerson.get(pKey).unit = unit;
           }
 
           byPerson.get(pKey)._awardSet.add(award);
@@ -1028,8 +1031,8 @@ export default {
         const ub = (b.unit || "").toLowerCase();
         if (ua < ub) return -1;
         if (ua > ub) return 1;
-        const ta = a.trooper.toLowerCase();
-        const tb = b.trooper.toLowerCase();
+        const ta = (a.trooper || "").toLowerCase();
+        const tb = (b.trooper || "").toLowerCase();
         return ta < tb ? -1 : ta > tb ? 1 : 0;
       });
 
