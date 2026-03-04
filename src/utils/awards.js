@@ -1,14 +1,56 @@
 // FILE: src/utils/awards.js
 /**
- * Awards parsing helpers.
+ * Awards parsing + rendering helpers.
  *
- * Expected cell format (Google Sheets):
- *   "Trooper - Award Name / Trooper - Award Name"
+ * Sheets formats supported:
+ * 1) Operations.AWARDS cell:
+ *    "Trooper - AwardCode / Trooper - AwardCode"
  *
- * Notes:
- * - Entries are separated by "/"
- * - Name/award separator supports "-", "–", "—"
+ * 2) Member.AWARDS cell:
+ *    "MOH / LOM / DFC"
+ *
+ * Award icons are expected at: /public/awards/<CODE>.svg
  */
+
+export const KNOWN_AWARD_CODES = [
+  "BS",
+  "CC",
+  "CSA",
+  "DFC",
+  "DMSM",
+  "JCOM",
+  "JMUA",
+  "JSAM",
+  "LOM",
+  "MOH",
+  "SS",
+];
+
+const AWARD_CODE_RE = new RegExp(`\\b(${KNOWN_AWARD_CODES.join("|")})\\b`, "gi");
+
+export function awardIconUrl(code) {
+  const c = String(code ?? "").toUpperCase().trim();
+  return c ? `/awards/${c}.svg` : "";
+}
+
+export function extractAwardCodes(text) {
+  const s = String(text ?? "");
+  if (!s.trim()) return [];
+
+  const out = [];
+  const seen = new Set();
+
+  let m;
+  while ((m = AWARD_CODE_RE.exec(s)) !== null) {
+    const code = String(m[1] ?? "").toUpperCase();
+    if (!code || seen.has(code)) continue;
+    seen.add(code);
+    out.push(code);
+  }
+
+  return out;
+}
+
 export function normalizePersonKey(name) {
   const raw = String(name ?? "").replace(/\s+/g, " ").trim();
   if (!raw) return "";
@@ -33,15 +75,14 @@ export function parseAwardsCell(raw) {
 
   for (const chunk of chunks) {
     // Prefer spaced separators so award names can include hyphens.
-    const m = chunk.match(/\s[-–—]\s/);
+    const spacedSep = chunk.match(/\s[-–—]\s/);
     let trooper = "";
     let award = "";
 
-    if (m && typeof m.index === "number") {
-      const idx = m.index;
-      const sepLen = m[0].length;
+    if (spacedSep && typeof spacedSep.index === "number") {
+      const idx = spacedSep.index;
       trooper = chunk.slice(0, idx).trim();
-      award = chunk.slice(idx + sepLen).trim();
+      award = chunk.slice(idx + spacedSep[0].length).trim();
     } else {
       const idx = chunk.indexOf("-");
       if (idx > 0) {
@@ -51,7 +92,6 @@ export function parseAwardsCell(raw) {
     }
 
     if (!trooper || !award) continue;
-
     out.push({ trooper, award });
   }
 
@@ -69,7 +109,6 @@ export function dedupeAwards(entries) {
 
     const key = `${normalizePersonKey(trooper)}|${award.toLowerCase()}`;
     if (seen.has(key)) continue;
-
     seen.add(key);
     out.push({ trooper, award });
   }
