@@ -864,8 +864,7 @@ header > * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 0px;
-  width: max-content;
+  min-width: 260px;
   padding: 12px 22px;
   border-radius: 999px;
   border: 1px solid rgba(90, 220, 255, 0.22);
@@ -923,7 +922,7 @@ header .planet-location-container {
 
 .meta-grid {
   display: grid;
-  grid-template-columns: max-content max-content minmax(220px, 420px);
+  grid-template-columns: max-content max-content minmax(0px, 420px);
   grid-template-rows: auto auto;
   gap: 10px 14px;
   justify-content: end;
@@ -939,6 +938,8 @@ header .planet-location-container {
 .meta-tile--ao {
   grid-column: 3;
   grid-row: 1 / span 2;
+  justify-self: end;
+  text-align: right;
 }
 
 .meta-tile h4 {
