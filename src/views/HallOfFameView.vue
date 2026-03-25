@@ -71,17 +71,13 @@
                               <div class="unit-chip">{{ e.unit || "—" }}</div>
                               <div class="name">{{ e.trooper }}</div>
                             </div>
-
-                            <div class="award-icons">
-                              <AwardRender :value="e.award" />
-                            </div>
                           </header>
 
                           <div class="card-body">
                             <div class="section-label">AWARD</div>
                             <div class="panel award-panel">
                 <div v-if="(e.codes || []).length" class="award-codes">
-                  <span v-for="c in e.codes" :key="c" class="meta-chip">{{ c }}</span>
+                  <img v-for="c in e.codes" :key="c" class="award-ribbon" :src="awardRibbonSrc(c)" :alt="c" loading="lazy" />
                 </div>
                 <span v-else-if="e.award" class="award-text muted">{{ e.award }}</span>
 
@@ -128,7 +124,6 @@
 
 <script>
 import { getConfig } from "@/config/runtimeConfig";
-import AwardRender from "@/components/AwardRender.vue";
 import { extractAwardCodes, normalizePersonKey, parseAwardsCell } from "@/utils/awards";
 
 const AWARD_INFO = {
@@ -369,7 +364,6 @@ async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap) {
 
 export default {
   name: "HallOfFameView",
-  components: { AwardRender },
   data() {
     return {
       loading: true,
@@ -477,6 +471,11 @@ export default {
 
   return out;
 },
+    awardRibbonSrc(code) {
+      const c = String(code || "").toUpperCase().trim();
+      return c ? `/awards/${c}.svg` : "";
+    },
+
     applyRouteFilters() {
       const q = this.$route?.query || {};
       const camp = String(q.campaign || "").trim();
@@ -736,7 +735,17 @@ export default {
 .award-codes{
   display:flex;
   flex-wrap:wrap;
-  gap:8px;
+  gap:10px;
+  justify-content:center;
+  align-items:center;
+  margin: 2px 0 8px 0;
+}
+
+.award-ribbon{
+  width: 72px;
+  height: 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,0.45));
 }
 
 .award-details{
