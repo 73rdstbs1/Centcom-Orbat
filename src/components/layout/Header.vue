@@ -910,7 +910,7 @@ header .planet-location-container {
   justify-content: flex-end;
 
   padding-left: 16px;
-  padding-right: 12px;
+  padding-right: 0px;
   border-left: 1px solid rgba(170, 220, 255, 0.22);
 }
 
@@ -938,8 +938,6 @@ header .planet-location-container {
 .meta-tile--ao {
   grid-column: 3;
   grid-row: 1 / span 2;
-  justify-self: end;
-  text-align: right;
 }
 
 .meta-tile h4 {
