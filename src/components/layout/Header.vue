@@ -910,19 +910,19 @@ header .planet-location-container {
   justify-content: flex-end;
 
   padding-left: 16px;
-  padding-right: 0px;
+  padding-right: 12px;
   border-left: 1px solid rgba(170, 220, 255, 0.22);
 }
 
 .location-info {
   min-width: 0;
-  width: max-content;
+  width: fit-content;
   max-width: min(1120px, 46vw);
 }
 
 .meta-grid {
   display: grid;
-  grid-template-columns: max-content max-content minmax(0px, 420px);
+  grid-template-columns: max-content max-content fit-content(420px);
   grid-template-rows: auto auto;
   gap: 10px 14px;
   justify-content: end;
