@@ -864,7 +864,8 @@ header > * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 260px;
+  min-width: 0px;
+  width: max-content;
   padding: 12px 22px;
   border-radius: 999px;
   border: 1px solid rgba(90, 220, 255, 0.22);
