@@ -76,23 +76,12 @@
                           <div class="card-body">
                             <div class="section-label">AWARD</div>
                             <div class="panel award-panel">
-                <div v-if="(e.codes || []).length" class="award-codes">
-                  <img v-for="c in e.codes" :key="c" class="award-ribbon" :src="awardRibbonSrc(c)" :alt="c" loading="lazy" />
-                </div>
-                <span v-else-if="e.award" class="award-text muted">{{ e.award }}</span>
+                              <div class="award-codes">
+                                <AwardRender :value="e.awardText || e.award" :link="true" />
+                              </div>
+                            </div>
 
-                <div v-if="awardInfos(e).length" class="award-details">
-                  <div v-for="i in awardInfos(e)" :key="i.code" class="award-detail">
-                    <div class="award-full">
-                      {{ i.name }}
-                      <span class="muted">({{ i.code }})</span>
-                    </div>
-                    <div class="award-criteria muted">{{ i.criteria }}</div>
-                  </div>
-                </div>
-              </div>
-
-                            <div class="section-label" style="margin-top:12px;">EARNED IN</div>
+<div class="section-label" style="margin-top:12px;">EARNED IN</div>
                             <div class="panel earned-panel">
                               <button v-if="e.campaign" class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
                               <button v-if="e.operation" class="link-chip op-chip" @click="openCampaign(e)">{{ e.operation }}</button>
@@ -125,56 +114,10 @@
 
 <script>
 import { getConfig } from "@/config/runtimeConfig";
+import AwardRender from "@/components/AwardRender.vue";
 import { extractAwardCodes, normalizePersonKey, parseAwardsCell } from "@/utils/awards";
 
-const AWARD_INFO = {
-  JMUA: {
-    name: "Joint Meritorious Unit Ribbon",
-    criteria: "50%+ Attendance",
-  },
-  CSA: {
-    name: "Community Service Achievement",
-    criteria: "Commendable service within an S/J/N-Shop",
-  },
-  JSAM: {
-    name: "Joint Service Achievement",
-    criteria: "Meritorious service or achievement during a Joint Op",
-  },
-  JCOM: {
-    name: "Joint Service Commendation",
-    criteria: "Significant impact upon a Joint Op in a combat environment",
-  },
-  BS: {
-    name: "Bronze Star",
-    criteria: "Heroic service. Actions impacted eventual outcome of the joint op",
-  },
-  DFC: {
-    name: "Distinguished Flying Cross",
-    criteria: "Heroic service in flight. Actions impacted eventual outcome of the joint op",
-  },
-  DMSM: {
-    name: "Defense Meritorious Service Ribbon",
-    criteria: "Extraordinary meritorious service in or out of a joint combat environment",
-  },
-  SS: {
-    name: "Silver Star",
-    criteria: "Heroic gallantry in combat. Actions of the member must be above and beyond their job.",
-  },
-  LOM: {
-    name: "Legion of Merit",
-    criteria: "If not for the action, the unit would not see success effectively. In or out of operation",
-  },
-  CC: {
-    name: "Colonial Cross",
-    criteria: "Heroic gallantry in combat. If not for action, the operation would have failed.",
-  },
-  MOH: {
-    name: "Medal of Honor",
-    criteria: "We all know this one.",
-  },
-};
-
-const AWARD_ORDER = ["MOH", "CC", "LOM", "SS", "DMSM", "DFC", "BS", "JCOM", "JSAM", "CSA", "JMUA"];
+const AWARD_ORDER = ["MOH", "CC", "LOM", "SS", "DMSR", "DFC", "BS", "JSC", "JSA", "CSA", "JMUR"];
 const HOF_AUTO_MIN_CODE = "BS";
 const AUTO_HOF_CODES = new Set(
   AWARD_ORDER.slice(0, Math.max(0, AWARD_ORDER.indexOf(HOF_AUTO_MIN_CODE)) + 1)
@@ -183,41 +126,6 @@ const AUTO_HOF_CODES = new Set(
 function isAutoHallOfFameCode(code) {
   const c = String(code || "").toUpperCase().trim();
   return AUTO_HOF_CODES.has(c);
-}
-
-function normalizeAwardName(s) {
-  return String(s || "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .replace(/honour/g, "honor")
-    .replace(/defence/g, "defense")
-    .replace(/[^a-z0-9 ]/g, "")
-    .trim();
-}
-
-const AWARD_NAME_INDEX = Object.entries(AWARD_INFO).map(([code, info]) => ({
-  code,
-  nameKey: normalizeAwardName(info?.name || ""),
-}));
-
-function inferAwardCodesFromText(text) {
-  const codes = extractAwardCodes(text);
-  if (codes.length) return codes;
-
-  const key = normalizeAwardName(text);
-  if (!key) return [];
-
-  const out = [];
-  for (const row of AWARD_NAME_INDEX) {
-    if (row.nameKey && (key === row.nameKey || key.includes(row.nameKey))) out.push(row.code);
-  }
-  return out;
-}
-
-function getAwardInfo(code) {
-  const c = String(code || "").toUpperCase().trim();
-  const info = AWARD_INFO[c];
-  return info ? { code: c, ...info } : null;
 }
 
 function normalizeStr(v) {
@@ -319,7 +227,6 @@ function isRosterUnitRow(row) {
 
   return hasHeader && othersBlank;
 }
-
 
 function getCell(row, headerMap, key) {
   const i = headerMap[key];
@@ -437,7 +344,6 @@ async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap) {
   return out;
 }
 
-
 async function loadManualAwardsFromRosterCsv(csvUrl, rosterUnitMap, autoEntries) {
   if (!csvUrl) return [];
 
@@ -506,9 +412,9 @@ async function loadManualAwardsFromRosterCsv(csvUrl, rosterUnitMap, autoEntries)
   return out;
 }
 
-
 export default {
   name: "HallOfFameView",
+  components: { AwardRender },
   data() {
     return {
       loading: true,
@@ -608,21 +514,6 @@ export default {
     },
   },
   methods: {
-    awardInfos(entry) {
-  const codes = Array.isArray(entry?.codes) ? entry.codes : [];
-  const out = [];
-
-  for (const c of codes) {
-    const info = getAwardInfo(c);
-    if (info) out.push(info);
-  }
-
-  return out;
-},
-    awardRibbonSrc(code) {
-      const c = String(code || "").toUpperCase().trim();
-      return c ? `/awards/${c}.svg` : "";
-    },
 
     applyRouteFilters() {
       const q = this.$route?.query || {};
