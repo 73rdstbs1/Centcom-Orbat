@@ -87,6 +87,7 @@
                               <button v-if="e.operation" class="link-chip op-chip" @click="openCampaign(e)">{{ e.operation }}</button>
                               <span v-if="!e.campaign && !e.operation" class="meta-chip">MANUAL ENTRY</span>
                             </div>
+                          </div>
                           </article>
             </div>
 
@@ -717,8 +718,9 @@ export default {
   flex: 0 0 auto;
 }
 .award-icons :deep(.award-icon){
-  width: 20px;
-  height: 20px;
+  height: clamp(28px, 3.2vw, 44px);
+  width: auto;
+  max-width: 180px;
 }
 .award-icons :deep(.award-render){
   gap: 6px;
@@ -758,15 +760,17 @@ export default {
   display:flex;
   flex-direction:column;
   gap:8px;
+
+  text-align: center;
 }
 
 .award-codes{
-  display:flex;
-  flex-wrap:wrap;
-  gap:10px;
-  justify-content:center;
-  align-items:center;
-  margin: 2px 0 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 48px;
 }
 
 .award-codes :deep(.award-render){
