@@ -87,19 +87,7 @@
                               <button v-if="e.operation" class="link-chip op-chip" @click="openCampaign(e)">{{ e.operation }}</button>
                               <span v-if="!e.campaign && !e.operation" class="meta-chip">MANUAL ENTRY</span>
                             </div>
-
-                            <div class="meta-row">
-                              <div class="meta-cell">
-                                <div class="meta-label">DATE</div>
-                                <div class="meta-value">{{ e.date || "—" }}</div>
-                              </div>
-                              <div class="meta-cell">
-                                <div class="meta-label">SOURCE</div>
-                                <div class="meta-value">OPS.AWARDS</div>
-                              </div>
-                            </div>
-                          </div>
-                        </article>
+</article>
             </div>
 
             <div v-else class="empty">
@@ -779,6 +767,23 @@ export default {
   justify-content:center;
   align-items:center;
   margin: 2px 0 8px 0;
+}
+
+.award-codes :deep(.award-render){
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.award-codes :deep(.award-icon){
+  height: clamp(22px, 2.6vw, 34px);
+  width: auto;
+  max-width: 140px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,0.45));
+}
+.award-codes :deep(a){
+  display: inline-flex;
+  align-items: center;
 }
 
 .award-ribbon{
