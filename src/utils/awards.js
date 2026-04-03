@@ -13,17 +13,30 @@
  */
 
 export const KNOWN_AWARD_CODES = [
-  "BS",
-  "CC",
+  // Joint Meritorious Unit Ribbon
+  "JMUR",
+  // Community Service Achievement 
   "CSA",
+  // Joint Service Achievement 
+  "JSA",
+  // Joint Service Commendation
+  "JSC",
+  // Bronze Star
+  "BS",
+  // Distinguished Flying Cross
   "DFC",
-  "DMSM",
-  "JCOM",
-  "JMUA",
+  // Defense Meritorious Service Ribbon
+  "DMSR",
+  // Silver Star
   "JSAM",
-  "LOM",
-  "MOH",
+  // Legion of Merit
   "SS",
+  // Legion of Merit
+  "LOM",
+  // Colonial Cross
+  "CC",
+  // Medal of Honor
+  "MOH",
 ];
 
 const AWARD_CODE_RE = new RegExp(`\\b(${KNOWN_AWARD_CODES.join("|")})\\b`, "gi");
@@ -41,17 +54,18 @@ export function awardIconUrl(code) {
  *       links will fall back to: `${VITE_AWARDS_INFO_URL}?award=<CODE>`
  */
 export const AWARD_PAGE_URLS = {
-  MOH: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=MOH_GID",
-  CC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=CC_GID",
-  LOM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=LOM_GID",
-  SS: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=SS_GID",
-  DMSM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=DMSM_GID",
+  JMUR: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=MOH_GID",
+  CSA: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=CC_GID",
+  JSA: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=LOM_GID",
+  JSC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=SS_GID",
+  BS: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=DMSM_GID",
   DFC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=DFC_GID",
-  BS: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=BS_GID",
-  JCOM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JCOM_GID",
-  JSAM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JSAM_GID",
-  CSA: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=CSA_GID",
-  JMUA: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JMUA_GID",
+  DMSR: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=BS_GID",
+  JSAM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JCOM_GID",
+  SS: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JSAM_GID",
+  LOM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=CSA_GID",
+  CC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JMUA_GID",
+  MOH: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JMUA_GID",
 };
 
 export function awardPageUrl(code) {
