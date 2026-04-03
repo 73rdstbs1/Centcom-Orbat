@@ -81,13 +81,13 @@
                               </div>
                             </div>
 
-<div class="section-label" style="margin-top:12px;">EARNED IN</div>
+                            <div class="section-label" style="margin-top:12px;">EARNED IN</div>
                             <div class="panel earned-panel">
                               <button v-if="e.campaign" class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
                               <button v-if="e.operation" class="link-chip op-chip" @click="openCampaign(e)">{{ e.operation }}</button>
                               <span v-if="!e.campaign && !e.operation" class="meta-chip">MANUAL ENTRY</span>
                             </div>
-</article>
+                          </article>
             </div>
 
             <div v-else class="empty">
