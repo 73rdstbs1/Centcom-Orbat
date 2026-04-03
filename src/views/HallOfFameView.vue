@@ -276,6 +276,51 @@ function buildHeaderMap(headerRow) {
   return idx;
 }
 
+function rosterRowsToObjects(csvText) {
+  const rows = parseCsv(csvText);
+  if (!rows.length) return [];
+
+  const headers = (rows[0] || []).map((h) => normalizeStr(h));
+  const out = [];
+
+  for (let r = 1; r < rows.length; r += 1) {
+    const cells = rows[r] || [];
+    const obj = {};
+    for (let c = 0; c < headers.length; c += 1) {
+      const key = headers[c];
+      if (!key) continue;
+      obj[key] = normalizeStr(cells[c] ?? "");
+    }
+    const any = Object.values(obj).some((v) => String(v || "").trim());
+    if (any) out.push(obj);
+  }
+  return out;
+}
+
+function parseRosterUnitHeader(nameRaw) {
+  const name = normalizeStr(nameRaw);
+  const m = name.match(/^(.*)\s*\(([^)]+)\)\s*$/);
+  if (!m) return null;
+  return {
+    label: normalizeStr(m[1]),
+    type: normalizeStr(m[2]),
+    full: name,
+  };
+}
+
+function isRosterUnitRow(row) {
+  const name = normalizeStr(row?.["NAMES"]);
+  const rank = normalizeStr(row?.["RANK / POSITION"]);
+  const awards = normalizeStr(row?.["AWARDS"]);
+  const details = normalizeStr(row?.["DETAILS"]);
+
+  const hasHeader = !!parseRosterUnitHeader(name);
+  const othersBlank = !rank && !awards && !details;
+
+  return hasHeader && othersBlank;
+}
+
+
 function getCell(row, headerMap, key) {
   const i = headerMap[key];
   if (i === undefined) return "";
@@ -295,40 +340,27 @@ async function loadRosterUnitMap(csvUrl) {
     const res = await fetch(csvUrl, { cache: "no-store" });
     if (!res.ok) return {};
     const text = await res.text();
-    const rows = parseCsv(text);
+
+    const rows = rosterRowsToObjects(text);
     if (!rows.length) return {};
 
-    const header = rows[0] || [];
-    const headerMap = buildHeaderMap(header);
-
-    const kName =
-      headerMap["name"] !== undefined
-        ? "name"
-        : headerMap["trooper"] !== undefined
-          ? "trooper"
-          : headerMap["member"] !== undefined
-            ? "member"
-            : null;
-
-    const kUnit =
-      headerMap["unit"] !== undefined
-        ? "unit"
-        : headerMap["subunit"] !== undefined
-          ? "subunit"
-          : headerMap["squad"] !== undefined
-            ? "squad"
-            : null;
-
-    if (!kName || !kUnit) return {};
-
     const out = {};
-    for (let r = 1; r < rows.length; r += 1) {
-      const row = rows[r] || [];
-      const name = getCell(row, headerMap, kName);
-      const unit = getCell(row, headerMap, kUnit);
+    let currentUnit = "UNASSIGNED";
+
+    for (const r of rows) {
+      if (isRosterUnitRow(r)) {
+        const parsed = parseRosterUnitHeader(r["NAMES"]);
+        currentUnit = parsed?.label || parsed?.full || currentUnit;
+        continue;
+      }
+
+      const name = normalizeStr(r["NAMES"]);
+      if (!name) continue;
+
       const key = normalizePersonKey(name);
-      if (key && unit) out[key] = unit;
+      if (key) out[key] = currentUnit || "";
     }
+
     return out;
   } catch {
     return {};
@@ -413,32 +445,8 @@ async function loadManualAwardsFromRosterCsv(csvUrl, rosterUnitMap, autoEntries)
   if (!res.ok) throw new Error(`Failed to fetch roster CSV (${res.status})`);
 
   const text = await res.text();
-  const rows = parseCsv(text);
+  const rows = rosterRowsToObjects(text);
   if (!rows.length) return [];
-
-  const headerMap = buildHeaderMap(rows[0]);
-
-  const kName =
-    headerMap["name"] !== undefined
-      ? "name"
-      : headerMap["trooper"] !== undefined
-        ? "trooper"
-        : headerMap["member"] !== undefined
-          ? "member"
-          : null;
-
-  const kUnit =
-    headerMap["unit"] !== undefined
-      ? "unit"
-      : headerMap["subunit"] !== undefined
-        ? "subunit"
-        : headerMap["squad"] !== undefined
-          ? "squad"
-          : null;
-
-  const kAwards = headerMap["awards"] !== undefined ? "awards" : null;
-
-  if (!kName || !kUnit || !kAwards) return [];
 
   // Prevent duplicate “manual” entries when the same trooper+award already exists in campaign ops.
   const autoSet = new Set();
@@ -452,24 +460,35 @@ async function loadManualAwardsFromRosterCsv(csvUrl, rosterUnitMap, autoEntries)
   }
 
   const out = [];
-  for (let r = 1; r < rows.length; r += 1) {
-    const row = rows[r] || [];
-    const trooper = normalizeStr(getCell(row, headerMap, kName));
+  let currentUnit = "UNASSIGNED";
+
+  for (let r = 0; r < rows.length; r += 1) {
+    const row = rows[r] || {};
+
+    if (isRosterUnitRow(row)) {
+      const parsed = parseRosterUnitHeader(row["NAMES"]);
+      currentUnit = parsed?.label || parsed?.full || currentUnit;
+      continue;
+    }
+
+    const trooper = normalizeStr(row["NAMES"]);
     if (!trooper) continue;
 
-    const unitCell = normalizeStr(getCell(row, headerMap, kUnit));
-    const unit = unitCell || normalizeStr(rosterUnitMap?.[normalizePersonKey(trooper)] || "");
-    const awardsCell = normalizeStr(getCell(row, headerMap, kAwards));
+    const awardsCell = normalizeStr(row["AWARDS"]);
     if (!awardsCell) continue;
 
     const tKey = normalizePersonKey(trooper);
-    const codesAll = extractAwardCodes(awardsCell).map((c) => String(c || "").toUpperCase().trim());
+    const unit =
+      currentUnit ||
+      normalizeStr(rosterUnitMap?.[tKey] || "") ||
+      "UNASSIGNED";
 
+    const codesAll = extractAwardCodes(awardsCell).map((c) => String(c || "").toUpperCase().trim());
     const codes = codesAll.filter((c) => c && !(tKey && autoSet.has(`${tKey}|${c}`)));
     if (!codes.length) continue;
 
     out.push({
-      id: `manual_roster__${r}`,
+      id: `manual_roster__${r + 1}`,
       campaign: "",
       operation: "",
       date: "",
