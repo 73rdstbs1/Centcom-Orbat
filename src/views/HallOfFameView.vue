@@ -94,8 +94,9 @@
 
                             <div class="section-label" style="margin-top:12px;">EARNED IN</div>
                             <div class="panel earned-panel">
-                              <button class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
-                              <button class="link-chip op-chip" @click="openCampaign(e)">{{ e.operation }}</button>
+                              <button v-if="e.campaign" class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
+                              <button v-if="e.operation" class="link-chip op-chip" @click="openCampaign(e)">{{ e.operation }}</button>
+                              <span v-if="!e.campaign && !e.operation" class="meta-chip">MANUAL ENTRY</span>
                             </div>
 
                             <div class="meta-row">
@@ -172,6 +173,46 @@ const AWARD_INFO = {
     criteria: "We all know this one.",
   },
 };
+
+const AWARD_ORDER = ["MOH", "CC", "LOM", "SS", "DMSM", "DFC", "BS", "JCOM", "JSAM", "CSA", "JMUA"];
+const HOF_AUTO_MIN_CODE = "BS";
+const AUTO_HOF_CODES = new Set(
+  AWARD_ORDER.slice(0, Math.max(0, AWARD_ORDER.indexOf(HOF_AUTO_MIN_CODE)) + 1)
+);
+
+function isAutoHallOfFameCode(code) {
+  const c = String(code || "").toUpperCase().trim();
+  return AUTO_HOF_CODES.has(c);
+}
+
+function normalizeAwardName(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/honour/g, "honor")
+    .replace(/defence/g, "defense")
+    .replace(/[^a-z0-9 ]/g, "")
+    .trim();
+}
+
+const AWARD_NAME_INDEX = Object.entries(AWARD_INFO).map(([code, info]) => ({
+  code,
+  nameKey: normalizeAwardName(info?.name || ""),
+}));
+
+function inferAwardCodesFromText(text) {
+  const codes = extractAwardCodes(text);
+  if (codes.length) return codes;
+
+  const key = normalizeAwardName(text);
+  if (!key) return [];
+
+  const out = [];
+  for (const row of AWARD_NAME_INDEX) {
+    if (row.nameKey && (key === row.nameKey || key.includes(row.nameKey))) out.push(row.code);
+  }
+  return out;
+}
 
 function getAwardInfo(code) {
   const c = String(code || "").toUpperCase().trim();
@@ -338,8 +379,10 @@ async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap) {
       const nameKey = normalizePersonKey(trooper);
       const unit = normalizeStr(e.unit) || normalizeStr(rosterUnitMap?.[nameKey] || "");
 
-      const codes = extractAwardCodes(award);
-      const awardText = codes.length ? codes.join(" / ") : award;
+      const codesAll = extractAwardCodes(award);
+      const codes = codesAll.filter(isAutoHallOfFameCode);
+      if (!codes.length) continue;
+      const awardText = codes.join(" / ");
 
       out.push({
         id: `${key}__${r}__${i}`,
@@ -361,6 +404,101 @@ async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap) {
 
   return out;
 }
+
+
+async function loadManualAwardsFromRefDataCsv(csvUrl, rosterUnitMap) {
+  if (!csvUrl) return [];
+
+  const res = await fetch(csvUrl, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to fetch refdata CSV (${res.status})`);
+
+  const text = await res.text();
+  const rows = parseCsv(text);
+  if (!rows.length) return [];
+
+  const headerMap = buildHeaderMap(rows[0]);
+  const kAwards = headerMap["awards"] !== undefined ? "awards" : null;
+  if (!kAwards) return [];
+
+  const kCampaign = headerMap["campaign"] !== undefined ? "campaign" : null;
+  const kOperation = headerMap["operation"] !== undefined ? "operation" : null;
+  const kDate = headerMap["date"] !== undefined ? "date" : null;
+  const kUnit = headerMap["unit"] !== undefined ? "unit" : null;
+
+  const out = [];
+
+  for (let r = 1; r < rows.length; r += 1) {
+    const row = rows[r] || [];
+    const cell = normalizeStr(getCell(row, headerMap, kAwards));
+    if (!cell) continue;
+
+    const parts = cell.split(/\s[-–—]\s/).map((x) => normalizeStr(x)).filter(Boolean);
+
+    let unit = kUnit ? normalizeStr(getCell(row, headerMap, kUnit)) : "";
+    let trooper = "";
+    let awardsPart = "";
+
+    if (parts.length >= 3) {
+      // Support: "Unit - Trooper - award, award"
+      unit = unit || parts[0];
+      trooper = parts[1];
+      awardsPart = parts.slice(2).join(" - ");
+    } else if (parts.length === 2) {
+      // Support: "Trooper - award, award"
+      trooper = parts[0];
+      awardsPart = parts[1];
+    } else {
+      continue;
+    }
+
+    if (!trooper || !awardsPart) continue;
+
+    const awardTokens = awardsPart
+      .split(/\s*(?:,|\/|;|\n)\s*/g)
+      .map((x) => normalizeStr(x))
+      .filter(Boolean);
+
+    const codes = [];
+    const seen = new Set();
+
+    for (const tok of awardTokens) {
+      const inferred = inferAwardCodesFromText(tok);
+      for (const c of inferred) {
+        const cc = String(c || "").toUpperCase().trim();
+        if (!cc || seen.has(cc)) continue;
+        seen.add(cc);
+        codes.push(cc);
+      }
+    }
+
+    const awardText = codes.length ? codes.join(" / ") : awardsPart;
+
+    const campaign = kCampaign ? normalizeStr(getCell(row, headerMap, kCampaign)) : "";
+    const operation = kOperation ? normalizeStr(getCell(row, headerMap, kOperation)) : "";
+    const dateCell = kDate ? normalizeStr(getCell(row, headerMap, kDate)) : "";
+
+    const nameKey = normalizePersonKey(trooper);
+    unit = unit || normalizeStr(rosterUnitMap?.[nameKey] || "");
+
+    out.push({
+      id: `manual__${r}`,
+      campaign,
+      operation,
+      date: dateCell,
+      ts: toTs(dateCell),
+      unit,
+      trooper,
+      award: awardsPart,
+      awardText,
+      codes,
+      opId: campaign ? normalizeStr(campaign).toLowerCase().replace(/\s+/g, " ").trim() + `__manual__${r}` : "",
+      source: "manual",
+    });
+  }
+
+  return out;
+}
+
 
 export default {
   name: "HallOfFameView",
@@ -432,7 +570,8 @@ export default {
   },
   async mounted() {
     const cfg = getConfig() || {};
-    const opsUrl = cfg?.sheets?.operationsCsvUrl || "";
+    const opsUrl = cfg?.sheets?.operationsCsvUrl || cfg?.sheets?.opsCsvUrl || "";
+    const refUrl = cfg?.sheets?.refDataCsvUrl || cfg?.sheets?.refdataCsvUrl || cfg?.sheets?.defaultsCsvUrl || "";
 
     try {
       const rosterUrl =
@@ -442,7 +581,10 @@ export default {
         "";
 
       this.rosterUnitMap = await loadRosterUnitMap(rosterUrl);
-      this.entries = await loadAwardsFromOperationsCsv(opsUrl, this.rosterUnitMap);
+      const autoEntries = await loadAwardsFromOperationsCsv(opsUrl, this.rosterUnitMap);
+      const manualEntries = await loadManualAwardsFromRefDataCsv(refUrl, this.rosterUnitMap);
+
+      this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (a.ts || 0));
 
       this.applyRouteFilters();
       this.loading = false;
@@ -485,6 +627,7 @@ export default {
       if (op) this.search = op;
     },
     openCampaign(e) {
+      if (!e?.campaign && !e?.operation) return;
       this.$router.push({
         name: "CampaignLog",
         query: {
