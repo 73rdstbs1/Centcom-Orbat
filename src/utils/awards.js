@@ -28,8 +28,6 @@ export const KNOWN_AWARD_CODES = [
   // Defense Meritorious Service Ribbon
   "DMSR",
   // Silver Star
-  "JSAM",
-  // Legion of Merit
   "SS",
   // Legion of Merit
   "LOM",
@@ -61,7 +59,6 @@ export const AWARD_PAGE_URLS = {
   BS: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=DMSM_GID",
   DFC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=DFC_GID",
   DMSR: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=BS_GID",
-  JSAM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JCOM_GID",
   SS: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JSAM_GID",
   LOM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=CSA_GID",
   CC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JMUA_GID",
