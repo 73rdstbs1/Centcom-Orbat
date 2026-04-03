@@ -33,6 +33,43 @@ export function awardIconUrl(code) {
   return c ? `/awards/${c}.svg` : "";
 }
 
+/**
+ * Award info pages (e.g. Google Sheet pages).
+ *
+ * Set these to your real URLs when ready.
+ * Tip: if all awards live in one Sheet, you can set VITE_AWARDS_INFO_URL and
+ *       links will fall back to: `${VITE_AWARDS_INFO_URL}?award=<CODE>`
+ */
+export const AWARD_PAGE_URLS = {
+  MOH: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=MOH_GID",
+  CC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=CC_GID",
+  LOM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=LOM_GID",
+  SS: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=SS_GID",
+  DMSM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=DMSM_GID",
+  DFC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=DFC_GID",
+  BS: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=BS_GID",
+  JCOM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JCOM_GID",
+  JSAM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JSAM_GID",
+  CSA: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=CSA_GID",
+  JMUA: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JMUA_GID",
+};
+
+export function awardPageUrl(code) {
+  const c = String(code ?? "").toUpperCase().trim();
+  if (!c) return "";
+
+  const direct = AWARD_PAGE_URLS[c];
+  if (direct) return direct;
+
+  // Optional single-sheet fallback:
+  //   VITE_AWARDS_INFO_URL="https://docs.google.com/spreadsheets/d/<id>/edit"
+  const base = (import.meta?.env?.VITE_AWARDS_INFO_URL || "").trim();
+  if (!base) return "";
+
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}award=${encodeURIComponent(c)}`;
+}
+
 export function extractAwardCodes(text) {
   const s = String(text ?? "");
   if (!s.trim()) return [];
