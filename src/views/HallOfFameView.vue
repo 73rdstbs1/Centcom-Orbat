@@ -406,92 +406,80 @@ async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap) {
 }
 
 
-async function loadManualAwardsFromRefDataCsv(csvUrl, rosterUnitMap) {
+async function loadManualAwardsFromRosterCsv(csvUrl, rosterUnitMap, autoEntries) {
   if (!csvUrl) return [];
 
   const res = await fetch(csvUrl, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed to fetch refdata CSV (${res.status})`);
+  if (!res.ok) throw new Error(`Failed to fetch roster CSV (${res.status})`);
 
   const text = await res.text();
   const rows = parseCsv(text);
   if (!rows.length) return [];
 
   const headerMap = buildHeaderMap(rows[0]);
-  const kAwards = headerMap["awards"] !== undefined ? "awards" : null;
-  if (!kAwards) return [];
 
-  const kCampaign = headerMap["campaign"] !== undefined ? "campaign" : null;
-  const kOperation = headerMap["operation"] !== undefined ? "operation" : null;
-  const kDate = headerMap["date"] !== undefined ? "date" : null;
-  const kUnit = headerMap["unit"] !== undefined ? "unit" : null;
+  const kName =
+    headerMap["name"] !== undefined
+      ? "name"
+      : headerMap["trooper"] !== undefined
+        ? "trooper"
+        : headerMap["member"] !== undefined
+          ? "member"
+          : null;
+
+  const kUnit =
+    headerMap["unit"] !== undefined
+      ? "unit"
+      : headerMap["subunit"] !== undefined
+        ? "subunit"
+        : headerMap["squad"] !== undefined
+          ? "squad"
+          : null;
+
+  const kAwards = headerMap["awards"] !== undefined ? "awards" : null;
+
+  if (!kName || !kUnit || !kAwards) return [];
+
+  // Prevent duplicate “manual” entries when the same trooper+award already exists in campaign ops.
+  const autoSet = new Set();
+  for (const e of Array.isArray(autoEntries) ? autoEntries : []) {
+    const tKey = normalizePersonKey(e?.trooper);
+    if (!tKey) continue;
+    for (const c of Array.isArray(e?.codes) ? e.codes : []) {
+      const code = String(c || "").toUpperCase().trim();
+      if (code) autoSet.add(`${tKey}|${code}`);
+    }
+  }
 
   const out = [];
-
   for (let r = 1; r < rows.length; r += 1) {
     const row = rows[r] || [];
-    const cell = normalizeStr(getCell(row, headerMap, kAwards));
-    if (!cell) continue;
+    const trooper = normalizeStr(getCell(row, headerMap, kName));
+    if (!trooper) continue;
 
-    const parts = cell.split(/\s[-–—]\s/).map((x) => normalizeStr(x)).filter(Boolean);
+    const unitCell = normalizeStr(getCell(row, headerMap, kUnit));
+    const unit = unitCell || normalizeStr(rosterUnitMap?.[normalizePersonKey(trooper)] || "");
+    const awardsCell = normalizeStr(getCell(row, headerMap, kAwards));
+    if (!awardsCell) continue;
 
-    let unit = kUnit ? normalizeStr(getCell(row, headerMap, kUnit)) : "";
-    let trooper = "";
-    let awardsPart = "";
+    const tKey = normalizePersonKey(trooper);
+    const codesAll = extractAwardCodes(awardsCell).map((c) => String(c || "").toUpperCase().trim());
 
-    if (parts.length >= 3) {
-      // Support: "Unit - Trooper - award, award"
-      unit = unit || parts[0];
-      trooper = parts[1];
-      awardsPart = parts.slice(2).join(" - ");
-    } else if (parts.length === 2) {
-      // Support: "Trooper - award, award"
-      trooper = parts[0];
-      awardsPart = parts[1];
-    } else {
-      continue;
-    }
-
-    if (!trooper || !awardsPart) continue;
-
-    const awardTokens = awardsPart
-      .split(/\s*(?:,|\/|;|\n)\s*/g)
-      .map((x) => normalizeStr(x))
-      .filter(Boolean);
-
-    const codes = [];
-    const seen = new Set();
-
-    for (const tok of awardTokens) {
-      const inferred = inferAwardCodesFromText(tok);
-      for (const c of inferred) {
-        const cc = String(c || "").toUpperCase().trim();
-        if (!cc || seen.has(cc)) continue;
-        seen.add(cc);
-        codes.push(cc);
-      }
-    }
-
-    const awardText = codes.length ? codes.join(" / ") : awardsPart;
-
-    const campaign = kCampaign ? normalizeStr(getCell(row, headerMap, kCampaign)) : "";
-    const operation = kOperation ? normalizeStr(getCell(row, headerMap, kOperation)) : "";
-    const dateCell = kDate ? normalizeStr(getCell(row, headerMap, kDate)) : "";
-
-    const nameKey = normalizePersonKey(trooper);
-    unit = unit || normalizeStr(rosterUnitMap?.[nameKey] || "");
+    const codes = codesAll.filter((c) => c && !(tKey && autoSet.has(`${tKey}|${c}`)));
+    if (!codes.length) continue;
 
     out.push({
-      id: `manual__${r}`,
-      campaign,
-      operation,
-      date: dateCell,
-      ts: toTs(dateCell),
+      id: `manual_roster__${r}`,
+      campaign: "",
+      operation: "",
+      date: "",
+      ts: 0,
       unit,
       trooper,
-      award: awardsPart,
-      awardText,
+      award: awardsCell,
+      awardText: codes.join(" / "),
       codes,
-      opId: campaign ? normalizeStr(campaign).toLowerCase().replace(/\s+/g, " ").trim() + `__manual__${r}` : "",
+      opId: "",
       source: "manual",
     });
   }
@@ -571,7 +559,6 @@ export default {
   async mounted() {
     const cfg = getConfig() || {};
     const opsUrl = cfg?.sheets?.operationsCsvUrl || cfg?.sheets?.opsCsvUrl || "";
-    const refUrl = cfg?.sheets?.refDataCsvUrl || cfg?.sheets?.refdataCsvUrl || cfg?.sheets?.defaultsCsvUrl || "";
 
     try {
       const rosterUrl =
@@ -582,7 +569,7 @@ export default {
 
       this.rosterUnitMap = await loadRosterUnitMap(rosterUrl);
       const autoEntries = await loadAwardsFromOperationsCsv(opsUrl, this.rosterUnitMap);
-      const manualEntries = await loadManualAwardsFromRefDataCsv(refUrl, this.rosterUnitMap);
+      const manualEntries = await loadManualAwardsFromRosterCsv(rosterUrl, this.rosterUnitMap, autoEntries);
 
       this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (a.ts || 0));
 
