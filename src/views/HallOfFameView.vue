@@ -26,15 +26,15 @@
               v-model="search"
               class="term-input"
               type="text"
-              placeholder="Trooper / unit / award / campaign / operation…"
+              placeholder="Trooper / unit / award / campaign…"
             />
           </div>
 
           <div class="filter-block">
-            <div class="filter-label">AWARD CODE</div>
+            <div class="filter-label">AWARD</div>
             <select v-model="awardCode" class="term-select">
               <option value="">All</option>
-              <option v-for="c in awardOptions" :key="c" :value="c">{{ c }}</option>
+              <option v-for="o in awardOptions" :key="o.code" :value="o.code">{{ o.name }}</option>
             </select>
           </div>
 
@@ -84,8 +84,7 @@
                             <div class="section-label" style="margin-top:12px;">EARNED IN</div>
                             <div class="panel earned-panel">
                               <button v-if="e.campaign" class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
-                              <button v-if="e.operation" class="link-chip op-chip" @click="openCampaign(e)">{{ e.operation }}</button>
-                              <span v-if="!e.campaign && !e.operation" class="meta-chip">MANUAL ENTRY</span>
+                              <span v-else class="meta-chip">MANUAL ENTRY</span>
                             </div>
                           </div>
                           </article>
@@ -107,6 +106,19 @@ import AwardRender from "@/components/AwardRender.vue";
 import { extractAwardCodes, normalizePersonKey, parseAwardsCell } from "@/utils/awards";
 
 const AWARD_ORDER = ["MOH", "CC", "LOM", "SS", "DMSR", "DFC", "BS", "JSC", "JSA", "CSA", "JMUR"];
+const AWARD_TITLES = {
+  MOH: "Medal of Honor",
+  CC: "Colonial Cross",
+  LOM: "Legion of Merit",
+  SS: "Silver Star",
+  DMSR: "Defense Meritorious Service Ribbon",
+  DFC: "Distinguished Flying Cross",
+  BS: "Bronze Star",
+  JSC: "Joint Service Commendation",
+  JSA: "Joint Service Achievement",
+  CSA: "Community Service Achievement",
+  JMUR: "Joint Meritorious Unit Ribbon",
+};
 const HOF_AUTO_MIN_CODE = "BS";
 const AUTO_HOF_CODES = new Set(
   AWARD_ORDER.slice(0, Math.max(0, AWARD_ORDER.indexOf(HOF_AUTO_MIN_CODE)) + 1)
@@ -417,18 +429,29 @@ export default {
   },
   computed: {
     awardOptions() {
-      const seen = new Set();
-      const out = [];
+      const present = new Set();
 
       for (const e of this.entries || []) {
         for (const c of e.codes || []) {
-          if (seen.has(c)) continue;
-          seen.add(c);
-          out.push(c);
+          const code = String(c || "").toUpperCase().trim();
+          if (code) present.add(code);
         }
       }
 
-      return out.sort();
+      const out = [];
+
+      for (const code of AWARD_ORDER) {
+        if (!present.has(code)) continue;
+        out.push({ code, name: AWARD_TITLES[code] || code });
+        present.delete(code);
+      }
+
+      // Any unknown/extra awards not in AWARD_ORDER get appended alphabetically.
+      for (const code of Array.from(present).sort()) {
+        out.push({ code, name: AWARD_TITLES[code] || code });
+      }
+
+      return out;
     },
     campaignOptions() {
       const seen = new Set();
@@ -453,14 +476,19 @@ export default {
         if (campaign && String(e.campaign || "") !== campaign) return false;
 
         if (!q) return true;
+        const awardNames = (e.codes || [])
+          .map((c) => {
+            const code = String(c || "").toUpperCase().trim();
+            return AWARD_TITLES[code] || code;
+          })
+          .join(" ");
 
         const hay = [
           e.trooper,
           e.unit,
           e.award,
+          awardNames,
           e.campaign,
-          e.operation,
-          e.date,
           (e.codes || []).join(" "),
         ]
           .map((x) => String(x || "").toLowerCase())
@@ -513,13 +541,11 @@ export default {
       if (op) this.search = op;
     },
     openCampaign(e) {
-      if (!e?.campaign && !e?.operation) return;
+      if (!e?.campaign) return;
       this.$router.push({
         name: "CampaignLog",
         query: {
           campaign: e?.campaign || undefined,
-          operation: e?.operation || undefined,
-          opId: e?.opId || undefined,
         },
       });
     },
