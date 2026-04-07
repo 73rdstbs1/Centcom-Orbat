@@ -77,14 +77,15 @@
                             <div class="section-label">AWARD</div>
                             <div class="panel award-panel">
                               <div class="award-codes">
-                                <AwardRender :value="e.awardText || e.award" :link="true" />
+                                <AwardRender :codes="e.codes" :links="e.awardLinks" />
                               </div>
                             </div>
 
                             <div class="section-label" style="margin-top:12px;">EARNED IN</div>
                             <div class="panel earned-panel">
                               <button v-if="e.campaign" class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
-                              <span v-else class="meta-chip">MANUAL ENTRY</span>
+                              <button v-if="e.operation" class="link-chip op-chip" @click="openCampaign(e)">{{ e.operation }}</button>
+                              <span v-if="!e.campaign && !e.operation" class="meta-chip">MANUAL ENTRY</span>
                             </div>
                           </div>
                           </article>
@@ -103,22 +104,9 @@
 <script>
 import { getConfig } from "@/config/runtimeConfig";
 import AwardRender from "@/components/AwardRender.vue";
-import { extractAwardCodes, normalizePersonKey, parseAwardsCell } from "@/utils/awards";
+import { extractAwardCodes, normalizePersonKey, parseAwardsCell, AWARD_DISPLAY_NAMES, parseAwardCodesList, parseAwardLinksList } from "@/utils/awards";
 
 const AWARD_ORDER = ["MOH", "CC", "LOM", "SS", "DMSR", "DFC", "BS", "JSC", "JSA", "CSA", "JMUR"];
-const AWARD_TITLES = {
-  MOH: "Medal of Honor",
-  CC: "Colonial Cross",
-  LOM: "Legion of Merit",
-  SS: "Silver Star",
-  DMSR: "Defense Meritorious Service Ribbon",
-  DFC: "Distinguished Flying Cross",
-  BS: "Bronze Star",
-  JSC: "Joint Service Commendation",
-  JSA: "Joint Service Achievement",
-  CSA: "Community Service Achievement",
-  JMUR: "Joint Meritorious Unit Ribbon",
-};
 const HOF_AUTO_MIN_CODE = "BS";
 const AUTO_HOF_CODES = new Set(
   AWARD_ORDER.slice(0, Math.max(0, AWARD_ORDER.indexOf(HOF_AUTO_MIN_CODE)) + 1)
@@ -275,7 +263,134 @@ async function loadRosterUnitMap(csvUrl) {
   }
 }
 
-async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap) {
+async function loadRosterAwardSequences(csvUrl) {
+  if (!csvUrl) return {};
+
+  const res = await fetch(csvUrl, { cache: "no-store" });
+  if (!res.ok) return {};
+
+  const text = await res.text();
+  const rows = rosterRowsToObjects(text);
+  if (!rows.length) return {};
+
+  const out = {};
+  let currentUnit = "UNASSIGNED";
+
+  for (let r = 0; r < rows.length; r += 1) {
+    const row = rows[r] || {};
+
+    if (isRosterUnitRow(row)) {
+      const parsed = parseRosterUnitHeader(row["NAMES"]);
+      currentUnit = parsed?.label || parsed?.full || currentUnit;
+      continue;
+    }
+
+    const trooper = normalizeStr(row["NAMES"]);
+    if (!trooper) continue;
+
+    const tKey = normalizePersonKey(trooper);
+    if (!tKey) continue;
+
+    const awardsRaw = normalizeStr(row["AWARDS"]);
+    const linksRaw = normalizeStr(row["AWARD LINKS"]);
+
+    if (!awardsRaw) continue;
+
+    const codes = parseAwardCodesList(awardsRaw);
+    if (!codes.length) continue;
+
+    const links = parseAwardLinksList(linksRaw);
+    const alignedLinks = codes.map((_, i) => links[i] || "");
+
+    out[tKey] = {
+      name: trooper,
+      unit: currentUnit || "UNASSIGNED",
+      codes,
+      links: alignedLinks,
+    };
+  }
+
+  return out;
+}
+
+function createAwardLinkResolver(rosterSeq) {
+  const used = {};
+
+  function resolve(tKey, code) {
+    const key = String(tKey || "").trim();
+    const c = String(code || "").toUpperCase().trim();
+    const seq = rosterSeq?.[key];
+    if (!seq || !c) return "";
+
+    const flags = used[key] || (used[key] = new Array(seq.codes.length).fill(false));
+    for (let i = 0; i < seq.codes.length; i += 1) {
+      if (flags[i]) continue;
+      if (String(seq.codes[i] || "").toUpperCase().trim() !== c) continue;
+
+      flags[i] = true;
+      return String(seq.links?.[i] || "").trim();
+    }
+
+    return "";
+  }
+
+  function leftovers(tKey) {
+    const key = String(tKey || "").trim();
+    const seq = rosterSeq?.[key];
+    if (!seq) return { codes: [], links: [], name: "", unit: "" };
+
+    const flags = used[key] || new Array(seq.codes.length).fill(false);
+    const codes = [];
+    const links = [];
+
+    for (let i = 0; i < seq.codes.length; i += 1) {
+      if (flags[i]) continue;
+      const c = String(seq.codes[i] || "").toUpperCase().trim();
+      if (!c) continue;
+      codes.push(c);
+      links.push(String(seq.links?.[i] || "").trim());
+    }
+
+    return { codes, links, name: seq.name, unit: seq.unit };
+  }
+
+  return { resolve, leftovers };
+}
+
+function buildManualEntriesFromRosterLeftovers(rosterSeq, resolver, rosterUnitMap) {
+  const out = [];
+  const keys = Object.keys(rosterSeq || {});
+
+  for (const k of keys) {
+    const lf = resolver.leftovers(k);
+    if (!lf.codes.length) continue;
+
+    const unit = normalizeStr(lf.unit) || normalizeStr(rosterUnitMap?.[k] || "") || "UNASSIGNED";
+    const trooper = normalizeStr(lf.name) || "UNKNOWN";
+
+    out.push({
+      id: `manual_roster__${k}`,
+      campaign: "",
+      operation: "",
+      date: "",
+      ts: 0,
+      unit,
+      trooper,
+      award: lf.codes.join(" "),
+      awardText: lf.codes.join(" / "),
+      codes: lf.codes,
+      awardLinks: lf.links,
+      opId: "",
+      source: "manual",
+    });
+  }
+
+  return out;
+}
+
+
+
+async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap, resolveAwardLink) {
   if (!csvUrl) return [];
   const res = await fetch(csvUrl, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to fetch operations CSV (${res.status})`);
@@ -324,6 +439,8 @@ async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap) {
       if (!codes.length) continue;
       const awardText = codes.join(" / ");
 
+      const awardLinks = typeof resolveAwardLink === "function" ? codes.map((c) => resolveAwardLink(nameKey, c)) : [];
+
       out.push({
         id: `${key}__${r}__${i}`,
         campaign: currentCampaign,
@@ -335,6 +452,7 @@ async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap) {
         award,
         awardText,
         codes,
+        awardLinks,
         opId: `${key}__${r}`,
       });
     }
@@ -428,30 +546,35 @@ export default {
     };
   },
   computed: {
-    awardOptions() {
-      const present = new Set();
+    
+awardOptions() {
+  const seen = new Set();
+  const out = [];
 
-      for (const e of this.entries || []) {
-        for (const c of e.codes || []) {
-          const code = String(c || "").toUpperCase().trim();
-          if (code) present.add(code);
-        }
-      }
+  for (const e of this.entries || []) {
+    for (const c of e.codes || []) {
+      const code = String(c || "").toUpperCase().trim();
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      out.push(code);
+    }
+  }
 
-      const out = [];
+  // Prefer “value” ordering if possible, otherwise alphabetical.
+  out.sort((a, b) => {
+    const ia = AWARD_ORDER.indexOf(a);
+    const ib = AWARD_ORDER.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);
+  });
 
-      for (const code of AWARD_ORDER) {
-        if (!present.has(code)) continue;
-        out.push({ code, name: AWARD_TITLES[code] || code });
-        present.delete(code);
-      }
-
-      // Any unknown/extra awards not in AWARD_ORDER get appended alphabetically.
-      for (const code of Array.from(present).sort()) {
-        out.push({ code, name: AWARD_TITLES[code] || code });
-      }
-
-      return out;
+  return out.map((code) => ({
+    code,
+    name: AWARD_DISPLAY_NAMES?.[code] || code,
+  }));
+},
     },
     campaignOptions() {
       const seen = new Set();
@@ -476,19 +599,14 @@ export default {
         if (campaign && String(e.campaign || "") !== campaign) return false;
 
         if (!q) return true;
-        const awardNames = (e.codes || [])
-          .map((c) => {
-            const code = String(c || "").toUpperCase().trim();
-            return AWARD_TITLES[code] || code;
-          })
-          .join(" ");
 
         const hay = [
           e.trooper,
           e.unit,
           e.award,
-          awardNames,
           e.campaign,
+          e.operation,
+          e.date,
           (e.codes || []).join(" "),
         ]
           .map((x) => String(x || "").toLowerCase())
@@ -510,10 +628,16 @@ export default {
         "";
 
       this.rosterUnitMap = await loadRosterUnitMap(rosterUrl);
-      const autoEntries = await loadAwardsFromOperationsCsv(opsUrl, this.rosterUnitMap);
-      const manualEntries = await loadManualAwardsFromRosterCsv(rosterUrl, this.rosterUnitMap, autoEntries);
+const rosterSeq = await loadRosterAwardSequences(rosterUrl);
+const resolver = createAwardLinkResolver(rosterSeq);
 
-      this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (a.ts || 0));
+// Allocate certificate links for auto entries first (ops awards).
+const autoEntries = await loadAwardsFromOperationsCsv(opsUrl, this.rosterUnitMap, resolver.resolve);
+
+// Any awards not represented by ops (or filtered out by threshold) show as manual entries from the roster.
+const manualEntries = buildManualEntriesFromRosterLeftovers(rosterSeq, resolver, this.rosterUnitMap);
+
+this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (a.ts || 0));
 
       this.applyRouteFilters();
       this.loading = false;
@@ -739,7 +863,7 @@ export default {
 .award-icons{
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   padding-top: 2px;
   flex: 0 0 auto;
 }
