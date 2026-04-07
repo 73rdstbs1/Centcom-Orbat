@@ -2,85 +2,103 @@
 /**
  * Awards parsing + rendering helpers.
  *
- * Sheets formats supported:
+ * Supported formats:
  * 1) Operations.AWARDS cell:
- *    "Trooper - AwardCode / Trooper - AwardCode"
+ *    "Trooper - CODE / Unit - Trooper - CODE"
  *
- * 2) Member.AWARDS cell:
- *    "MOH / LOM / DFC"
+ * 2) Roster.AWARDS cell:
+ *    "MOH SS BS" or "MOH, SS, BS"
+ *
+ * 3) Roster.AWARD LINKS cell (per-award certificate links, same order as AWARDS):
+ *    "https://... https://... https://..."
  *
  * Award icons are expected at: /public/awards/<CODE>.svg
  */
 
 export const KNOWN_AWARD_CODES = [
-  // Joint Meritorious Unit Ribbon
   "JMUR",
-  // Community Service Achievement 
   "CSA",
-  // Joint Service Achievement 
   "JSA",
-  // Joint Service Commendation
   "JSC",
-  // Bronze Star
   "BS",
-  // Distinguished Flying Cross
   "DFC",
-  // Defense Meritorious Service Ribbon
   "DMSR",
-  // Silver Star
   "SS",
-  // Legion of Merit
   "LOM",
-  // Colonial Cross
   "CC",
-  // Medal of Honor
   "MOH",
 ];
 
-const AWARD_CODE_RE = new RegExp(`\\b(${KNOWN_AWARD_CODES.join("|")})\\b`, "gi");
+export const AWARD_CODE_ALIASES = {
+  // legacy/alternate codes
+  JMUA: "JMUR",
+  CMUR: "JMUR",
+  JCOM: "JSC",
+  JSAM: "JSA",
+  DMSM: "DMSR",
+};
+
+export const AWARD_DISPLAY_NAMES = {
+  JMUR: "Joint Meritorious Unit Ribbon",
+  CSA: "Community Service Achievement",
+  JSA: "Joint Service Achievement",
+  JSC: "Joint Service Commendation",
+  BS: "Bronze Star",
+  DFC: "Distinguished Flying Cross",
+  DMSR: "Defense Meritorious Service Ribbon",
+  SS: "Silver Star",
+  LOM: "Legion of Merit",
+  CC: "Colonial Cross",
+  MOH: "Medal of Honor",
+};
+
+const KNOWN_SET = new Set(KNOWN_AWARD_CODES);
+
+export function canonicalizeAwardCode(code) {
+  const raw = String(code ?? "").toUpperCase().trim();
+  if (!raw) return "";
+  const mapped = AWARD_CODE_ALIASES[raw] || raw;
+  return KNOWN_SET.has(mapped) ? mapped : "";
+}
+
+const ALL_CODES = Array.from(
+  new Set([...KNOWN_AWARD_CODES, ...Object.keys(AWARD_CODE_ALIASES)])
+);
+
+const AWARD_CODE_RE = new RegExp(`\\b(${ALL_CODES.join("|")})\\b`, "gi");
 
 export function awardIconUrl(code) {
-  const c = String(code ?? "").toUpperCase().trim();
+  const c = canonicalizeAwardCode(code);
   return c ? `/awards/${c}.svg` : "";
 }
 
 /**
- * Award info pages (e.g. Google Sheet pages).
- *
- * Set these to your real URLs when ready.
- * Tip: if all awards live in one Sheet, you can set VITE_AWARDS_INFO_URL and
- *       links will fall back to: `${VITE_AWARDS_INFO_URL}?award=<CODE>`
+ * Generic award info pages (optional).
+ * If you no longer want generic links (because every award has its own certificate URL),
+ * you can leave these blank.
  */
-export const AWARD_PAGE_URLS = {
-  JMUR: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=MOH_GID",
-  CSA: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=CC_GID",
-  JSA: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=LOM_GID",
-  JSC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=SS_GID",
-  BS: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=DMSM_GID",
-  DFC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=DFC_GID",
-  DMSR: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=BS_GID",
-  SS: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JSAM_GID",
-  LOM: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=CSA_GID",
-  CC: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JMUA_GID",
-  MOH: "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit#gid=JMUA_GID",
-};
+export const AWARD_PAGE_URLS = {};
 
 export function awardPageUrl(code) {
-  const c = String(code ?? "").toUpperCase().trim();
+  const c = canonicalizeAwardCode(code);
   if (!c) return "";
 
-  const direct = AWARD_PAGE_URLS[c];
+  const direct = AWARD_PAGE_URLS?.[c];
   if (direct) return direct;
 
-  // Optional single-sheet fallback:
-  //   VITE_AWARDS_INFO_URL="https://docs.google.com/spreadsheets/d/<id>/edit"
   const base = (import.meta?.env?.VITE_AWARDS_INFO_URL || "").trim();
-  if (!base) return "";
+  if (base) {
+    const join = base.includes("?") ? "&" : "?";
+    return `${base}${join}award=${encodeURIComponent(c)}`;
+  }
 
-  const sep = base.includes("?") ? "&" : "?";
-  return `${base}${sep}award=${encodeURIComponent(c)}`;
+  return "";
 }
 
+/**
+ * Extract codes anywhere inside a string (deduped, in first-seen order).
+ * Good for free-form text like "Medal of Honor (MOH)".
+ */
 export function extractAwardCodes(text) {
   const s = String(text ?? "");
   if (!s.trim()) return [];
@@ -90,13 +108,44 @@ export function extractAwardCodes(text) {
 
   let m;
   while ((m = AWARD_CODE_RE.exec(s)) !== null) {
-    const code = String(m[1] ?? "").toUpperCase();
+    const code = canonicalizeAwardCode(m[1]);
     if (!code || seen.has(code)) continue;
     seen.add(code);
     out.push(code);
   }
 
   return out;
+}
+
+/**
+ * Parse a roster-style awards list (ordered, duplicates preserved).
+ * Example: "MOH SS BS" or "MOH, SS, BS"
+ */
+export function parseAwardCodesList(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return [];
+
+  const tokens = s
+    .split(/[\s,\/;|\n\t]+/g)
+    .map((t) => String(t || "").replace(/[^A-Za-z0-9]/g, "").trim())
+    .filter(Boolean);
+
+  const out = [];
+  for (const t of tokens) {
+    const c = canonicalizeAwardCode(t);
+    if (c) out.push(c);
+  }
+  return out;
+}
+
+/**
+ * Parse a roster-style links list (ordered).
+ * Example: "link1 link2 link3" or "link1, link2, link3"
+ */
+export function parseAwardLinksList(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return [];
+  return s.split(/[\s,]+/g).map((x) => String(x || "").trim()).filter(Boolean);
 }
 
 export function normalizePersonKey(name) {
@@ -108,6 +157,26 @@ export function normalizePersonKey(name) {
   if (parts.length > 1 && /^[A-Z0-9]{2,6}\.?$/.test(parts[0])) parts.shift();
 
   return parts.join(" ").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+export function dedupeAwards(entries) {
+  const seen = new Set();
+  const out = [];
+
+  for (const e of Array.isArray(entries) ? entries : []) {
+    const unit = String(e?.unit ?? "").trim();
+    const trooper = String(e?.trooper ?? "").trim();
+    const award = String(e?.award ?? "").trim();
+    if (!trooper || !award) continue;
+
+    const key = `${normalizePersonKey(trooper)}|${award.toLowerCase()}|${unit.toLowerCase()}`;
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    out.push({ unit, trooper, award });
+  }
+
+  return out;
 }
 
 export function parseAwardsCell(raw) {
@@ -160,26 +229,6 @@ export function parseAwardsCell(raw) {
   }
 
   return dedupeAwards(out);
-}
-
-export function dedupeAwards(entries) {
-  const seen = new Set();
-  const out = [];
-
-  for (const e of Array.isArray(entries) ? entries : []) {
-    const unit = String(e?.unit ?? "").trim();
-    const trooper = String(e?.trooper ?? "").trim();
-    const award = String(e?.award ?? "").trim();
-    if (!trooper || !award) continue;
-
-    const key = `${normalizePersonKey(trooper)}|${award.toLowerCase()}|${unit.toLowerCase()}`;
-    if (seen.has(key)) continue;
-
-    seen.add(key);
-    out.push({ unit, trooper, award });
-  }
-
-  return out;
 }
 
 export function splitAwardsText(raw) {
