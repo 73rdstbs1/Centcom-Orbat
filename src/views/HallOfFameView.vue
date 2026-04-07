@@ -84,8 +84,7 @@
                             <div class="section-label" style="margin-top:12px;">EARNED IN</div>
                             <div class="panel earned-panel">
                               <button v-if="e.campaign" class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
-                              <button v-if="e.operation" class="link-chip op-chip" @click="openCampaign(e)">{{ e.operation }}</button>
-                              <span v-if="!e.campaign && !e.operation" class="meta-chip">MANUAL ENTRY</span>
+                              <span v-else class="meta-chip">MANUAL ENTRY</span>
                             </div>
                           </div>
                           </article>
@@ -545,78 +544,76 @@ export default {
       rosterUnitMap: {},
     };
   },
-  computed: {
-    
-awardOptions() {
-  const seen = new Set();
-  const out = [];
-
-  for (const e of this.entries || []) {
-    for (const c of e.codes || []) {
-      const code = String(c || "").toUpperCase().trim();
-      if (!code || seen.has(code)) continue;
-      seen.add(code);
-      out.push(code);
-    }
-  }
-
-  // Prefer “value” ordering if possible, otherwise alphabetical.
-  out.sort((a, b) => {
-    const ia = AWARD_ORDER.indexOf(a);
-    const ib = AWARD_ORDER.indexOf(b);
-    if (ia !== -1 && ib !== -1) return ia - ib;
-    if (ia !== -1) return -1;
-    if (ib !== -1) return 1;
-    return a.localeCompare(b);
-  });
-
-  return out.map((code) => ({
-    code,
-    name: AWARD_DISPLAY_NAMES?.[code] || code,
-  }));
-},
-    },
-    campaignOptions() {
+    computed: {
+    awardOptions() {
       const seen = new Set();
       const out = [];
 
       for (const e of this.entries || []) {
-        const c = String(e.campaign || "").trim();
-        if (!c || seen.has(c)) continue;
-        seen.add(c);
-        out.push(c);
+        for (const c of e.codes || []) {
+          const code = String(c || "").toUpperCase().trim();
+          if (!code || seen.has(code)) continue;
+          seen.add(code);
+          out.push(code);
+        }
       }
 
-      return out.sort((a, b) => a.localeCompare(b));
-    },
-    filteredEntries() {
-      const q = this.search.trim().toLowerCase();
-      const award = String(this.awardCode || "").trim().toUpperCase();
-      const campaign = String(this.campaignName || "").trim();
-
-      return (this.entries || []).filter((e) => {
-        if (award && !(e.codes || []).includes(award)) return false;
-        if (campaign && String(e.campaign || "") !== campaign) return false;
-
-        if (!q) return true;
-
-        const hay = [
-          e.trooper,
-          e.unit,
-          e.award,
-          e.campaign,
-          e.operation,
-          e.date,
-          (e.codes || []).join(" "),
-        ]
-          .map((x) => String(x || "").toLowerCase())
-          .join(" | ");
-
-        return hay.includes(q);
+      // Prefer “value” ordering if possible, otherwise alphabetical.
+      out.sort((a, b) => {
+        const ia = AWARD_ORDER.indexOf(a);
+        const ib = AWARD_ORDER.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b);
       });
+
+      return out.map((code) => ({
+        code,
+        name: AWARD_DISPLAY_NAMES?.[code] || code,
+      }));
     },
+    campaignOptions() {
+          const seen = new Set();
+          const out = [];
+
+          for (const e of this.entries || []) {
+            const c = String(e.campaign || "").trim();
+            if (!c || seen.has(c)) continue;
+            seen.add(c);
+            out.push(c);
+          }
+
+          return out.sort((a, b) => a.localeCompare(b));
+        },
+    filteredEntries() {
+          const q = this.search.trim().toLowerCase();
+          const award = String(this.awardCode || "").trim().toUpperCase();
+          const campaign = String(this.campaignName || "").trim();
+
+          return (this.entries || []).filter((e) => {
+            if (award && !(e.codes || []).includes(award)) return false;
+            if (campaign && String(e.campaign || "") !== campaign) return false;
+
+            if (!q) return true;
+
+            const hay = [
+              e.trooper,
+              e.unit,
+              e.award,
+              e.campaign,
+              e.operation,
+              e.date,
+              (e.codes || []).join(" "),
+            ]
+              .map((x) => String(x || "").toLowerCase())
+              .join(" | ");
+
+            return hay.includes(q);
+          });
+        },
   },
-  async mounted() {
+async mounted() {
     const cfg = getConfig() || {};
     const opsUrl = cfg?.sheets?.operationsCsvUrl || cfg?.sheets?.opsCsvUrl || "";
 
@@ -659,10 +656,7 @@ this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (
     applyRouteFilters() {
       const q = this.$route?.query || {};
       const camp = String(q.campaign || "").trim();
-      const op = String(q.operation || "").trim();
-
       if (camp && this.campaignOptions.includes(camp)) this.campaignName = camp;
-      if (op) this.search = op;
     },
     openCampaign(e) {
       if (!e?.campaign) return;
@@ -920,7 +914,7 @@ this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (
   justify-content: center;
   flex-wrap: wrap;
   gap: 12px;
-  min-height: 48px;
+  min-height: 64px;
 }
 
 .award-codes :deep(.award-render){
@@ -929,9 +923,9 @@ this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (
   flex-wrap: wrap;
 }
 .award-codes :deep(.award-icon){
-  height: clamp(22px, 2.6vw, 34px);
+  height: clamp(30px, 3.2vw, 54px);
   width: auto;
-  max-width: 140px;
+  max-width: 190px;
   object-fit: contain;
   filter: drop-shadow(0 6px 10px rgba(0,0,0,0.45));
 }
