@@ -77,7 +77,7 @@
                             <div class="section-label">AWARD</div>
                             <div class="panel award-panel">
                               <div class="award-codes">
-                                <AwardRender :codes="e.codes" :links="e.awardLinks" />
+                                <AwardRender :codes="e.codes" :links="e.awardLinks" :size="44" />
                               </div>
                             </div>
 
@@ -913,8 +913,8 @@ this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 12px;
-  min-height: 64px;
+  gap: 14px;
+  min-height: 84px;
 }
 
 .award-codes :deep(.award-render){
