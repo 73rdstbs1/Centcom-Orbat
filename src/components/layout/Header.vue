@@ -37,7 +37,7 @@
         </div>
       </div>
 
-      <!-- RIGHT: Active campaign details (from Operations CSV -> campaign.json) -->
+      <!-- RIGHT: Active campaign details (from Operations CSV -> campaign.js) -->
       <div v-if="showCampaignPanel" class="planet-location-container">
         <div class="location-info" aria-label="Current AO details">
           <div class="meta-grid">
@@ -93,7 +93,6 @@
 </template>
 
 <script>
-import { parseJsonc } from "@/utils/jsonc";
 /**
  * Header.vue
  *
@@ -101,7 +100,7 @@ import { parseJsonc } from "@/utils/jsonc";
  * - RefData CSV: reads "Header details:" cell (expects Active | Training | Rearming)
  * - Operations CSV: finds first row with STATUS == "Active"
  *     -> links to CAMPAIGN NAME by carrying-forward the last non-empty CAMPAIGN NAME above
- *     -> loads matching src/campaigns/<campaign>/campaign.json (matches by id/name/folder)
+ *     -> loads matching src/campaigns/<campaign>/campaign.js (matches by id/name/folder)
  *
  * Notes:
  * - Vite 6: use import.meta.glob with query '?raw' (NOT `as: 'raw'`)
@@ -109,9 +108,8 @@ import { parseJsonc } from "@/utils/jsonc";
 import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
+const CAMPAIGN_MODULES = import.meta.glob("/src/campaigns/**/campaign.js", {
   eager: true,
-  query: "?raw",
   import: "default",
 });
 
@@ -123,14 +121,6 @@ const defaultNewsItems = [
   "SYSTEM NOTICE: Training rotations updated. Check your squad channel for timings.",
   "BREAKING: Marine promoted after surviving three drops and one briefing.",
 ];
-
-function safeJson(raw) {
-  try {
-    return parseJsonc(String(raw || ""));
-  } catch {
-    return null;
-  }
-}
 
 function csvSplit(line) {
   const out = [];
@@ -201,13 +191,12 @@ function folderFromCampaignPath(path) {
 
 function loadAllCampaigns() {
   const out = [];
-  for (const [path, raw] of Object.entries(CAMPAIGN_JSON)) {
-    const json = safeJson(raw);
-    if (!json) continue;
+  for (const [path, campaign] of Object.entries(CAMPAIGN_MODULES)) {
+    if (!campaign || typeof campaign !== "object") continue;
     out.push({
       __path: path,
       __folder: folderFromCampaignPath(path),
-      ...json,
+      ...campaign,
     });
   }
   return out;
