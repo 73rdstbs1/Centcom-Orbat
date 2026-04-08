@@ -93,6 +93,7 @@
 </template>
 
 <script>
+import { parseJsonc } from "@/utils/jsonc";
 /**
  * Header.vue
  *
@@ -125,7 +126,7 @@ const defaultNewsItems = [
 
 function safeJson(raw) {
   try {
-    return JSON.parse(String(raw || ""));
+    return parseJsonc(String(raw || ""));
   } catch {
     return null;
   }
