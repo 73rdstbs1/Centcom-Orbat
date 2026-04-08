@@ -122,45 +122,75 @@ const defaultNewsItems = [
   "BREAKING: Marine promoted after surviving three drops and one briefing.",
 ];
 
-function csvSplit(line) {
-  const out = [];
-  let cur = "";
-  let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQ && line[i + 1] === '"') {
-        cur += '"';
-        i++;
+
+function parseCsv(raw) {
+  const text = String(raw || "");
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inQuotes) {
+      if (ch === '"') {
+        const next = text[i + 1];
+        if (next === '"') {
+          cell += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
       } else {
-        inQ = !inQ;
+        cell += ch;
       }
       continue;
     }
-    if (ch === "," && !inQ) {
-      out.push(cur);
-      cur = "";
+
+    if (ch === '"') {
+      inQuotes = true;
       continue;
     }
-    cur += ch;
-  }
-  out.push(cur);
-  return out.map((s) => String(s ?? "").trim());
-}
 
-function parseCsv(raw) {
-  const text = String(raw || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = text.split("\n").filter((l) => l.trim().length);
-  if (!lines.length) return [];
-  const header = csvSplit(lines[0]).map((h) => h.trim());
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = csvSplit(lines[i]);
-    const obj = {};
-    for (let j = 0; j < header.length; j++) obj[header[j]] = cols[j] ?? "";
-    rows.push(obj);
+    if (ch === ",") {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if (ch === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    if (ch === "\r") continue;
+
+    cell += ch;
   }
-  return rows;
+
+  row.push(cell);
+  rows.push(row);
+
+  const cleanRows = rows.filter((r) => r.some((c) => String(c || "").trim() !== ""));
+  if (!cleanRows.length) return [];
+
+  const header = cleanRows[0].map((h) => String(h || "").trim());
+  const out = [];
+
+  for (let i = 1; i < cleanRows.length; i++) {
+    const cols = cleanRows[i];
+    const obj = {};
+    for (let j = 0; j < header.length; j++) {
+      obj[header[j]] = String(cols[j] ?? "").trim();
+    }
+    out.push(obj);
+  }
+
+  return out;
 }
 
 function norm(s) {
@@ -302,8 +332,8 @@ async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
     const findCol = (labels) =>
       headers.find((h) => labels.some((lbl) => headerKeyMatch(h) === headerKeyMatch(lbl))) || null;
 
-    const colCampaign = findCol(["campaign name", "campaign", "campaign_name"]);
-    const colStatus = findCol(["status", "op status", "operation status"]);
+    const colCampaign = findCol(["campaign name", "campaign", "campaign_name", "campaign title"]);
+    const colStatus = findCol(["status", "op status", "operation status", "current status"]);
     if (!colCampaign || !colStatus) return null;
 
     const colSystem = findCol(["system"]);
@@ -382,6 +412,7 @@ export default {
       unsub: null,
 
       headerStatus: "",
+      activeCampaignLocal: null,
 
       tickerKey: 0,
       tickerSequence: "",
@@ -442,7 +473,7 @@ export default {
     },
 
     activeCampaign() {
-      return this.activeCampaignStore?.activeCampaign || null;
+      return this.activeCampaignLocal || this.activeCampaignStore?.activeCampaign || null;
     },
     showCampaignPanel() {
       return !!this.activeCampaign;
@@ -487,6 +518,7 @@ export default {
       getConfig().sheets?.operationsPageCsvUrl ||
       "";
     const activeCampaign = await detectActiveCampaignFromOperationsCsv(operationsUrl);
+    this.activeCampaignLocal = activeCampaign;
     if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = activeCampaign;
 
     this.startTicker();
