@@ -87,15 +87,15 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: var(--award-icon-size, 18px);
+  min-height: var(--award-icon-size, 24px);
   flex-wrap: wrap;
 }
 .award-link {
   display: inline-flex;
 }
 .award-icon {
-  width: var(--award-icon-size, 18px);
-  height: var(--award-icon-size, 18px);
+  width: var(--award-icon-size, 24px);
+  height: var(--award-icon-size, 24px);
   object-fit: contain;
 }
 .award-text {
