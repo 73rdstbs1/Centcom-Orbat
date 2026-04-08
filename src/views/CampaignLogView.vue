@@ -309,7 +309,7 @@
               </div>
 
               <div class="ops-help muted">
-                Tip: “COMMAND” and “AWARDS” are linked by simple IDs in campaign.json so they’re easy to swap.
+                Tip: operations are pulled from the Google Sheet, so adding a new row there updates this list automatically.
               </div>
             </div>
 
@@ -332,14 +332,13 @@ import { getConfig } from "@/config/runtimeConfig";
 import AwardRender from "@/components/AwardRender.vue";
 import { normalizePersonKey, parseAwardsCell } from "@/utils/awards";
 import { playMenuClick } from "@/utils/sfx";
-import { parseJsonc } from "@/utils/jsonc";
 
 /**
  * Content-driven campaign loader.
  *
  * Folder model:
  *   src/campaigns/<campaignFolder>/
- *     campaign.json
+ *     campaign.js
  *     operations/<op>.md (optional legacy)
  *
  * Operations (NEW):
@@ -356,19 +355,11 @@ import { parseJsonc } from "@/utils/jsonc";
  *     - optional label via "Label|https://..." (pipe-separated) per link
  * - If a link cell can't be parsed into URLs, it is ignored.
  *
- * Legacy fallback (if no CSV configured or fetch fails):
- * - campaign.json `operationsIndex[]` plus optional md overrides.
+ * Operations are loaded from the Google Sheets CSV. If no CSV is configured,
+ * campaigns still load, but their operations list will remain empty.
  */
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", { eager: true, query: "?raw", import: "default" });
+const CAMPAIGN_MODULES = import.meta.glob("/src/campaigns/**/campaign.js", { eager: true, import: "default" });
 const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { eager: true, query: "?raw", import: "default" });
-
-function safeJson(raw) {
-  try {
-    return parseJsonc(String(raw || ""));
-  } catch {
-    return null;
-  }
-}
 
 function normalizeStatus(s) {
   const v = String(s || "").trim().toLowerCase();
@@ -928,49 +919,24 @@ async function loadRosterUnitMap(csvUrl) {
 }
 
 function loadCampaignsFromContent() {
-  const mdIndex = buildOpMdIndex();
-
-  return Object.entries(CAMPAIGN_JSON)
-    .map(([path, raw]) => {
+  return Object.entries(CAMPAIGN_MODULES)
+    .map(([path, campaign]) => {
       const folder = campaignFolderFromPath(path);
-      const json = safeJson(raw);
-      if (!json || !folder) return null;
+      if (!campaign || typeof campaign !== "object" || !folder) return null;
 
-      const ops = (json.operationsIndex || []).map((op) => {
-        const file = String(op.file || "").trim();
-        const mdKey = file ? `${folder}/${file}` : "";
-        const mdRaw = mdKey && mdIndex[mdKey] ? mdIndex[mdKey] : null;
-        const meta = mdRaw ? parseOpMdMeta(mdRaw) : {};
-
-        return {
-          id: op.id || file || op.title,
-          title: op.title || "—",
-          date: meta.date || op.date || "",
-          status: normalizeStatus(meta.status || op.status),
-          opordTitle: op.opordTitle || meta.opord_title || "",
-          opordUrl: op.opordUrl || meta.opord_url || "",
-          opordSummary: op.opordSummary || "",
-
-          commandersRef: op.commandersRef || meta.commanders_ref || "",
-          hallOfFameRef: op.hallOfFameRef || meta.hall_of_fame_ref || "",
-
-          file,
-        };
-      });
-
-      const commandRoster = normalizeCommandRoster(json.commandRoster || buildCommandRosterFromCommand(json));
-      const derivedOrgChart = deriveOrgChartFromTaskForces({ ...json, commandRoster });
+      const commandRoster = normalizeCommandRoster(campaign.commandRoster || buildCommandRosterFromCommand(campaign));
+      const derivedOrgChart = deriveOrgChartFromTaskForces({ ...campaign, commandRoster });
       const orgChart =
-        json.orgChart && Array.isArray(json.orgChart.taskUnits) && json.orgChart.taskUnits.length
-          ? json.orgChart
+        campaign.orgChart && Array.isArray(campaign.orgChart.taskUnits) && campaign.orgChart.taskUnits.length
+          ? campaign.orgChart
           : derivedOrgChart;
 
       return {
-        ...json,
-        id: json.id || folder,
-        status: normalizeStatus(json.status),
-        operations: ops,
-        orgChart: orgChart || json.orgChart || null,
+        ...campaign,
+        id: campaign.id || folder,
+        status: normalizeStatus(campaign.status),
+        operations: [],
+        orgChart: orgChart || campaign.orgChart || null,
         commandRoster,
       };
     })
@@ -1074,7 +1040,7 @@ export default {
       this._opsCsvLoaded = true;
       this.applyRouteFocus();
     } catch (e) {
-      // Silent fallback to campaign.json ops
+      // Silent fallback to empty operations until the CSV loads
       // (You can surface this in UI later if you want)
       this._opsCsvLoaded = false;
       this.applyRouteFocus();
