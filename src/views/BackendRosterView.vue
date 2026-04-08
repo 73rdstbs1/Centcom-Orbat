@@ -71,7 +71,7 @@
               <div v-for="(m, idx) in g.members" :key="m._key || idx" class="row">
                 <div class="cell name">{{ m.name || "—" }}</div>
                 <div class="cell rank">{{ m.rank || "—" }}</div>
-                <div class="cell awards"><AwardRender :value="m.awards" /></div>
+                <div class="cell awards"><AwardRender :value="m.awards" :size="24" /></div>
                 <div class="cell details">{{ m.details || "—" }}</div>
               </div>
             </div>
@@ -763,7 +763,7 @@ export default {
 }
 
 .cell.details{ white-space: normal; overflow: visible; }
-.cell.awards{ white-space: normal; overflow: visible; }
+.cell.awards{ white-space: normal; overflow: visible; display: flex; align-items: center; }
 
 @media (max-width: 980px){
   .filters{ grid-template-columns: 1fr; }
