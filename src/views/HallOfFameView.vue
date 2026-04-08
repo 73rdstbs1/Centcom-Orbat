@@ -77,7 +77,7 @@
                             <div class="section-label">AWARD</div>
                             <div class="panel award-panel">
                               <div class="award-codes">
-                                <AwardRender :codes="e.codes" :links="e.awardLinks" :size="44" />
+                                <AwardRender :codes="e.codes" :links="e.awardLinks" :size="54" />
                               </div>
                             </div>
 
@@ -753,7 +753,7 @@ this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (
 
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
 
   flex: 1 1 auto;
   min-height: 0; /* critical so scroll child can shrink */
@@ -914,7 +914,7 @@ this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (
   justify-content: center;
   flex-wrap: wrap;
   gap: 14px;
-  min-height: 84px;
+  min-height: 110px;
 }
 
 .award-codes :deep(.award-render){
@@ -923,9 +923,9 @@ this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (
   flex-wrap: wrap;
 }
 .award-codes :deep(.award-icon){
-  height: clamp(30px, 3.2vw, 54px);
-  width: auto;
-  max-width: 190px;
+  height: 54px !important;
+  width: auto !important;
+  max-width: none !important;
   object-fit: contain;
   filter: drop-shadow(0 6px 10px rgba(0,0,0,0.45));
 }
