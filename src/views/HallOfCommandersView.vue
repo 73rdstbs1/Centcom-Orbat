@@ -283,6 +283,7 @@
 
 <script>
 import { playMenuClick } from "@/utils/sfx";
+import { parseJsonc } from "@/utils/jsonc";
 
 const PLACEHOLDER_PORTRAIT =
   "data:image/svg+xml;charset=utf-8," +
@@ -311,7 +312,7 @@ const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
 
 function safeJson(raw) {
   try {
-    return JSON.parse(String(raw || ""));
+    return parseJsonc(String(raw || ""));
   } catch {
     return null;
   }
