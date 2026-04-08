@@ -332,6 +332,7 @@ import { getConfig } from "@/config/runtimeConfig";
 import AwardRender from "@/components/AwardRender.vue";
 import { normalizePersonKey, parseAwardsCell } from "@/utils/awards";
 import { playMenuClick } from "@/utils/sfx";
+import { parseJsonc } from "@/utils/jsonc";
 
 /**
  * Content-driven campaign loader.
@@ -363,7 +364,7 @@ const OPERATION_MD = import.meta.glob("/src/campaigns/**/operations/*.md", { eag
 
 function safeJson(raw) {
   try {
-    return JSON.parse(String(raw || ""));
+    return parseJsonc(String(raw || ""));
   } catch {
     return null;
   }
