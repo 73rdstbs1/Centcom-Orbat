@@ -37,7 +37,7 @@
         </div>
       </div>
 
-      <!-- RIGHT: Active campaign details (from Operations CSV -> campaign.js) -->
+      <!-- RIGHT: Active campaign details (from Operations CSV -> campaign.json) -->
       <div v-if="showCampaignPanel" class="planet-location-container">
         <div class="location-info" aria-label="Current AO details">
           <div class="meta-grid">
@@ -93,6 +93,7 @@
 </template>
 
 <script>
+import { parseJsonc } from "@/utils/jsonc";
 /**
  * Header.vue
  *
@@ -100,7 +101,7 @@
  * - RefData CSV: reads "Header details:" cell (expects Active | Training | Rearming)
  * - Operations CSV: finds first row with STATUS == "Active"
  *     -> links to CAMPAIGN NAME by carrying-forward the last non-empty CAMPAIGN NAME above
- *     -> loads matching src/campaigns/<campaign>/campaign.js (matches by id/name/folder)
+ *     -> loads matching src/campaigns/<campaign>/campaign.json (matches by id/name/folder)
  *
  * Notes:
  * - Vite 6: use import.meta.glob with query '?raw' (NOT `as: 'raw'`)
@@ -108,8 +109,9 @@
 import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
-const CAMPAIGN_MODULES = import.meta.glob("/src/campaigns/**/campaign.js", {
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
   eager: true,
+  query: "?raw",
   import: "default",
 });
 
@@ -122,75 +124,53 @@ const defaultNewsItems = [
   "BREAKING: Marine promoted after surviving three drops and one briefing.",
 ];
 
+function safeJson(raw) {
+  try {
+    return parseJsonc(String(raw || ""));
+  } catch {
+    return null;
+  }
+}
 
-function parseCsv(raw) {
-  const text = String(raw || "");
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-
-    if (inQuotes) {
-      if (ch === '"') {
-        const next = text[i + 1];
-        if (next === '"') {
-          cell += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
+function csvSplit(line) {
+  const out = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i + 1] === '"') {
+        cur += '"';
+        i++;
       } else {
-        cell += ch;
+        inQ = !inQ;
       }
       continue;
     }
-
-    if (ch === '"') {
-      inQuotes = true;
+    if (ch === "," && !inQ) {
+      out.push(cur);
+      cur = "";
       continue;
     }
-
-    if (ch === ",") {
-      row.push(cell);
-      cell = "";
-      continue;
-    }
-
-    if (ch === "\n") {
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-      continue;
-    }
-
-    if (ch === "\r") continue;
-
-    cell += ch;
+    cur += ch;
   }
+  out.push(cur);
+  return out.map((s) => String(s ?? "").trim());
+}
 
-  row.push(cell);
-  rows.push(row);
-
-  const cleanRows = rows.filter((r) => r.some((c) => String(c || "").trim() !== ""));
-  if (!cleanRows.length) return [];
-
-  const header = cleanRows[0].map((h) => String(h || "").trim());
-  const out = [];
-
-  for (let i = 1; i < cleanRows.length; i++) {
-    const cols = cleanRows[i];
+function parseCsv(raw) {
+  const text = String(raw || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = text.split("\n").filter((l) => l.trim().length);
+  if (!lines.length) return [];
+  const header = csvSplit(lines[0]).map((h) => h.trim());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = csvSplit(lines[i]);
     const obj = {};
-    for (let j = 0; j < header.length; j++) {
-      obj[header[j]] = String(cols[j] ?? "").trim();
-    }
-    out.push(obj);
+    for (let j = 0; j < header.length; j++) obj[header[j]] = cols[j] ?? "";
+    rows.push(obj);
   }
-
-  return out;
+  return rows;
 }
 
 function norm(s) {
@@ -221,12 +201,13 @@ function folderFromCampaignPath(path) {
 
 function loadAllCampaigns() {
   const out = [];
-  for (const [path, campaign] of Object.entries(CAMPAIGN_MODULES)) {
-    if (!campaign || typeof campaign !== "object") continue;
+  for (const [path, raw] of Object.entries(CAMPAIGN_JSON)) {
+    const json = safeJson(raw);
+    if (!json) continue;
     out.push({
       __path: path,
       __folder: folderFromCampaignPath(path),
-      ...campaign,
+      ...json,
     });
   }
   return out;
@@ -342,38 +323,69 @@ async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
     const colYear = findCol(["year"]);
 
     let lastCampaign = "";
-    const lastMeta = { system: "", planet: "", ao: "", year: "", status: "" };
+    const byCampaignKey = new Map();
+    const campaignOrder = [];
 
     for (const r of rows) {
       const campCell = String(r[colCampaign] || "").trim();
       if (campCell) lastCampaign = campCell;
+
+      const campaignName = lastCampaign || campCell;
+      if (!campaignName) continue;
+
+      const key = normMatch(campaignName);
+      if (!key) continue;
+
+      if (!byCampaignKey.has(key)) {
+        byCampaignKey.set(key, {
+          campaignName,
+          system: "",
+          planet: "",
+          ao: "",
+          year: "",
+          status: "",
+          rowIndex: -1,
+        });
+        campaignOrder.push(key);
+      }
+
+      const entry = byCampaignKey.get(key);
+      entry.campaignName = campaignName || entry.campaignName;
 
       const sys = colSystem ? String(r[colSystem] || "").trim() : "";
       const pla = colPlanet ? String(r[colPlanet] || "").trim() : "";
       const ao = colAo ? String(r[colAo] || "").trim() : "";
       const yr = colYear ? String(r[colYear] || "").trim() : "";
 
-      if (sys) lastMeta.system = sys;
-      if (pla) lastMeta.planet = pla;
-      if (ao) lastMeta.ao = ao;
-      if (yr) lastMeta.year = yr;
+      if (sys) entry.system = sys;
+      if (pla) entry.planet = pla;
+      if (ao) entry.ao = ao;
+      if (yr) entry.year = yr;
 
-      const st = normalizeActiveStatus(r[colStatus]);
-      if (st === "active") {
-        lastMeta.status = "active";
-
-        const campaignName = lastCampaign || campCell;
-        if (!campaignName) return null;
-
-        const allCampaigns = loadAllCampaigns();
-        const campaign = findCampaignByName(allCampaigns, campaignName);
-        if (!campaign) return null;
-
-        return mergeCampaignWithMeta(campaign, lastMeta);
-      }
+      entry.status = normalizeActiveStatus(r[colStatus]);
+      entry.rowIndex += 1;
     }
 
-    return null;
+    if (!campaignOrder.length) return null;
+
+    const activeKeys = campaignOrder.filter((key) => byCampaignKey.get(key)?.status === "active");
+    if (!activeKeys.length) return null;
+
+    const selectedKey = activeKeys[activeKeys.length - 1];
+    const meta = byCampaignKey.get(selectedKey);
+    if (!meta?.campaignName) return null;
+
+    const allCampaigns = loadAllCampaigns();
+    const campaign = findCampaignByName(allCampaigns, meta.campaignName);
+    if (!campaign) return null;
+
+    return mergeCampaignWithMeta(campaign, {
+      system: meta.system,
+      planet: meta.planet,
+      ao: meta.ao,
+      year: meta.year,
+      status: meta.status,
+    });
   } catch {
     return null;
   }
@@ -412,7 +424,6 @@ export default {
       unsub: null,
 
       headerStatus: "",
-      activeCampaignLocal: null,
 
       tickerKey: 0,
       tickerSequence: "",
@@ -473,7 +484,7 @@ export default {
     },
 
     activeCampaign() {
-      return this.activeCampaignLocal || this.activeCampaignStore?.activeCampaign || null;
+      return this.activeCampaignStore?.activeCampaign || null;
     },
     showCampaignPanel() {
       return !!this.activeCampaign;
@@ -518,7 +529,6 @@ export default {
       getConfig().sheets?.operationsPageCsvUrl ||
       "";
     const activeCampaign = await detectActiveCampaignFromOperationsCsv(operationsUrl);
-    this.activeCampaignLocal = activeCampaign;
     if (this.activeCampaignStore) this.activeCampaignStore.activeCampaign = activeCampaign;
 
     this.startTicker();
