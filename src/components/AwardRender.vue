@@ -1,6 +1,6 @@
 <!-- FILE: src/components/AwardRender.vue -->
 <template>
-  <span class="award-render" :title="titleText">
+  <span class="award-render" :title="titleText" :style="{ '--award-icon-size': iconSize }">
     <template v-if="resolvedCodes.length">
       <template v-for="(c, idx) in resolvedCodes" :key="`${c}__${idx}`">
         <a
@@ -45,6 +45,8 @@ export default {
     codes: { type: Array, default: null },
     // Per-award certificate URLs aligned with `codes` (or parsed order).
     links: { type: Array, default: null },
+    // Size in pixels for each ribbon icon.
+    size: { type: [Number, String], default: 18 },
     // Fallback to generic award info pages when no `links[idx]` is present.
     link: { type: Boolean, default: false },
   },
@@ -60,6 +62,10 @@ export default {
     },
     titleText() {
       return String(this.value || "").trim();
+    },
+    iconSize() {
+      const n = Number(this.size);
+      return Number.isFinite(n) && n > 0 ? `${n}px` : "18px";
     },
   },
   methods: {
@@ -81,14 +87,15 @@ export default {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 18px;
+  min-height: var(--award-icon-size, 18px);
+  flex-wrap: wrap;
 }
 .award-link {
   display: inline-flex;
 }
 .award-icon {
-  width: 18px;
-  height: 18px;
+  width: var(--award-icon-size, 18px);
+  height: var(--award-icon-size, 18px);
   object-fit: contain;
 }
 .award-text {
