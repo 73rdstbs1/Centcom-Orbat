@@ -144,16 +144,21 @@
             <div v-if="activeCampaign.orgChart" class="orgchart">
               <div class="org-node root">
                 <div class="node-title">{{ activeCampaign.orgChart.taskForceName || "Task Force" }}</div>
-                <div v-if="activeCampaign.command?.commander" class="node-sub">
+                <div v-if="primaryCommander(activeCampaign)" class="node-sub">
                   <span class="muted">COMMANDER:</span>
-                  <span class="value">{{ activeCampaign.command.commander.name || "—" }}</span>
+                  <span class="value">{{ primaryCommander(activeCampaign).name || "—" }}</span>
                 </div>
 
-                <div v-if="activeCampaign.command?.subCommanders?.length" class="node-sub">
+                <div v-if="primaryDeputyCommander(activeCampaign)" class="node-sub">
+                  <span class="muted">DEPUTY:</span>
+                  <span class="value">{{ primaryDeputyCommander(activeCampaign).name || "—" }}</span>
+                </div>
+
+                <div v-if="primarySubCommanders(activeCampaign).length" class="node-sub">
                   <span class="muted">SUB-COMMANDER:</span>
-                  <span class="value">{{ (activeCampaign.command.subCommanders && activeCampaign.command.subCommanders[0] && activeCampaign.command.subCommanders[0].name) || "—" }}</span>
-                  <span class="muted">SUB-COMMANDER:</span>
-                  <span class="value">{{ (activeCampaign.command.subCommanders && activeCampaign.command.subCommanders[1] && activeCampaign.command.subCommanders[1].name) || "—" }}</span>
+                  <span class="value">{{ (primarySubCommanders(activeCampaign)[0] && primarySubCommanders(activeCampaign)[0].name) || "—" }}</span>
+                  <span v-if="primarySubCommanders(activeCampaign)[1]" class="muted">SUB-COMMANDER:</span>
+                  <span v-if="primarySubCommanders(activeCampaign)[1]" class="value">{{ primarySubCommanders(activeCampaign)[1].name || "—" }}</span>
                 </div>
 </div>
 
@@ -167,7 +172,12 @@
 
                   <div class="node-sub">
                     <span class="muted">COMMANDER:</span>
-                    <span class="value">{{ commanderLabel(activeCampaign, tu.commanderId) }}</span>
+                    <span class="value">{{ commanderLabel(activeCampaign, tu.commanderId, tu.commanderName) }}</span>
+                  </div>
+
+                  <div v-if="taskUnitDeputyRef(activeCampaign, tu) || taskUnitDeputyName(activeCampaign, tu)" class="node-sub">
+                    <span class="muted">DEPUTY:</span>
+                    <span class="value">{{ commanderLabel(activeCampaign, taskUnitDeputyRef(activeCampaign, tu), taskUnitDeputyName(activeCampaign, tu)) }}</span>
                   </div>
 
                   <div class="node-units">
@@ -463,20 +473,79 @@ function buildUnitPatchLookup(campaign) {
 function ensurePerson(obj, prefix) {
   if (!obj || typeof obj !== "object") return null;
   const name = toSafeString(obj.name || obj.fullName || obj.displayName);
+  if (!name) return null;
+
   const callsign = toSafeString(obj.callsign);
   const id =
     toSafeString(obj.id) ||
     (callsign ? `${prefix}_${normToken(callsign)}` : "") ||
     (name ? `${prefix}_${normToken(name)}` : "");
+
   return { ...obj, id, name, callsign };
 }
 
-function buildCommandRosterFromCommand(campaign) {
-  const cmd = ensurePerson(campaign?.command?.commander, "cmd");
-  const subs = Array.isArray(campaign?.command?.subCommanders)
-    ? campaign.command.subCommanders.map((x) => ensurePerson(x, "sub")).filter(Boolean)
+function ensureCommandRecord(obj, prefix) {
+  const person = ensurePerson(obj, prefix);
+  if (!person) return null;
+
+  const deputyCommander = ensurePerson(obj?.deputyCommander, `${prefix}_deputy`);
+  return deputyCommander ? { ...person, deputyCommander } : person;
+}
+
+function normalizeCommandRoster(roster = {}) {
+  if (!roster || typeof roster !== "object") return { commander: null, deputyCommander: null, subCommanders: [] };
+
+  const commander = ensureCommandRecord(roster.commander, "cmd");
+  const deputyCommander = ensurePerson(roster.deputyCommander, "dep");
+  const subCommanders = Array.isArray(roster.subCommanders)
+    ? roster.subCommanders.map((x, idx) => ensureCommandRecord(x, `sub_${idx}`)).filter(Boolean)
     : [];
-  return { commander: cmd, subCommanders: subs };
+
+  return { ...roster, commander, deputyCommander, subCommanders };
+}
+
+function buildCommandRosterFromCommand(campaign) {
+  return normalizeCommandRoster({
+    commander: campaign?.command?.commander,
+    deputyCommander: campaign?.command?.deputyCommander,
+    subCommanders: campaign?.command?.subCommanders,
+  });
+}
+
+function candidateTokens(values) {
+  return (Array.isArray(values) ? values : [values]).map((v) => normToken(v)).filter(Boolean);
+}
+
+function matchesCandidate(person, values) {
+  if (!person) return false;
+  const refs = candidateTokens(values);
+  if (!refs.length) return false;
+
+  const personTokens = candidateTokens([
+    person.id,
+    person.name,
+    person.unitName,
+    person.representsUnitId,
+  ]);
+
+  return refs.some((ref) => personTokens.includes(ref));
+}
+
+function findTaskUnitCommanderRecord(campaign, taskUnit) {
+  const roster = normalizeCommandRoster(campaign?.commandRoster || {});
+  const subCommanders = Array.isArray(roster?.subCommanders) ? roster.subCommanders : [];
+  if (!subCommanders.length) return null;
+
+  const refs = [
+    taskUnit?.commanderId,
+    taskUnit?.commanderName,
+    taskUnit?.commander,
+    taskUnit?.name,
+    taskUnit?.hqName,
+    taskUnit?.id,
+  ];
+
+  return subCommanders.find((person) => matchesCandidate(person, refs)) || null;
 }
 
 function normalizeUnitEntry(campaign, entry, patchLookup) {
@@ -537,6 +606,8 @@ function deriveOrgChartFromTaskForces(campaign) {
       const unitsRaw = Array.isArray(tf?.units) ? tf.units : [];
       const units = unitsRaw.map((u) => normalizeUnitEntry(campaign, u, patchLookup)).filter(Boolean);
 
+      const matchedCommander = findTaskUnitCommanderRecord(campaign, tf);
+
       return {
         id: toSafeString(tf?.id) || `div_${normToken(name)}`,
         name,
@@ -545,6 +616,25 @@ function deriveOrgChartFromTaskForces(campaign) {
           toSafeString(tf?.commanderId) ||
           toSafeString(tf?.commanderName) ||
           toSafeString(tf?.commander) ||
+          toSafeString(matchedCommander?.id) ||
+          toSafeString(matchedCommander?.name) ||
+          "",
+        commanderName:
+          toSafeString(tf?.commanderName) ||
+          toSafeString(tf?.commander) ||
+          toSafeString(matchedCommander?.name) ||
+          "",
+        deputyCommanderId:
+          toSafeString(tf?.deputyCommanderId) ||
+          toSafeString(tf?.deputyCommanderName) ||
+          toSafeString(tf?.deputyCommander) ||
+          toSafeString(matchedCommander?.deputyCommander?.id) ||
+          toSafeString(matchedCommander?.deputyCommander?.name) ||
+          "",
+        deputyCommanderName:
+          toSafeString(tf?.deputyCommanderName) ||
+          toSafeString(tf?.deputyCommander?.name) ||
+          toSafeString(matchedCommander?.deputyCommander?.name) ||
           "",
         unitIds: units.map((u) => u.id),
         units,
@@ -867,13 +957,12 @@ function loadCampaignsFromContent() {
         };
       });
 
-      const derivedOrgChart = deriveOrgChartFromTaskForces(json);
+      const commandRoster = normalizeCommandRoster(json.commandRoster || buildCommandRosterFromCommand(json));
+      const derivedOrgChart = deriveOrgChartFromTaskForces({ ...json, commandRoster });
       const orgChart =
         json.orgChart && Array.isArray(json.orgChart.taskUnits) && json.orgChart.taskUnits.length
           ? json.orgChart
           : derivedOrgChart;
-
-      const commandRoster = json.commandRoster || buildCommandRosterFromCommand(json);
 
       return {
         ...json,
@@ -1130,20 +1219,62 @@ export default {
       if (e.key === "Escape" && this.activeCampaign) this.closeCampaign();
     },
 
-    commanderLabel(campaign, commanderId) {
-      if (!campaign || !commanderId) return "—";
+    commanderLabel(campaign, commanderId, fallbackLabel = "") {
+      const fallback = toSafeString(fallbackLabel);
+      if (!campaign && !fallback) return "—";
 
-      const roster = campaign.commandRoster || {};
-      const all = [roster.commander ? roster.commander : null, ...(Array.isArray(roster.subCommanders) ? roster.subCommanders : [])].filter(Boolean);
+      const roster = campaign?.commandRoster || {};
+      const subCommanders = Array.isArray(roster.subCommanders) ? roster.subCommanders : [];
+      const all = [
+        roster.commander || null,
+        roster.deputyCommander || null,
+        ...subCommanders,
+        ...subCommanders.map((x) => x?.deputyCommander || null),
+      ].filter(Boolean);
 
       const key = normToken(commanderId);
+      const found = key
+        ? all.find((x) => normToken(x.id || "") === key || normToken(x.name || "") === key)
+        : null;
 
-      const found = all.find((x) => normToken(x.id || "") === key || normToken(x.name || "") === key);
-      if (!found) return "—";
+      if (!found) return fallback || "—";
 
       const callsign = found.callsign ? `CALLSIGN ${found.callsign}` : "";
-      const name = found.name || "";
-      return [callsign, name].filter(Boolean).join(" / ") || "—";
+      const name = found.name || fallback || "";
+      return [callsign, name].filter(Boolean).join(" / ") || fallback || "—";
+    },
+
+    primaryCommander(campaign) {
+      return campaign?.commandRoster?.commander || null;
+    },
+
+    primaryDeputyCommander(campaign) {
+      return campaign?.commandRoster?.deputyCommander || null;
+    },
+
+    primarySubCommanders(campaign) {
+      return Array.isArray(campaign?.commandRoster?.subCommanders) ? campaign.commandRoster.subCommanders : [];
+    },
+
+    taskUnitDeputyRef(campaign, taskUnit) {
+      const direct =
+        toSafeString(taskUnit?.deputyCommanderId) ||
+        toSafeString(taskUnit?.deputyCommanderName) ||
+        toSafeString(taskUnit?.deputyCommander);
+
+      if (direct) return direct;
+
+      const matchedCommander = findTaskUnitCommanderRecord(campaign, taskUnit);
+      return toSafeString(matchedCommander?.deputyCommander?.id) || toSafeString(matchedCommander?.deputyCommander?.name) || "";
+    },
+
+    taskUnitDeputyName(campaign, taskUnit) {
+      return (
+        toSafeString(taskUnit?.deputyCommanderName) ||
+        toSafeString(taskUnit?.deputyCommander?.name) ||
+        toSafeString(findTaskUnitCommanderRecord(campaign, taskUnit)?.deputyCommander?.name) ||
+        ""
+      );
     },
 
     unitsForTaskUnit(campaign, taskUnit) {
