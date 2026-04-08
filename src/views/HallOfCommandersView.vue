@@ -283,7 +283,6 @@
 
 <script>
 import { playMenuClick } from "@/utils/sfx";
-import { parseJsonc } from "@/utils/jsonc";
 
 const PLACEHOLDER_PORTRAIT =
   "data:image/svg+xml;charset=utf-8," +
@@ -304,19 +303,10 @@ const PLACEHOLDER_PORTRAIT =
   </text>
 </svg>`);
 
-const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
+const CAMPAIGN_MODULES = import.meta.glob("/src/campaigns/**/campaign.js", {
   eager: true,
-  query: "?raw",
   import: "default",
 });
-
-function safeJson(raw) {
-  try {
-    return parseJsonc(String(raw || ""));
-  } catch {
-    return null;
-  }
-}
 
 function norm(s) {
   return String(s || "").trim().toLowerCase();
@@ -343,15 +333,14 @@ function loadCampaignIndex() {
   const campaigns = [];
   const campaignById = {};
 
-  for (const [path, raw] of Object.entries(CAMPAIGN_JSON)) {
-    const json = safeJson(raw);
-    if (!json) continue;
+  for (const [path, campaign] of Object.entries(CAMPAIGN_MODULES)) {
+    if (!campaign || typeof campaign !== "object") continue;
 
     const folder = folderFromCampaignPath(path);
-    const id = json.id || folder;
+    const id = campaign.id || folder;
     if (!id) continue;
 
-    const camp = { __path: path, __folder: folder, ...json, id };
+    const camp = { __path: path, __folder: folder, ...campaign, id };
     campaigns.push(camp);
     campaignById[id] = camp;
   }
@@ -600,14 +589,6 @@ export default {
       if (!commander) return PLACEHOLDER_PORTRAIT;
       const direct = String(commander.portrait || "").trim();
       if (direct) return direct;
-
-      const camp = this.campaignById?.[commander.campaignId];
-      const fallback = String(camp?.assets?.defaultPortrait || "").trim();
-      if (fallback) return fallback;
-
-      const fallbacks = asArray(camp?.assets?.fallbackPortraits);
-      if (fallbacks.length) return String(fallbacks[0]).trim() || PLACEHOLDER_PORTRAIT;
-
       return PLACEHOLDER_PORTRAIT;
     },
 
@@ -619,7 +600,7 @@ export default {
     goToCampaign(campaignId) {
       if (!campaignId) return;
       this.closeDetails();
-      this.$router.push({ path: "/campaigns", query: { campaignId } });
+      this.$router.push({ path: "/campaigns", query: { campaign: campaignId } });
     },
 
     tileDate(campaign) {
