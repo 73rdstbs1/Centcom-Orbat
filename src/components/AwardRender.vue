@@ -65,7 +65,7 @@ export default {
     },
     iconSize() {
       const n = Number(this.size);
-      return Number.isFinite(n) && n > 0 ? `${n}px` : "18px";
+      return Number.isFinite(n) && n > 0 ? `${n}px` : "24px";
     },
   },
   methods: {
