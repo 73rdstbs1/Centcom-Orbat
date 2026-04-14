@@ -24,7 +24,7 @@
 
         <router-link class="clipped-bottom-right" to="/backend-roster" @click.native="playClick">
           <img src="/icons/Roster.png" />
-          <span>Backend Roster</span>
+          <span>Roster</span>
         </router-link>
 
         <router-link class="clipped-bottom-right" to="/hall-of-fame" @click.native="playClick">
