@@ -15,10 +15,10 @@
 export default {
   // Internal campaign ID.
   // This should usually match the campaign folder name.
-  id: "Operation_Test",
+  id: "Operation_TEST2",
 
   // Public campaign title shown on the website.
-  name: "Operation: TEST",
+  name: "Operation: TEST2",
 
   // Current campaign status.
   status: "Testing...",
