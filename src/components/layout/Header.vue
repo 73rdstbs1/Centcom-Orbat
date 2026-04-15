@@ -26,7 +26,7 @@
       <div class="center-block" aria-label="CENTCOM header">
         <div class="title-container">
           <div id="title-first-line" class="title-row">
-            <span id="title-header">UNSC OUTER COLONIES CENTRAL COMMAND</span>
+            <span id="title-header">UNSC CENTRAL COMMAND</span>
           </div>
         </div>
 
@@ -37,7 +37,7 @@
         </div>
       </div>
 
-      <!-- RIGHT: Active campaign details (from Operations CSV -> campaign.js) -->
+      <!-- RIGHT: Active campaign details (from Operations CSV -> campaign.json) -->
       <div v-if="showCampaignPanel" class="planet-location-container">
         <div class="location-info" aria-label="Current AO details">
           <div class="meta-grid">
@@ -100,7 +100,7 @@
  * - RefData CSV: reads "Header details:" cell (expects Active | Training | Rearming)
  * - Operations CSV: finds first row with STATUS == "Active"
  *     -> links to CAMPAIGN NAME by carrying-forward the last non-empty CAMPAIGN NAME above
- *     -> loads matching src/campaigns/<campaign>/campaign.js (matches by id/name/folder)
+ *     -> loads matching src/campaigns/<campaign>/campaign.json (matches by id/name/folder)
  *
  * Notes:
  * - Vite 6: use import.meta.glob with query '?raw' (NOT `as: 'raw'`)
@@ -108,8 +108,9 @@
 import { getConfig } from "../../config/runtimeConfig";
 import { adminUser, isAdmin, adminLogout, subscribe as authSubscribe } from "@/utils/adminAuth";
 
-const CAMPAIGN_MODULES = import.meta.glob("/src/campaigns/**/campaign.js", {
+const CAMPAIGN_JSON = import.meta.glob("/src/campaigns/**/campaign.json", {
   eager: true,
+  query: "?raw",
   import: "default",
 });
 
@@ -121,6 +122,14 @@ const defaultNewsItems = [
   "SYSTEM NOTICE: Training rotations updated. Check your squad channel for timings.",
   "BREAKING: Marine promoted after surviving three drops and one briefing.",
 ];
+
+function safeJson(raw) {
+  try {
+    return JSON.parse(String(raw || ""));
+  } catch {
+    return null;
+  }
+}
 
 function csvSplit(line) {
   const out = [];
@@ -163,6 +172,47 @@ function parseCsv(raw) {
   return rows;
 }
 
+function parseCsvWithHeaderHeuristics(raw, requiredLabelSets = []) {
+  const text = String(raw || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = text.split("\n").filter((l) => l.trim().length);
+  if (!lines.length) return { rows: [], headers: [], headerRowIndex: -1 };
+
+  const matrix = lines.map((l) => csvSplit(l));
+
+  const hasAny = (cells, labels) => {
+    const cellKeys = cells.map((c) => headerKeyMatch(c));
+    return labels.some((lbl) => cellKeys.includes(headerKeyMatch(lbl)));
+  };
+
+  let headerRowIndex = 0;
+
+  // Prefer a row that matches all required label sets (e.g., campaign + status).
+  if (Array.isArray(requiredLabelSets) && requiredLabelSets.length) {
+    for (let i = 0; i < Math.min(12, matrix.length); i += 1) {
+      const cells = matrix[i];
+      const ok = requiredLabelSets.every((labels) => hasAny(cells, labels));
+      if (ok) {
+        headerRowIndex = i;
+        break;
+      }
+    }
+  }
+
+  const headers = matrix[headerRowIndex].map((h) => String(h ?? "").trim());
+  const rows = [];
+
+  for (let i = headerRowIndex + 1; i < matrix.length; i += 1) {
+    const cols = matrix[i];
+    const obj = {};
+    for (let j = 0; j < headers.length; j += 1) obj[headers[j]] = cols[j] ?? "";
+    rows.push(obj);
+  }
+
+  return { rows, headers, headerRowIndex };
+}
+
+
+
 function norm(s) {
   return String(s || "").trim().toLowerCase();
 }
@@ -191,12 +241,13 @@ function folderFromCampaignPath(path) {
 
 function loadAllCampaigns() {
   const out = [];
-  for (const [path, campaign] of Object.entries(CAMPAIGN_MODULES)) {
-    if (!campaign || typeof campaign !== "object") continue;
+  for (const [path, raw] of Object.entries(CAMPAIGN_JSON)) {
+    const json = safeJson(raw);
+    if (!json) continue;
     out.push({
       __path: path,
       __folder: folderFromCampaignPath(path),
-      ...campaign,
+      ...json,
     });
   }
   return out;
@@ -295,15 +346,19 @@ async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
 
   try {
     const raw = await fetchText(operationsCsvUrl);
-    const rows = parseCsv(raw);
+    const parsed = parseCsvWithHeaderHeuristics(raw, [
+      ["campaign name", "campaign", "campaign_name", "operation campaign"],
+      ["status", "op status", "operation status", "active", "active slot", "active operation"],
+    ]);
+    const rows = parsed.rows;
     if (!rows.length) return null;
 
     const headers = Object.keys(rows[0] || {});
     const findCol = (labels) =>
       headers.find((h) => labels.some((lbl) => headerKeyMatch(h) === headerKeyMatch(lbl))) || null;
 
-    const colCampaign = findCol(["campaign name", "campaign", "campaign_name", "campaign title"]);
-    const colStatus = findCol(["status", "op status", "operation status", "current status"]);
+    const colCampaign = findCol(["campaign name", "campaign", "campaign_name", "operation campaign", "campaign title", "campaign id"]);
+    const colStatus = findCol(["status", "op status", "operation status", "active", "active slot", "active operation"]);
     if (!colCampaign || !colStatus) return null;
 
     const colSystem = findCol(["system"]);
@@ -312,67 +367,51 @@ async function detectActiveCampaignFromOperationsCsv(operationsCsvUrl) {
     const colYear = findCol(["year"]);
 
     let lastCampaign = "";
-    const byCampaignKey = new Map();
-    const campaignOrder = [];
+    const lastMeta = { system: "", planet: "", ao: "", year: "", status: "" };
 
     for (const r of rows) {
       const campCell = String(r[colCampaign] || "").trim();
       if (campCell) lastCampaign = campCell;
-
-      const campaignName = lastCampaign || campCell;
-      if (!campaignName) continue;
-
-      const key = normMatch(campaignName);
-      if (!key) continue;
-
-      if (!byCampaignKey.has(key)) {
-        byCampaignKey.set(key, {
-          campaignName,
-          system: "",
-          planet: "",
-          ao: "",
-          year: "",
-          status: "",
-        });
-        campaignOrder.push(key);
-      }
-
-      const entry = byCampaignKey.get(key);
-      entry.campaignName = campaignName || entry.campaignName;
 
       const sys = colSystem ? String(r[colSystem] || "").trim() : "";
       const pla = colPlanet ? String(r[colPlanet] || "").trim() : "";
       const ao = colAo ? String(r[colAo] || "").trim() : "";
       const yr = colYear ? String(r[colYear] || "").trim() : "";
 
-      if (sys) entry.system = sys;
-      if (pla) entry.planet = pla;
-      if (ao) entry.ao = ao;
-      if (yr) entry.year = yr;
+      if (sys) lastMeta.system = sys;
+      if (pla) lastMeta.planet = pla;
+      if (ao) lastMeta.ao = ao;
+      if (yr) lastMeta.year = yr;
 
-      entry.status = normalizeActiveStatus(r[colStatus]);
+      const st = normalizeActiveStatus(r[colStatus]);
+      if (st === "active") {
+        lastMeta.status = "active";
+
+        const campaignName = lastCampaign || campCell;
+        if (!campaignName) return null;
+
+        const allCampaigns = loadAllCampaigns();
+        const campaign = findCampaignByName(allCampaigns, campaignName);
+
+        // If campaign.json isn't found, still return a minimal object so the header panel can render.
+        if (!campaign) {
+          return {
+            id: campaignName,
+            name: campaignName,
+            status: lastMeta.status || "active",
+            system: lastMeta.system,
+            planet: lastMeta.planet,
+            ao: lastMeta.ao,
+            year: lastMeta.year,
+            __unmatched: true,
+          };
+        }
+
+        return mergeCampaignWithMeta(campaign, lastMeta);
+      }
     }
 
-    if (!campaignOrder.length) return null;
-
-    const activeKeys = campaignOrder.filter((key) => byCampaignKey.get(key)?.status === "active");
-    if (!activeKeys.length) return null;
-
-    const selectedKey = activeKeys[activeKeys.length - 1];
-    const meta = byCampaignKey.get(selectedKey);
-    if (!meta?.campaignName) return null;
-
-    const allCampaigns = loadAllCampaigns();
-    const campaign = findCampaignByName(allCampaigns, meta.campaignName);
-    if (!campaign) return null;
-
-    return mergeCampaignWithMeta(campaign, {
-      system: meta.system,
-      planet: meta.planet,
-      ao: meta.ao,
-      year: meta.year,
-      status: meta.status,
-    });
+    return null;
   } catch {
     return null;
   }
@@ -935,13 +974,13 @@ header .planet-location-container {
 
 .location-info {
   min-width: 0;
-  width: fit-content;
+  width: max-content;
   max-width: min(1120px, 46vw);
 }
 
 .meta-grid {
   display: grid;
-  grid-template-columns: max-content max-content fit-content(420px);
+  grid-template-columns: max-content max-content minmax(220px, 420px);
   grid-template-rows: auto auto;
   gap: 10px 14px;
   justify-content: end;
