@@ -62,7 +62,7 @@ export default {
 
       // Portrait path.
       // Leave blank if there is no portrait yet. use .SVG file format
-      portrait: "",
+      portrait: "/portraits/smith_portrait.svg",
 
       // Role text shown for the main commander.
       role: "Task Force Commander",
@@ -113,7 +113,7 @@ export default {
       {
         name: "B. Salmon",
         unitName: "Task Unit Bailiff",
-        portrait: "\CENTCOM\Centcom-Orbat\public\portraits\smith_portrait.svg",
+        portrait: "",
         role: "Task Unit Commander",
         deputyCommander: {
           name: "",
