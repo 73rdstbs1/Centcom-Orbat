@@ -113,7 +113,7 @@ export default {
       {
         name: "B. Salmon",
         unitName: "Task Unit Bailiff",
-        portrait: "",
+        portrait: "\CENTCOM\Centcom-Orbat\public\portraits\smith_portrait.svg",
         role: "Task Unit Commander",
         deputyCommander: {
           name: "",
