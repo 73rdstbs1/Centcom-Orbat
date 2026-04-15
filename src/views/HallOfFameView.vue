@@ -120,6 +120,38 @@ function normalizeStr(v) {
   return String(v ?? "").trim();
 }
 
+function awardPrecedenceIndex(code) {
+  const c = String(code || "").toUpperCase().trim();
+  const i = AWARD_ORDER.indexOf(c);
+  return i === -1 ? Number.POSITIVE_INFINITY : i;
+}
+
+function sortCodesByPrecedence(codes, links) {
+  const cList = Array.isArray(codes) ? codes.slice() : [];
+  const lList = Array.isArray(links) ? links.slice() : [];
+
+  const pairs = cList.map((c, i) => ({
+    code: String(c || "").toUpperCase().trim(),
+    link: String(lList[i] || "").trim(),
+    i,
+  })).filter((p) => p.code);
+
+  // Stable sort: precedence first, then original index.
+  pairs.sort((a, b) => {
+    const pa = awardPrecedenceIndex(a.code);
+    const pb = awardPrecedenceIndex(b.code);
+    if (pa !== pb) return pa - pb;
+    return a.i - b.i;
+  });
+
+  return {
+    codes: pairs.map((p) => p.code),
+    links: pairs.map((p) => p.link),
+  };
+}
+
+
+
 function parseCsv(text) {
   const out = [];
   let row = [];
@@ -364,6 +396,24 @@ function buildManualEntriesFromRosterLeftovers(rosterSeq, resolver, rosterUnitMa
     const lf = resolver.leftovers(k);
     if (!lf.codes.length) continue;
 
+    const codesFiltered = (lf.codes || []).map((c) => String(c || "").toUpperCase().trim()).filter(isAutoHallOfFameCode);
+    if (!codesFiltered.length) continue;
+
+    const linksAligned = (lf.links || []).map((l) => String(l || "").trim());
+    // Keep links aligned to original positions for the codes we keep.
+    const linksFiltered = [];
+    let takeIdx = 0;
+    for (let i = 0; i < (lf.codes || []).length; i += 1) {
+      const c = String(lf.codes[i] || "").toUpperCase().trim();
+      if (!isAutoHallOfFameCode(c)) continue;
+      linksFiltered.push(linksAligned[i] || "");
+      takeIdx += 1;
+    }
+
+    const ordered = sortCodesByPrecedence(codesFiltered, linksFiltered);
+    const codes = ordered.codes;
+    const awardLinks = ordered.links;
+
     const unit = normalizeStr(lf.unit) || normalizeStr(rosterUnitMap?.[k] || "") || "UNASSIGNED";
     const trooper = normalizeStr(lf.name) || "UNKNOWN";
 
@@ -375,10 +425,10 @@ function buildManualEntriesFromRosterLeftovers(rosterSeq, resolver, rosterUnitMa
       ts: 0,
       unit,
       trooper,
-      award: lf.codes.join(" "),
-      awardText: lf.codes.join(" / "),
-      codes: lf.codes,
-      awardLinks: lf.links,
+      award: codes.join(" "),
+      awardText: codes.join(" / "),
+      codes,
+      awardLinks,
       opId: "",
       source: "manual",
     });
@@ -433,12 +483,18 @@ async function loadAwardsFromOperationsCsv(csvUrl, rosterUnitMap, resolveAwardLi
       const nameKey = normalizePersonKey(trooper);
       const unit = normalizeStr(e.unit) || normalizeStr(rosterUnitMap?.[nameKey] || "");
 
-      const codesAll = extractAwardCodes(award);
-      const codes = codesAll.filter(isAutoHallOfFameCode);
-      if (!codes.length) continue;
-      const awardText = codes.join(" / ");
+      const codesAll = extractAwardCodes(award).map((c) => String(c || "").toUpperCase().trim());
+      const codesFiltered = codesAll.filter(isAutoHallOfFameCode);
+      if (!codesFiltered.length) continue;
 
-      const awardLinks = typeof resolveAwardLink === "function" ? codes.map((c) => resolveAwardLink(nameKey, c)) : [];
+      const linksFiltered =
+        typeof resolveAwardLink === "function" ? codesFiltered.map((c) => resolveAwardLink(nameKey, c)) : [];
+
+      const ordered = sortCodesByPrecedence(codesFiltered, linksFiltered);
+
+      const codes = ordered.codes;
+      const awardLinks = ordered.links;
+      const awardText = codes.join(" / ");
 
       out.push({
         id: `${key}__${r}__${i}`,
@@ -507,11 +563,16 @@ async function loadManualAwardsFromRosterCsv(csvUrl, rosterUnitMap, autoEntries)
       normalizeStr(rosterUnitMap?.[tKey] || "") ||
       "UNASSIGNED";
 
-    const codesAll = extractAwardCodes(awardsCell).map((c) => String(c || "").toUpperCase().trim());
-    const codes = codesAll.filter((c) => c && !(tKey && autoSet.has(`${tKey}|${c}`)));
-    if (!codes.length) continue;
+    const codesAll = extractAwardCodes(awardsCell)
+      .map((c) => String(c || "").toUpperCase().trim());
 
-    out.push({
+    const codesDedupe = codesAll.filter((c) => c && !(tKey && autoSet.has(`${tKey}|${c}`)));
+    const codesFiltered = codesDedupe.filter(isAutoHallOfFameCode);
+    if (!codesFiltered.length) continue;
+
+    const ordered = sortCodesByPrecedence(codesFiltered, []);
+    const codes = ordered.codes;
+out.push({
       id: `manual_roster__${r + 1}`,
       campaign: "",
       operation: "",
