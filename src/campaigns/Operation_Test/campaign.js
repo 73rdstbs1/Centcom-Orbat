@@ -145,6 +145,7 @@ export default {
         "6th Shock Troops Battalion",
         "73rd Marine Force Recon",
         "105th Shock Troops Battalion",
+        "TEST",
       ],
     },
 
