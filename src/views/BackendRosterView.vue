@@ -11,7 +11,7 @@
 
         <div class="terminal-title">
           <div class="kicker">CENTCOM / PERSONNEL</div>
-          <div class="title">BACKEND ROSTER</div>
+          <div class="title">ROSTER</div>
         </div>
 
         <div class="terminal-right">
