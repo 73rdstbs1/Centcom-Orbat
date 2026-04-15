@@ -647,32 +647,85 @@ export default {
 
           return out.sort((a, b) => a.localeCompare(b));
         },
-    filteredEntries() {
-          const q = this.search.trim().toLowerCase();
-          const award = String(this.awardCode || "").trim().toUpperCase();
-          const campaign = String(this.campaignName || "").trim();
+        filteredEntries() {
+      const q = this.search.trim().toLowerCase();
+      const award = String(this.awardCode || "").trim().toUpperCase();
+      const campaign = String(this.campaignName || "").trim();
 
-          return (this.entries || []).filter((e) => {
-            if (award && !(e.codes || []).includes(award)) return false;
-            if (campaign && String(e.campaign || "") !== campaign) return false;
+      const all = Array.isArray(this.entries) ? this.entries : [];
 
-            if (!q) return true;
+      // Compute best (highest-precedence) award rank per trooper across the whole Hall.
+      const bestRankByTrooper = new Map();
+      for (const e of all) {
+        const tKey = normalizeStr(e?.trooper || "");
+        if (!tKey) continue;
 
-            const hay = [
-              e.trooper,
-              e.unit,
-              e.award,
-              e.campaign,
-              e.operation,
-              e.date,
-              (e.codes || []).join(" "),
-            ]
-              .map((x) => String(x || "").toLowerCase())
-              .join(" | ");
+        const codes = Array.isArray(e?.codes) ? e.codes : [];
+        let best = Number.POSITIVE_INFINITY;
+        for (const c of codes) {
+          const r = awardPrecedenceIndex(c);
+          if (r < best) best = r;
+        }
 
-            return hay.includes(q);
-          });
-        },
+        const prev = bestRankByTrooper.get(tKey);
+        if (prev === undefined || best < prev) bestRankByTrooper.set(tKey, best);
+      }
+
+      const filtered = all.filter((e) => {
+        if (award && !(e.codes || []).includes(award)) return false;
+        if (campaign && String(e.campaign || "") !== campaign) return false;
+
+        if (!q) return true;
+
+        const hay = [
+          e.trooper,
+          e.unit,
+          e.award,
+          e.campaign,
+          e.operation,
+          e.date,
+          (e.codes || []).join(" "),
+        ]
+          .map((x) => String(x || "").toLowerCase())
+          .join(" | ");
+
+        return hay.includes(q);
+      });
+
+      const parseDate = (v) => {
+        const t = Date.parse(String(v || ""));
+        return Number.isFinite(t) ? t : 0;
+      };
+
+      // Sort rules:
+      // 1) Trooper's best award (MoH -> ... -> Bronze Star)
+      // 2) Entry's best award (so a trooper's highest entry appears first)
+      // 3) Date (newest first)
+      // 4) Trooper name (A->Z), stable fallback by id
+      return filtered.slice().sort((a, b) => {
+        const ta = normalizeStr(a?.trooper || "");
+        const tb = normalizeStr(b?.trooper || "");
+
+        const ba = bestRankByTrooper.get(ta) ?? Number.POSITIVE_INFINITY;
+        const bb = bestRankByTrooper.get(tb) ?? Number.POSITIVE_INFINITY;
+        if (ba !== bb) return ba - bb;
+
+        const ea = Math.min(...(Array.isArray(a?.codes) ? a.codes.map(awardPrecedenceIndex) : [Number.POSITIVE_INFINITY]));
+        const eb = Math.min(...(Array.isArray(b?.codes) ? b.codes.map(awardPrecedenceIndex) : [Number.POSITIVE_INFINITY]));
+        if (ea !== eb) return ea - eb;
+
+        const da = parseDate(a?.date);
+        const db = parseDate(b?.date);
+        if (da !== db) return db - da;
+
+        const na = String(a?.trooper || "");
+        const nb = String(b?.trooper || "");
+        const nameCmp = na.localeCompare(nb);
+        if (nameCmp !== 0) return nameCmp;
+
+        return String(a?.id || "").localeCompare(String(b?.id || ""));
+      });
+    },
   },
 async mounted() {
     const cfg = getConfig() || {};
