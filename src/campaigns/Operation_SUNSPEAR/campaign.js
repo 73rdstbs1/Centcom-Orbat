@@ -95,7 +95,7 @@ export default {
         unitName: "Task Unit Apollo",
 
         // Leave blank if no portrait exists yet.
-        portrait: "",
+        portrait: "/portraits/JReaper_portrait.svg",
 
         // Display role for this commander.
         role: "Task Unit Commander",

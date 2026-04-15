@@ -26,7 +26,7 @@
       <div class="center-block" aria-label="CENTCOM header">
         <div class="title-container">
           <div id="title-first-line" class="title-row">
-            <span id="title-header">UNSC CENTRAL COMMAND</span>
+            <span id="title-header">UNSC OUTER COLONIES CENTRAL COMMAND</span>
           </div>
         </div>
 
