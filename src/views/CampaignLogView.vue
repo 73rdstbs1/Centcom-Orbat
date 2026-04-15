@@ -329,8 +329,9 @@
 
 <script>
 import { getConfig } from "@/config/runtimeConfig";
+import Papa from "papaparse";
 import AwardRender from "@/components/AwardRender.vue";
-import { normalizePersonKey, parseAwardsCell } from "@/utils/awards";
+import { normalizePersonKey } from "@/utils/awards";
 import { playMenuClick } from "@/utils/sfx";
 
 /**
@@ -374,6 +375,55 @@ function normalizeStatus(s) {
   if (v === "rearming" || v === "rest") return "rearming";
   return v;
 }
+
+function parseAwardsCellRobust(raw) {
+  const text = String(raw || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  if (!text) return [];
+
+  // Entries can be separated by newlines or ';'
+  const chunks = text
+    .split(/[\n;]+/g)
+    .map((s) => String(s || "").trim())
+    .filter(Boolean);
+
+  const out = [];
+
+  for (const chunk of chunks) {
+    // Allow multiple triplets in a single chunk:
+    // UNIT - TROOPER - AWARD - UNIT - TROOPER - AWARD ...
+    const parts = chunk
+      .split(/\s+-\s+/g)
+      .map((s) => String(s || "").trim())
+      .filter(Boolean);
+
+    if (parts.length < 3) continue;
+
+    for (let i = 0; i < parts.length; i += 3) {
+      if (i + 2 >= parts.length) {
+        if (out.length) {
+          out[out.length - 1].award = `${out[out.length - 1].award} - ${parts.slice(i).join(" - ")}`.trim();
+        }
+        break;
+      }
+
+      const unit = parts[i] || "";
+      const trooper = parts[i + 1] || "";
+      const award = parts[i + 2] || "";
+
+      if (!trooper || !award) continue;
+
+      out.push({
+        unit: unit.trim(),
+        trooper: trooper.trim(),
+        award: award.trim(),
+      });
+    }
+  }
+
+  return out;
+}
+
+
 
 function parseDateCell(raw) {
   const s = String(raw || "").trim();
@@ -687,61 +737,16 @@ function buildOpMdIndex() {
 }
 
 /** Simple CSV parser (handles quotes). Returns array of rows (array of cells). */
-function parseCsv(text) {
-  const s = String(text || "");
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let inQuotes = false;
+function parseCsv(raw) {
+  const parsed = Papa.parse(String(raw || ""), {
+    skipEmptyLines: false,
+  });
 
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
+  const rows = Array.isArray(parsed.data) ? parsed.data : [];
 
-    if (inQuotes) {
-      if (ch === '"') {
-        const next = s[i + 1];
-        if (next === '"') {
-          cell += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        cell += ch;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      inQuotes = true;
-      continue;
-    }
-
-    if (ch === ",") {
-      row.push(cell);
-      cell = "";
-      continue;
-    }
-
-    if (ch === "\n") {
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-      continue;
-    }
-
-    if (ch === "\r") continue;
-
-    cell += ch;
-  }
-
-  // flush
-  row.push(cell);
-  rows.push(row);
-
-  // trim empty trailing rows
-  return rows.filter((r) => r.some((c) => String(c || "").trim() !== ""));
+  return rows
+    .map((r) => (Array.isArray(r) ? r.map((c) => String(c ?? "").trim()) : []))
+    .filter((r) => r.some((c) => String(c || "").trim().length));
 }
 
 function normKey(s) {
@@ -844,7 +849,7 @@ async function loadOperationsFromCsv(csvUrl) {
     const summaryCell = kSummary ? getCell(row, headerMap, kSummary) : "";
     const dateCell = kDate ? getCell(row, headerMap, kDate) : "";
     const awardsCell = kAwards ? getCell(row, headerMap, kAwards) : "";
-    const awards = awardsCell ? parseAwardsCell(awardsCell) : [];
+    const awards = awardsCell ? parseAwardsCellRobust(awardsCell) : [];
 
     const key = normKey(current);
     if (!out[key]) out[key] = [];
