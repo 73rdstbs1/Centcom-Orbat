@@ -113,7 +113,7 @@ export default {
       {
         name: "B. Salmon",
         unitName: "Task Unit Bailiff",
-        portrait: "/portraits/BSmith_portrait.svg",
+        portrait: "/portraits/BSalmon_portrait.svg",
         role: "Task Unit Commander",
         deputyCommander: {
           name: "",
