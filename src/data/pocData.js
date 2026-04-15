@@ -14,7 +14,7 @@
 
 export const pocConfig = {
   /** Hall of Fame threshold: any award with level >= this value shows up */
-  minHallOfFameAwardLevel: 5,
+  minHallOfFameAwardLevel: 3,
 };
 
 /**
@@ -170,17 +170,9 @@ export const commanders = [
  * - level drives Hall of Fame thresholding
  */
 export const awardsCatalog = [
-  { id: "aw-jmur", name: "Joint Meritorious Unit Ribbon", level: 1 },
-  { id: "aw-csa", name: "Community Service Achievement", level: 2 },
-  { id: "aw-jsa", name: "Joint Service Achievement", level: 3 },
-  { id: "aw-jsc", name: "Joint Service Commendation", level: 4 },
-  { id: "aw-bs", name: "Bronze Star", level: 5 },
-  { id: "aw-dfc", name: "Distinguished Flying Cross", level: 6 },
-  { id: "aw-dmsr", name: "Distinguished Meritorious Service Ribbon", level: 7 },
-  { id: "aw-silver", name: "Silver Star", level: 8 },
-  { id: "aw-lom", name: "Legion of Merit", level: 9 },
-  { id: "aw-cc", name: "Colonial Cross", level: 10 },
-  { id: "aw-moh", name: "Medal of Honor", level: 11 },
+  { id: "aw-bronze", name: "Bronze Star", level: 2 },
+  { id: "aw-silver", name: "Silver Star", level: 3 },
+  { id: "aw-dsc", name: "Distinguished Service Cross", level: 5 },
 ];
 
 /**

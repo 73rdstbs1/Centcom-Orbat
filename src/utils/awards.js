@@ -55,14 +55,16 @@ export const AWARD_DISPLAY_NAMES = {
 const KNOWN_SET = new Set(KNOWN_AWARD_CODES);
 
 export function canonicalizeAwardCode(code) {
-  const raw = String(code ?? "").toUpperCase().trim();
+  const raw = String(code ?? "")
+    .toUpperCase()
+    .trim();
   if (!raw) return "";
   const mapped = AWARD_CODE_ALIASES[raw] || raw;
   return KNOWN_SET.has(mapped) ? mapped : "";
 }
 
 const ALL_CODES = Array.from(
-  new Set([...KNOWN_AWARD_CODES, ...Object.keys(AWARD_CODE_ALIASES)])
+  new Set([...KNOWN_AWARD_CODES, ...Object.keys(AWARD_CODE_ALIASES)]),
 );
 
 const AWARD_CODE_RE = new RegExp(`\\b(${ALL_CODES.join("|")})\\b`, "gi");
@@ -127,7 +129,11 @@ export function parseAwardCodesList(raw) {
 
   const tokens = s
     .split(/[\s,\/;|\n\t]+/g)
-    .map((t) => String(t || "").replace(/[^A-Za-z0-9]/g, "").trim())
+    .map((t) =>
+      String(t || "")
+        .replace(/[^A-Za-z0-9]/g, "")
+        .trim(),
+    )
     .filter(Boolean);
 
   const out = [];
@@ -145,11 +151,16 @@ export function parseAwardCodesList(raw) {
 export function parseAwardLinksList(raw) {
   const s = String(raw ?? "").trim();
   if (!s) return [];
-  return s.split(/[\s,]+/g).map((x) => String(x || "").trim()).filter(Boolean);
+  return s
+    .split(/[\s,]+/g)
+    .map((x) => String(x || "").trim())
+    .filter(Boolean);
 }
 
 export function normalizePersonKey(name) {
-  const raw = String(name ?? "").replace(/\s+/g, " ").trim();
+  const raw = String(name ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!raw) return "";
 
   // Strip a leading rank-ish token to improve matching ("PFC John Doe" -> "John Doe")
@@ -185,14 +196,21 @@ export function parseAwardsCell(raw) {
 
   const chunks = s
     .split("/")
-    .map((x) => String(x ?? "").replace(/\s+/g, " ").trim())
+    .map((x) =>
+      String(x ?? "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
     .filter(Boolean);
 
   const out = [];
 
   for (const chunk of chunks) {
     // Split on spaced separators so award names can still contain hyphens.
-    const parts = chunk.split(/\s[-–—]\s/).map((x) => x.trim()).filter(Boolean);
+    const parts = chunk
+      .split(/\s[-–—]\s/)
+      .map((x) => x.trim())
+      .filter(Boolean);
 
     let unit = "";
     let trooper = "";
@@ -202,7 +220,8 @@ export function parseAwardsCell(raw) {
       // Heuristic: if the last part contains a known award code, treat as "Unit - Trooper - Award".
       // Otherwise treat as "Trooper - Award with - inside".
       const last = parts[parts.length - 1];
-      const looksLikeCode = extractAwardCodes(last).length > 0 || /^[A-Za-z]{2,6}$/.test(last);
+      const looksLikeCode =
+        extractAwardCodes(last).length > 0 || /^[A-Za-z]{2,6}$/.test(last);
 
       if (looksLikeCode) {
         unit = parts[0];
