@@ -105,7 +105,7 @@ import { getConfig } from "@/config/runtimeConfig";
 import AwardRender from "@/components/AwardRender.vue";
 import { extractAwardCodes, normalizePersonKey, parseAwardsCell, AWARD_DISPLAY_NAMES, parseAwardCodesList, parseAwardLinksList } from "@/utils/awards";
 
-const AWARD_ORDER = ["MOH", "CC", "LOM", "SS", "DMSR", "DFC", "BS", "JSC", "JSA", "CSA", "JMUR"];
+const AWARD_ORDER = ["MOH", "CC", "LOM", "SS", "DMSR", "DFC", "BS", "JSC", "JSA", "CSA", "JMUA"];
 const HOF_AUTO_MIN_CODE = "BS";
 const AUTO_HOF_CODES = new Set(
   AWARD_ORDER.slice(0, Math.max(0, AWARD_ORDER.indexOf(HOF_AUTO_MIN_CODE)) + 1)
