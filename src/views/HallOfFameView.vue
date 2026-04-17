@@ -48,7 +48,7 @@
 
           <div class="filter-block meta-block">
             <div class="filter-label">ENTRIES</div>
-            <div class="meta-chip">{{ filteredEntries.length }}</div>
+            <div class="meta-chip">{{ filteredTroopers.length }}</div>
           </div>
         </div>
 
@@ -62,32 +62,60 @@
           </div>
 
           <div v-else>
-            <div v-if="filteredEntries.length" class="grid">
-              <article v-for="e in filteredEntries" :key="e.id" class="card award-card">
-                          <div class="card-topline"></div>
+            <div v-if="filteredTroopers.length" class="grid">
+              <article v-for="t in filteredTroopers" :key="t.id" class="card award-card">
+                <div class="card-topline"></div>
 
-                          <header class="card-head">
-                            <div class="identity">
-                              <div class="unit-chip">{{ e.unit || "—" }}</div>
-                              <div class="name">{{ e.trooper }}</div>
-                            </div>
-                          </header>
+                <header class="card-head">
+                  <div class="identity">
+                    <div class="unit-chip">{{ t.unit || "—" }}</div>
+                    <div class="name">{{ t.trooper }}</div>
+                  </div>
+                </header>
 
-                          <div class="card-body">
-                            <div class="section-label">AWARD</div>
-                            <div class="panel award-panel">
-                              <div class="award-codes">
-                                <AwardRender :codes="e.codes" :links="e.awardLinks" :size="54" />
-                              </div>
-                            </div>
+                <div class="card-body">
+                  <div class="section-label">RIBBONS</div>
+                  <div class="panel award-panel">
+                    <div class="award-codes">
+                      <AwardRender :codes="t.displayCodes" :links="t.displayLinks" :size="54" />
+                    </div>
 
-                            <div class="section-label" style="margin-top:12px;">EARNED IN</div>
-                            <div class="panel earned-panel">
-                              <button v-if="e.campaign" class="link-chip" @click="openCampaign(e)">{{ e.campaign }}</button>
-                              <span v-else class="meta-chip">MANUAL ENTRY</span>
-                            </div>
+                    <div class="award-counts" v-if="t.awardSummary.length">
+                      <span v-for="a in t.awardSummary" :key="a.code" class="meta-chip">
+                        {{ a.name }} ×{{ a.count }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="section-label" style="margin-top:12px;">EARNED IN</div>
+                  <div class="panel earned-panel">
+                    <div v-if="t.earnedIn.length" class="earned-list">
+                      <div v-for="op in t.earnedIn" :key="op.id" class="earned-row">
+                        <div class="earned-meta">
+                          <button v-if="op.campaign" class="link-chip" @click="openCampaign(op)">
+                            {{ op.campaign }}
+                          </button>
+                          <span v-else class="meta-chip">UNKNOWN CAMPAIGN</span>
+
+                          <span class="meta-chip" v-if="op.date">{{ op.date }}</span>
+                          <span class="earned-op">{{ op.operation }}</span>
+                        </div>
+
+                        <div class="earned-awards">
+                          <AwardRender :codes="op.displayCodes" :links="op.displayLinks" :size="36" />
+                          <div class="earned-counts" v-if="op.awardSummary.length">
+                            <span v-for="a in op.awardSummary" :key="op.id + '_' + a.code" class="meta-chip">
+                              {{ a.name }} ×{{ a.count }}
+                            </span>
                           </div>
-                          </article>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div v-else class="meta-chip">MANUAL / UNSOURCED AWARDS</div>
+                  </div>
+                </div>
+              </article>
             </div>
 
             <div v-else class="empty">
@@ -647,83 +675,163 @@ export default {
 
           return out.sort((a, b) => a.localeCompare(b));
         },
-        filteredEntries() {
+
+    troopersAggregated() {
+      const all = Array.isArray(this.entries) ? this.entries : [];
+      const byTrooper = new Map();
+
+      const codeName = (code) => {
+        const c = String(code || "").toUpperCase().trim();
+        return AWARD_DISPLAY_NAMES?.[c] || c || "—";
+      };
+
+      const addCodes = (counts, linksByCode, codes, links) => {
+        const cList = Array.isArray(codes) ? codes : [];
+        const lList = Array.isArray(links) ? links : [];
+        for (let i = 0; i < cList.length; i += 1) {
+          const c = String(cList[i] || "").toUpperCase().trim();
+          if (!c) continue;
+          if (!isAutoHallOfFameCode(c)) continue;
+
+          counts[c] = (counts[c] || 0) + 1;
+
+          const link = String(lList[i] || "").trim();
+          if (link && !linksByCode[c]) linksByCode[c] = link;
+        }
+      };
+
+      const finalizeSummary = (counts, linksByCode) => {
+        const codes = Object.keys(counts || {});
+        const ordered = sortCodesByPrecedence(codes, codes.map((c) => linksByCode?.[c] || ""));
+        const displayCodes = ordered.codes;
+        const displayLinks = ordered.links;
+
+        const awardSummary = displayCodes.map((c, i) => ({
+          code: c,
+          name: codeName(c),
+          count: counts[c] || 0,
+          link: displayLinks[i] || "",
+        }));
+
+        const bestRank = displayCodes.length ? awardPrecedenceIndex(displayCodes[0]) : Number.POSITIVE_INFINITY;
+
+        return { displayCodes, displayLinks, awardSummary, bestRank };
+      };
+
+      for (const e of all) {
+        const trooper = normalizeStr(e?.trooper || "");
+        if (!trooper) continue;
+
+        const tKey = normalizePersonKey(trooper);
+        if (!tKey) continue;
+
+        if (!byTrooper.has(tKey)) {
+          byTrooper.set(tKey, {
+            id: tKey,
+            trooper,
+            unit: normalizeStr(e?.unit || ""),
+            awardCounts: {},
+            awardLinksByCode: {},
+            earnedMap: new Map(),
+            earnedIn: [],
+            bestRank: Number.POSITIVE_INFINITY,
+            displayCodes: [],
+            displayLinks: [],
+            awardSummary: [],
+          });
+        }
+
+        const t = byTrooper.get(tKey);
+        if (!t.unit && e?.unit) t.unit = normalizeStr(e.unit);
+
+        addCodes(t.awardCounts, t.awardLinksByCode, e?.codes, e?.awardLinks);
+
+        const campaign = normalizeStr(e?.campaign || "");
+        const operation = normalizeStr(e?.operation || "");
+        const date = normalizeStr(e?.date || "");
+
+        if (campaign && operation) {
+          const opId = `${campaign}__${operation}__${date || ""}`;
+          if (!t.earnedMap.has(opId)) {
+            t.earnedMap.set(opId, {
+              id: opId,
+              campaign,
+              operation,
+              date,
+              ts: e?.ts || 0,
+              counts: {},
+              linksByCode: {},
+            });
+          }
+          const op = t.earnedMap.get(opId);
+          addCodes(op.counts, op.linksByCode, e?.codes, e?.awardLinks);
+          op.ts = Math.max(op.ts || 0, e?.ts || 0);
+        }
+      }
+
+      const out = [];
+      for (const t of byTrooper.values()) {
+        const sum = finalizeSummary(t.awardCounts, t.awardLinksByCode);
+        t.displayCodes = sum.displayCodes;
+        t.displayLinks = sum.displayLinks;
+        t.awardSummary = sum.awardSummary;
+        t.bestRank = sum.bestRank;
+
+        const earned = Array.from(t.earnedMap.values()).map((op) => {
+          const s = finalizeSummary(op.counts, op.linksByCode);
+          return {
+            id: op.id,
+            campaign: op.campaign,
+            operation: op.operation,
+            date: op.date,
+            ts: op.ts || 0,
+            displayCodes: s.displayCodes,
+            displayLinks: s.displayLinks,
+            awardSummary: s.awardSummary.map((x) => ({ ...x, name: codeName(x.code) })),
+          };
+        });
+
+        earned.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        t.earnedIn = earned;
+
+        if (!t.displayCodes.length) continue;
+        out.push(t);
+      }
+
+      out.sort((a, b) => {
+        const ra = Number.isFinite(a.bestRank) ? a.bestRank : Number.POSITIVE_INFINITY;
+        const rb = Number.isFinite(b.bestRank) ? b.bestRank : Number.POSITIVE_INFINITY;
+        if (ra !== rb) return ra - rb;
+        return String(a.trooper || "").localeCompare(String(b.trooper || ""));
+      });
+
+      return out;
+    },
+
+    filteredTroopers() {
       const q = this.search.trim().toLowerCase();
       const award = String(this.awardCode || "").trim().toUpperCase();
       const campaign = String(this.campaignName || "").trim();
 
-      const all = Array.isArray(this.entries) ? this.entries : [];
+      const all = Array.isArray(this.troopersAggregated) ? this.troopersAggregated : [];
 
-      // Compute best (highest-precedence) award rank per trooper across the whole Hall.
-      const bestRankByTrooper = new Map();
-      for (const e of all) {
-        const tKey = normalizeStr(e?.trooper || "");
-        if (!tKey) continue;
+      return all.filter((t) => {
+        if (award && !(t.displayCodes || []).includes(award)) return false;
 
-        const codes = Array.isArray(e?.codes) ? e.codes : [];
-        let best = Number.POSITIVE_INFINITY;
-        for (const c of codes) {
-          const r = awardPrecedenceIndex(c);
-          if (r < best) best = r;
+        if (campaign) {
+          const hasCampaign = (t.earnedIn || []).some((op) => String(op.campaign || "") === campaign);
+          if (!hasCampaign) return false;
         }
-
-        const prev = bestRankByTrooper.get(tKey);
-        if (prev === undefined || best < prev) bestRankByTrooper.set(tKey, best);
-      }
-
-      const filtered = all.filter((e) => {
-        if (award && !(e.codes || []).includes(award)) return false;
-        if (campaign && String(e.campaign || "") !== campaign) return false;
 
         if (!q) return true;
 
-        const hay = [
-          e.trooper,
-          e.unit,
-          e.award,
-          e.campaign,
-          e.operation,
-          e.date,
-          (e.codes || []).join(" "),
-        ]
-          .map((x) => String(x || "").toLowerCase())
+        const awardsText = (t.awardSummary || []).map((a) => `${a.code} ${a.name}`).join(" | ");
+        const earnedText = (t.earnedIn || [])
+          .map((op) => `${op.campaign} ${op.operation} ${(op.displayCodes || []).join(" ")}`)
           .join(" | ");
 
+        const hay = [t.trooper, t.unit, awardsText, earnedText].map((x) => String(x || "").toLowerCase()).join(" | ");
         return hay.includes(q);
-      });
-
-      const parseDate = (v) => {
-        const t = Date.parse(String(v || ""));
-        return Number.isFinite(t) ? t : 0;
-      };
-
-      // Sort rules:
-      // 1) Trooper's best award (MoH -> ... -> Bronze Star)
-      // 2) Entry's best award (so a trooper's highest entry appears first)
-      // 3) Date (newest first)
-      // 4) Trooper name (A->Z), stable fallback by id
-      return filtered.slice().sort((a, b) => {
-        const ta = normalizeStr(a?.trooper || "");
-        const tb = normalizeStr(b?.trooper || "");
-
-        const ba = bestRankByTrooper.get(ta) ?? Number.POSITIVE_INFINITY;
-        const bb = bestRankByTrooper.get(tb) ?? Number.POSITIVE_INFINITY;
-        if (ba !== bb) return ba - bb;
-
-        const ea = Math.min(...(Array.isArray(a?.codes) ? a.codes.map(awardPrecedenceIndex) : [Number.POSITIVE_INFINITY]));
-        const eb = Math.min(...(Array.isArray(b?.codes) ? b.codes.map(awardPrecedenceIndex) : [Number.POSITIVE_INFINITY]));
-        if (ea !== eb) return ea - eb;
-
-        const da = parseDate(a?.date);
-        const db = parseDate(b?.date);
-        if (da !== db) return db - da;
-
-        const na = String(a?.trooper || "");
-        const nb = String(b?.trooper || "");
-        const nameCmp = na.localeCompare(nb);
-        if (nameCmp !== 0) return nameCmp;
-
-        return String(a?.id || "").localeCompare(String(b?.id || ""));
       });
     },
   },
@@ -1133,5 +1241,53 @@ this.entries = [...manualEntries, ...autoEntries].sort((a, b) => (b.ts || 0) - (
     grid-template-columns: 1fr 1fr;
   }
   .meta-block{ align-items:flex-start; }
+}
+.earned-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.earned-row{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:10px;
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:12px;
+  background: rgba(0,0,0,0.18);
+}
+
+.earned-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+}
+
+.earned-op{
+  font-size:12px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  opacity:0.92;
+}
+
+.award-counts{
+  margin-top:10px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.earned-awards{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.earned-counts{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
 }
 </style>
