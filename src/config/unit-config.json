@@ -42,7 +42,7 @@
       "_help": "Optional header-specific branding. Assets should be placed under /public and referenced from site root.",
       "headerLogo": "/faction-logos/UNSC_CENTCOM_LOGO.png",
       "_help_unitLogos": "List of logo filenames (in /public/faction-logos/) or absolute paths starting with '/'. Displayed on the left side of the header at 100x100 each.",
-      "unitLogos": ["UNSC_CENTCOM_LOGO.png", "73rd_Marine_Force_Recon.png", "73rd_STB_Logo.png", "Orbital_105th_Shocktroopers.png", "Orbtial_6th_Shocktroopers.png", "150th_RRG.png"]
+      "unitLogos": ["UNSC_CENTCOM_LOGO.png", "73rd_Marine_Force_Recon.png", "73rd_STB_Logo.png", "Orbital_105th_Shocktroopers.png", "Orbtial_6th_Shocktroopers.png", "150th_RRG.png", "12th_MEU.png"]
     }
   },
   "sheets": {
