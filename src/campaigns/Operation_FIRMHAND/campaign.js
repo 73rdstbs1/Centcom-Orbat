@@ -15,54 +15,54 @@
 export default {
   // Internal campaign ID.
   // This should usually match the campaign folder name.
-  id: "Operation_TEST2",
+  id: "Operation_FIRMHAND",
 
   // Public campaign title shown on the website.
-  name: "Operation: TEST2",
+  name: "Operation: FIRM HAND",
 
   // Current campaign status.
-  status: "Testing...",
+  status: "Preparing for Deployment",
 
   // Higher-level region / system.
-  system: "Tirsol System",
+  system: "Lsita System",
 
   // Primary planet / world.
-  planet: "Tirsol IV",
+  planet: "Vandros",
 
   // Area of operations.
-  ao: "City of Fallujamadi",
+  ao: "Gulfcoast Region",
 
   // Theatre label shown in the UI.
   theatre: "Outer Colonies Central Command",
 
   // Date the campaign begins.
   // Format must be YYYY-MM-DD.
-  startDate: "2026-02-12",
+  startDate: "2026-10-08",
 
   // Date the campaign ends.
   // Leave blank if the campaign is still ongoing.
-  endDate: "2026-04-02",
+  endDate: "",
 
   // Human-readable location line.
-  location: "Tirsol System",
+  location: "Lsita System",
 
   // Brief summary of the campaign.
   // Keep this to 1-3 sentences.
   overview:
-    "The city of Fallujamadi, a region on the planet of Tirsol I, has been overrun by the Tirsoli Liberation Front (TLF), an offshoot of the URF, since the UEG stopped paying attention to the region. This has caused significant harm to civilian infrastructure, and hinders basic human needs from reaching the overarching population.",
+    "A heavily industrialized and rebellious human colony world, officially named 'Vandros', located in the Outer Rim of human-controlled space in the Lsita System. The world has recently seen increased insurgent activity from the Outer Colony Liberation Front (OCLF), a well-organized group of Insurrectionists fighting for independence from the UNSC.",
 
   command: {
     // Main campaign commander shown at the top of the command section.
     commander: {
       // Name and rank displayed for the campaign commander.
-      name: "B. Smith",
+      name: "",
 
       // Unit label shown with that commander.
       unitName: "Task Force Commander",
 
       // Portrait path.
       // Leave blank if there is no portrait yet. use .SVG file format
-      portrait: "/portraits/BSmith_portrait.svg",
+      portrait: "",
 
       // Role text shown for the main commander.
       role: "Task Force Commander",
@@ -88,17 +88,17 @@ export default {
     subCommanders: [
       {
         // Name and rank of the unit commander.
-        name: "J. Reaper",
+        name: "",
 
         // IMPORTANT:
         // This should usually match the task force name in `taskForces`.
-        unitName: "Task Unit Apollo",
+        unitName: "",
 
         // Leave blank if no portrait exists yet.
-        portrait: "/portraits/JReaper_portrait.svg",
+        portrait: "",
 
         // Display role for this commander.
-        role: "Task Unit Commander",
+        role: "",
 
         // Optional deputy for this task force.
         // Leave `name` blank if there is no deputy.
@@ -106,20 +106,21 @@ export default {
           name: "",
           unitName: "",
           portrait: "",
-          role: "Deputy Task Unit Commander",
+          role: "",
         },
       },
 
       {
-        name: "B. Salmon",
-        unitName: "Task Unit Bailiff",
-        portrait: "/portraits/BSalmon_portrait.svg",
-        role: "Task Unit Commander",
+        name: "",
+        unitName: "",
+        portrait: "",
+        role: "",
+
         deputyCommander: {
           name: "",
           unitName: "",
           portrait: "",
-          role: "Deputy Task Unit Commander",
+          role: "",
         },
       },
     ],
@@ -129,11 +130,11 @@ export default {
     {
       // Task force name shown on the campaign page.
       // Best practice: match the related subCommander.unitName above.
-      name: "Task Unit Apollo",
+      name: "Task Unit Bravo",
 
       // Person leading this task force.
       // Best practice: match the related subCommander.name above.
-      commanderName: "J. Reaper",
+      commanderName: "",
 
       // Patch / emblem image path for the task force.
       // Leave blank if you do not have a patch yet.
@@ -141,22 +142,14 @@ export default {
 
       // Units assigned to this task force.
       // THESE MUST MATCH THE UNIT NAMES USED IN THE GOOGLE SHEET.
-      units: [
-        "6th Shock Troops Battalion",
-        "73rd Marine Force Recon",
-        "105th Shock Troops Battalion",
-        "TEST",
-      ],
+      units: [""],
     },
 
     {
-      name: "Task Unit Bailiff",
-      commanderName: "B. Salmon",
+      name: "",
+      commanderName: "",
       patch: "",
-      units: [
-        "73rd Shock Troops Battalion",
-        "150th Regimental Reconnaissance Group",
-      ],
+      units: [""],
     },
   ],
 
