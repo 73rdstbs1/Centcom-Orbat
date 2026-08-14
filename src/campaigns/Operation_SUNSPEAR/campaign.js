@@ -37,11 +37,11 @@ export default {
 
   // Date the campaign begins.
   // Format must be YYYY-MM-DD.
-  startDate: "2026-02-12",
+  startDate: "2526-03-12",
 
   // Date the campaign ends.
   // Leave blank if the campaign is still ongoing.
-  endDate: "2026-04-02",
+  endDate: "2526-04-02",
 
   // Human-readable location line.
   location: "Tirsol System",

@@ -1,6 +1,6 @@
-// src/campaigns/Operation_SUNSPEAR/campaign.js
+// src/campaigns/Operation_FIRMHAND/campaign.js
 //
-// This is a fully commented example campaign file for Operation: SUNSPEAR.
+// This is a fully commented example campaign file for Operation: FIRM HAND.
 //
 // You can keep all of these comments in the file.
 // Just replace the example values with the real campaign data when you have it.
@@ -37,7 +37,7 @@ export default {
 
   // Date the campaign begins.
   // Format must be YYYY-MM-DD.
-  startDate: "2026-10-08",
+  startDate: "2526-10-08",
 
   // Date the campaign ends.
   // Leave blank if the campaign is still ongoing.
